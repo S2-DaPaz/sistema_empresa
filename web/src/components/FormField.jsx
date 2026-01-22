@@ -34,7 +34,8 @@ export default function FormField({
   onChange,
   options = [],
   placeholder,
-  className = ""
+  className = "",
+  disabled = false
 }) {
   const fieldId = label ? label.toLowerCase().replace(/\s+/g, "-") : undefined;
   const fieldValue = value ?? "";
@@ -47,6 +48,7 @@ export default function FormField({
           id={fieldId}
           value={fieldValue}
           placeholder={placeholder}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         />
       </div>
@@ -60,6 +62,7 @@ export default function FormField({
         <select
           id={fieldId}
           value={fieldValue}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         >
           <option value="">Selecione</option>
@@ -80,6 +83,7 @@ export default function FormField({
           <input
             type="checkbox"
             checked={Boolean(value)}
+            disabled={disabled}
             onChange={(event) => onChange(event.target.checked)}
           />
           {label}
@@ -95,6 +99,7 @@ export default function FormField({
         value={fieldValue}
         placeholder={placeholder}
         className={className}
+        disabled={disabled}
         onChange={onChange}
       />
     );
@@ -111,6 +116,7 @@ export default function FormField({
           value={formattedValue}
           placeholder={placeholder}
           inputMode="numeric"
+          disabled={disabled}
           onChange={(event) => onChange(formatCpfCnpj(event.target.value))}
         />
       </div>
@@ -125,6 +131,7 @@ export default function FormField({
         type={type}
         value={fieldValue}
         placeholder={placeholder}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
     </div>

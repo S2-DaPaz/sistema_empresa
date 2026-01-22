@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -23,7 +23,8 @@ export default function AddressAutocomplete({
   value,
   onChange,
   placeholder,
-  className = ""
+  className = "",
+  disabled = false
 }) {
   const [ready, setReady] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -52,7 +53,7 @@ export default function AddressAutocomplete({
   }, []);
 
   useEffect(() => {
-    if (!ready || !serviceRef.current) return;
+    if (!ready || !serviceRef.current || disabled) return;
     const input = (value || "").trim();
     if (!input || input.length < 3) {
       setSuggestions([]);
@@ -78,7 +79,7 @@ export default function AddressAutocomplete({
     }, 250);
 
     return () => clearTimeout(debounceRef.current);
-  }, [value, ready]);
+  }, [value, ready, disabled]);
 
   return (
     <div className={`form-field address-field ${className}`.trim()}>
@@ -88,9 +89,10 @@ export default function AddressAutocomplete({
         value={value || ""}
         placeholder={placeholder}
         autoComplete="off"
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
-      {apiKey && suggestions.length > 0 && (
+      {apiKey && suggestions.length > 0 && !disabled && (
         <div className="autocomplete-list">
           {suggestions.map((item) => (
             <button

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
+import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
 import BudgetForm from "../components/BudgetForm";
 import FormField from "../components/FormField";
 import SignaturePad from "../components/SignaturePad";
@@ -89,9 +90,13 @@ function buildReportText({ reportTitle, taskTitle, clientName, equipmentName, se
 export default function TaskDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
   const isNew = id === "nova";
   const [taskId, setTaskId] = useState(isNew ? null : Number(id));
   const [activeTab, setActiveTab] = useState("detalhes");
+  const canView = hasPermission(PERMISSIONS.VIEW_TASKS);
+  const canManage = hasPermission(PERMISSIONS.MANAGE_TASKS);
+  const canManageBudgets = hasPermission(PERMISSIONS.MANAGE_BUDGETS);
 
   const [clients, setClients] = useState([]);
   const [users, setUsers] = useState([]);
@@ -191,11 +196,12 @@ export default function TaskDetail() {
   }, [id, isNew]);
 
   useEffect(() => {
+    if (!canView) return;
     async function loadPage() {
       const [clientsData, usersData, typesData, templatesData, productsData] =
         await Promise.all([
           apiGet("/clients"),
-          apiGet("/users"),
+          user?.role === "administracao" ? apiGet("/users") : Promise.resolve([]),
           apiGet("/task-types"),
           apiGet("/report-templates"),
           apiGet("/products")
@@ -237,7 +243,7 @@ export default function TaskDetail() {
     }
 
     loadPage();
-  }, [taskId]);
+  }, [taskId, canManage, user?.role, canView]);
 
   useEffect(() => {
     async function loadClientEquipments() {
@@ -309,6 +315,7 @@ export default function TaskDetail() {
   }
 
   function handleAnswerChange(fieldId, value) {
+    if (!canManage) return;
     setReportAnswers((prev) => ({ ...prev, [fieldId]: value }));
   }
 
@@ -323,6 +330,7 @@ export default function TaskDetail() {
           type="textarea"
           value={value}
           onChange={(val) => handleAnswerChange(field.id, val)}
+          disabled={!canManage}
           className="full"
         />
       );
@@ -341,6 +349,7 @@ export default function TaskDetail() {
           value={value}
           options={options}
           onChange={(val) => handleAnswerChange(field.id, val)}
+          disabled={!canManage}
         />
       );
     }
@@ -357,6 +366,7 @@ export default function TaskDetail() {
             { value: "nao", label: "Não" }
           ]}
           onChange={(val) => handleAnswerChange(field.id, val)}
+          disabled={!canManage}
         />
       );
     }
@@ -369,6 +379,7 @@ export default function TaskDetail() {
           type="checkbox"
           value={Boolean(value)}
           onChange={(val) => handleAnswerChange(field.id, val)}
+          disabled={!canManage}
         />
       );
     }
@@ -380,12 +391,17 @@ export default function TaskDetail() {
         type={field.type || "text"}
         value={value}
         onChange={(val) => handleAnswerChange(field.id, val)}
+        disabled={!canManage}
       />
     );
   }
 
   async function saveTask() {
     setError("");
+    if (!canManage) {
+      setError("Sem permissão para editar esta tarefa.");
+      return;
+    }
 
     const payload = {
       ...form,
@@ -423,6 +439,10 @@ export default function TaskDetail() {
   }
 
   async function handleSaveReport() {
+    if (!canManage) {
+      setReportMessage("Sem permissão para editar relatórios.");
+      return;
+    }
     if (!activeReport?.id) {
       setReportMessage("Salve a tarefa para gerar o relatório.");
       return;
@@ -526,6 +546,10 @@ export default function TaskDetail() {
   }
 
   async function handleCreateReport() {
+    if (!canManage) {
+      setReportMessage("Sem permissão para criar relatórios.");
+      return;
+    }
     if (!taskId) return;
     if (!form.client_id) {
       setReportMessage("Selecione um cliente antes de criar o relatório.");
@@ -566,6 +590,10 @@ export default function TaskDetail() {
   }
 
   async function handleDeleteReport() {
+    if (!canManage) {
+      setReportMessage("Sem permissão para excluir relatórios.");
+      return;
+    }
     if (!activeReport?.id) return;
     if (activeReport.equipment_id) {
       setReportMessage("Remova o equipamento para excluir este relatório.");
@@ -584,6 +612,7 @@ export default function TaskDetail() {
   }
 
   function handleAddPhotos(files) {
+    if (!canManage) return;
     const list = Array.from(files || []);
     if (list.length === 0) return;
     Promise.all(
@@ -606,10 +635,12 @@ export default function TaskDetail() {
   }
 
   function handleRemovePhoto(photoId) {
+    if (!canManage) return;
     setReportPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
   }
 
   function updateSignaturePage(pageKey, role, value) {
+    if (!canManage) return;
     setSignaturePages((prev) => ({
       ...prev,
       [pageKey]: {
@@ -620,6 +651,7 @@ export default function TaskDetail() {
   }
 
   async function handleAttachEquipment() {
+    if (!canManage) return;
     if (!taskId || !selectedEquipmentId) return;
     try {
       await apiPost(`/tasks/${taskId}/equipments`, {
@@ -634,6 +666,7 @@ export default function TaskDetail() {
   }
 
   async function handleCreateEquipment() {
+    if (!canManage) return;
     if (!taskId) return;
     if (!form.client_id) {
       setError("Selecione um cliente antes de cadastrar o equipamento.");
@@ -658,6 +691,7 @@ export default function TaskDetail() {
   }
 
   async function handleDetachEquipment(equipmentId) {
+    if (!canManage) return;
     if (!taskId) return;
     try {
       await apiDelete(`/tasks/${taskId}/equipments/${equipmentId}`);
@@ -688,6 +722,19 @@ export default function TaskDetail() {
       item.title ||
       (item.equipment_name ? `Equipamento: ${item.equipment_name}` : "Relatório")
   }));
+
+  if (!canView) {
+    return (
+      <section className="section">
+        <div className="section-header">
+          <h2 className="section-title">Tarefa</h2>
+        </div>
+        <div className="card">
+          <p>Você não tem permissão para visualizar esta tarefa.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="section">
@@ -750,75 +797,78 @@ export default function TaskDetail() {
                 <h3>Detalhes da tarefa</h3>
                 <span className="badge">{taskId ? `#${taskId}` : "Nova"}</span>
               </div>
-              <div className="form-grid">
-                <FormField
-                  label="Titulo"
-                  value={form.title}
-                  onChange={(value) => setForm((prev) => ({ ...prev, title: value }))}
-                />
-                <FormField
-                  label="Status"
-                  type="select"
-                  value={form.status}
-                  options={statusOptions}
-                  onChange={(value) => setForm((prev) => ({ ...prev, status: value }))}
-                />
-                <FormField
-                  label="Prioridade"
-                  type="select"
-                  value={form.priority}
-                  options={priorityOptions}
-                  onChange={(value) => setForm((prev) => ({ ...prev, priority: value }))}
-                />
-                <FormField
-                  label="Cliente"
-                  type="select"
-                  value={form.client_id}
-                  options={clients.map((clientItem) => ({
-                    value: clientItem.id,
-                    label: clientItem.name
-                  }))}
-                  onChange={(value) => setForm((prev) => ({ ...prev, client_id: value }))}
-                />
-                <FormField
-                  label="Responsavel"
-                  type="select"
-                  value={form.user_id}
-                  options={users.map((user) => ({ value: user.id, label: user.name }))}
-                  onChange={(value) => setForm((prev) => ({ ...prev, user_id: value }))}
-                />
-                <FormField
-                  label="Tipo de tarefa"
-                  type="select"
-                  value={form.task_type_id}
-                  options={types.map((type) => ({ value: type.id, label: type.name }))}
-                  onChange={(value) => setForm((prev) => ({ ...prev, task_type_id: value }))}
-                />
-                <FormField
-                  label="Início"
-                  type="date"
-                  value={form.start_date}
-                  onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))}
-                />
-                <FormField
-                  label="Fim"
-                  type="date"
-                  value={form.due_date}
-                  onChange={(value) => setForm((prev) => ({ ...prev, due_date: value }))}
-                />
-                <FormField
-                  label="Descrição"
-                  type="textarea"
-                  value={form.description}
-                  onChange={(value) => setForm((prev) => ({ ...prev, description: value }))}
-                  className="full"
-                />
-              </div>
-              <div className="inline" style={{ marginTop: "16px" }}>
-                <button className="btn primary" type="submit">
-                  {taskId ? "Atualizar" : "Salvar"}
-                </button>
-              </div>
+              {!canManage && <small className="muted">Somente leitura.</small>}
+              <fieldset style={{ border: "none", padding: 0, margin: 0 }} disabled={!canManage}>
+                <div className="form-grid">
+                  <FormField
+                    label="Titulo"
+                    value={form.title}
+                    onChange={(value) => setForm((prev) => ({ ...prev, title: value }))}
+                  />
+                  <FormField
+                    label="Status"
+                    type="select"
+                    value={form.status}
+                    options={statusOptions}
+                    onChange={(value) => setForm((prev) => ({ ...prev, status: value }))}
+                  />
+                  <FormField
+                    label="Prioridade"
+                    type="select"
+                    value={form.priority}
+                    options={priorityOptions}
+                    onChange={(value) => setForm((prev) => ({ ...prev, priority: value }))}
+                  />
+                  <FormField
+                    label="Cliente"
+                    type="select"
+                    value={form.client_id}
+                    options={clients.map((clientItem) => ({
+                      value: clientItem.id,
+                      label: clientItem.name
+                    }))}
+                    onChange={(value) => setForm((prev) => ({ ...prev, client_id: value }))}
+                  />
+                  <FormField
+                    label="Responsavel"
+                    type="select"
+                    value={form.user_id}
+                    options={users.map((user) => ({ value: user.id, label: user.name }))}
+                    onChange={(value) => setForm((prev) => ({ ...prev, user_id: value }))}
+                  />
+                  <FormField
+                    label="Tipo de tarefa"
+                    type="select"
+                    value={form.task_type_id}
+                    options={types.map((type) => ({ value: type.id, label: type.name }))}
+                    onChange={(value) => setForm((prev) => ({ ...prev, task_type_id: value }))}
+                  />
+                  <FormField
+                    label="Início"
+                    type="date"
+                    value={form.start_date}
+                    onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))}
+                  />
+                  <FormField
+                    label="Fim"
+                    type="date"
+                    value={form.due_date}
+                    onChange={(value) => setForm((prev) => ({ ...prev, due_date: value }))}
+                  />
+                  <FormField
+                    label="Descrição"
+                    type="textarea"
+                    value={form.description}
+                    onChange={(value) => setForm((prev) => ({ ...prev, description: value }))}
+                    className="full"
+                  />
+                </div>
+                <div className="inline" style={{ marginTop: "16px" }}>
+                  <button className="btn primary" type="submit" disabled={!canManage}>
+                    {taskId ? "Atualizar" : "Salvar"}
+                  </button>
+                </div>
+              </fieldset>
             </form>
           )}
 
@@ -841,7 +891,12 @@ export default function TaskDetail() {
                   <div className="section-header">
                     <h3 className="section-title">Relatórios da tarefa</h3>
                     <div className="inline">
-                      <button className="btn primary" type="button" onClick={handleCreateReport}>
+                      <button
+                        className="btn primary"
+                        type="button"
+                        onClick={handleCreateReport}
+                        disabled={!canManage}
+                      >
                         Adicionar relatório
                       </button>
                     </div>
@@ -862,14 +917,19 @@ export default function TaskDetail() {
                       <span className="muted">Selecione o relatório para editar</span>
                     </div>
                     <div className="inline">
-                      <button className="btn secondary" type="button" onClick={handleCreateReport}>
+                      <button
+                        className="btn secondary"
+                        type="button"
+                        onClick={handleCreateReport}
+                        disabled={!canManage}
+                      >
                         Adicionar relatório
                       </button>
                       <button
                         className="btn ghost"
                         type="button"
                         onClick={handleDeleteReport}
-                        disabled={!activeReport || activeReport.equipment_id}
+                        disabled={!canManage || !activeReport || activeReport.equipment_id}
                       >
                         Excluir relatório
                       </button>
@@ -890,6 +950,7 @@ export default function TaskDetail() {
                       value={reportStatus}
                       options={reportStatusOptions}
                       onChange={setReportStatus}
+                      disabled={!canManage}
                     />
                   </div>
 
@@ -909,6 +970,7 @@ export default function TaskDetail() {
                         accept="image/*"
                         multiple
                         onChange={(event) => handleAddPhotos(event.target.files)}
+                        disabled={!canManage}
                         hidden
                       />
                     </label>
@@ -926,6 +988,7 @@ export default function TaskDetail() {
                             className="btn ghost"
                             type="button"
                             onClick={() => handleRemovePhoto(photo.id)}
+                            disabled={!canManage}
                           >
                             Remover
                           </button>
@@ -957,7 +1020,12 @@ export default function TaskDetail() {
 
                   {reportMessage && <small className="muted">{reportMessage}</small>}
                   <div className="inline" style={{ marginTop: "12px" }}>
-                    <button className="btn primary" type="button" onClick={handleSaveReport}>
+                    <button
+                      className="btn primary"
+                      type="button"
+                      onClick={handleSaveReport}
+                      disabled={!canManage}
+                    >
                       Salvar relatório
                     </button>
                   </div>
@@ -1010,6 +1078,8 @@ export default function TaskDetail() {
                     reportId={generalReport?.id}
                     taskId={taskId}
                     products={products}
+                    clients={clients}
+                    canManage={canManageBudgets}
                     onSaved={() => loadBudgets()}
                   />
                 </>
@@ -1052,6 +1122,7 @@ export default function TaskDetail() {
                             className="btn ghost"
                             type="button"
                             onClick={() => handleDetachEquipment(equipment.id)}
+                            disabled={!canManage}
                           >
                             Remover
                           </button>
@@ -1071,10 +1142,16 @@ export default function TaskDetail() {
                         value={selectedEquipmentId}
                         options={equipments.map((item) => ({ value: item.id, label: item.name }))}
                         onChange={setSelectedEquipmentId}
+                        disabled={!canManage}
                       />
                     </div>
                     <div className="inline" style={{ marginTop: "12px" }}>
-                      <button className="btn secondary" type="button" onClick={handleAttachEquipment}>
+                      <button
+                        className="btn secondary"
+                        type="button"
+                        onClick={handleAttachEquipment}
+                        disabled={!canManage}
+                      >
                         Vincular
                       </button>
                     </div>
@@ -1091,6 +1168,7 @@ export default function TaskDetail() {
                         onChange={(value) =>
                           setNewEquipment((prev) => ({ ...prev, name: value }))
                         }
+                        disabled={!canManage}
                       />
                       <FormField
                         label="Modelo"
@@ -1098,6 +1176,7 @@ export default function TaskDetail() {
                         onChange={(value) =>
                           setNewEquipment((prev) => ({ ...prev, model: value }))
                         }
+                        disabled={!canManage}
                       />
                       <FormField
                         label="Serie"
@@ -1105,6 +1184,7 @@ export default function TaskDetail() {
                         onChange={(value) =>
                           setNewEquipment((prev) => ({ ...prev, serial: value }))
                         }
+                        disabled={!canManage}
                       />
                       <FormField
                         label="Descrição"
@@ -1114,10 +1194,16 @@ export default function TaskDetail() {
                           setNewEquipment((prev) => ({ ...prev, description: value }))
                         }
                         className="full"
+                        disabled={!canManage}
                       />
                     </div>
                     <div className="inline" style={{ marginTop: "12px" }}>
-                      <button className="btn primary" type="button" onClick={handleCreateEquipment}>
+                      <button
+                        className="btn primary"
+                        type="button"
+                        onClick={handleCreateEquipment}
+                        disabled={!canManage}
+                      >
                         Cadastrar e vincular
                       </button>
                     </div>
@@ -1147,6 +1233,7 @@ export default function TaskDetail() {
                       value={signatureMode}
                       options={signatureModeOptions}
                       onChange={setSignatureMode}
+                      disabled={!canManage}
                     />
                     <FormField
                       label="Aplicação"
@@ -1154,6 +1241,7 @@ export default function TaskDetail() {
                       value={signatureScope}
                       options={signatureScopeOptions}
                       onChange={setSignatureScope}
+                      disabled={!canManage}
                     />
                   </div>
 
@@ -1162,14 +1250,22 @@ export default function TaskDetail() {
                       {(signatureMode === "client" || signatureMode === "both") && (
                         <div className="card">
                           <h3>Assinatura do cliente</h3>
-                          <SignaturePad value={signatureClient} onChange={setSignatureClient} />
+                          <SignaturePad
+                            value={signatureClient}
+                            onChange={setSignatureClient}
+                            disabled={!canManage}
+                          />
                         </div>
                       )}
 
                       {(signatureMode === "tech" || signatureMode === "both") && (
                         <div className="card">
                           <h3>Assinatura do técnico</h3>
-                          <SignaturePad value={signatureTech} onChange={setSignatureTech} />
+                          <SignaturePad
+                            value={signatureTech}
+                            onChange={setSignatureTech}
+                            disabled={!canManage}
+                          />
                         </div>
                       )}
                     </>
@@ -1189,6 +1285,7 @@ export default function TaskDetail() {
                               <SignaturePad
                                 value={signaturePages?.[page.key]?.client || ""}
                                 onChange={(value) => updateSignaturePage(page.key, "client", value)}
+                                disabled={!canManage}
                               />
                             </div>
                           )}
@@ -1198,6 +1295,7 @@ export default function TaskDetail() {
                               <SignaturePad
                                 value={signaturePages?.[page.key]?.tech || ""}
                                 onChange={(value) => updateSignaturePage(page.key, "tech", value)}
+                                disabled={!canManage}
                               />
                             </div>
                           )}
@@ -1207,7 +1305,12 @@ export default function TaskDetail() {
                   )}
 
                   <div className="inline" style={{ marginTop: "16px" }}>
-                    <button className="btn primary" type="button" onClick={saveTask}>
+                    <button
+                      className="btn primary"
+                      type="button"
+                      onClick={saveTask}
+                      disabled={!canManage}
+                    >
                       Salvar assinaturas
                     </button>
                   </div>
@@ -1220,4 +1323,3 @@ export default function TaskDetail() {
     </section>
   );
 }
-

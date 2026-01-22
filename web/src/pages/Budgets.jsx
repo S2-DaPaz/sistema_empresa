@@ -2,14 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../api";
 import BudgetForm from "../components/BudgetForm";
 import { buildBudgetEmailText, buildBudgetPdfHtml, openPrintWindow } from "../utils/pdf";
+import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
 import logo from "../assets/Logo.png";
 
 export default function Budgets() {
+  const { hasPermission } = useAuth();
+  const canView = hasPermission(PERMISSIONS.VIEW_BUDGETS);
+  const canManage = hasPermission(PERMISSIONS.MANAGE_BUDGETS);
+
   const [budgets, setBudgets] = useState([]);
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
 
   useEffect(() => {
+    if (!canView) return;
     async function load() {
       const [budgetData, clientData, productData] = await Promise.all([
         apiGet("/budgets?includeItems=1"),
@@ -21,7 +27,7 @@ export default function Budgets() {
       setProducts(productData || []);
     }
     load();
-  }, []);
+  }, [canView]);
 
   const formatter = useMemo(
     () => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }),
@@ -51,6 +57,19 @@ export default function Budgets() {
     setBudgets(data || []);
   }
 
+  if (!canView) {
+    return (
+      <section className="section">
+        <div className="section-header">
+          <h2 className="section-title">Orçamentos</h2>
+        </div>
+        <div className="card">
+          <p>Você não tem permissão para visualizar orçamentos.</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="section">
       <div className="section-header">
@@ -62,6 +81,7 @@ export default function Budgets() {
         clients={clients}
         products={products}
         onSaved={handleReload}
+        canManage={canManage}
       />
 
       <div className="list" style={{ marginTop: "20px" }}>

@@ -1,6 +1,4 @@
 ﻿const path = require("path");
-const sqlite3 = require("sqlite3");
-const { open } = require("sqlite");
 const { Pool } = require("pg");
 
 const SQLITE_FILE = path.join(__dirname, "data.db");
@@ -10,6 +8,8 @@ const DB_TYPES = {
 };
 
 let db;
+let sqlite3;
+let open;
 
 const SQLITE_SCHEMA = `
   PRAGMA foreign_keys = ON;
@@ -18,7 +18,9 @@ const SQLITE_SCHEMA = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT,
-    role TEXT
+    role TEXT,
+    password_hash TEXT,
+    permissions TEXT
   );
 
   CREATE TABLE IF NOT EXISTS clients (
@@ -149,7 +151,9 @@ const POSTGRES_SCHEMA = `
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT,
-    role TEXT
+    role TEXT,
+    password_hash TEXT,
+    permissions TEXT
   );
 
   CREATE TABLE IF NOT EXISTS clients (
@@ -305,6 +309,10 @@ async function initDb() {
 }
 
 async function initSqlite() {
+  if (!sqlite3) {
+    sqlite3 = require("sqlite3");
+    ({ open } = require("sqlite"));
+  }
   const database = await open({
     filename: SQLITE_FILE,
     driver: sqlite3.Database
@@ -312,6 +320,8 @@ async function initSqlite() {
 
   await database.exec(SQLITE_SCHEMA);
   await ensureColumn(database, DB_TYPES.SQLITE, "task_types", "report_template_id", "INTEGER");
+  await ensureColumn(database, DB_TYPES.SQLITE, "users", "password_hash", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "users", "permissions", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_mode", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_scope", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_client", "TEXT");
@@ -339,6 +349,8 @@ async function initPostgres() {
 
   const database = createPostgresDb(pool);
   await ensureColumn(database, DB_TYPES.POSTGRES, "task_types", "report_template_id", "INTEGER");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "users", "password_hash", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "users", "permissions", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_mode", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_scope", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_client", "TEXT");

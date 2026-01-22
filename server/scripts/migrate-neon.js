@@ -20,7 +20,7 @@ const TABLES = [
   "budget_items"
 ];
 const TABLE_COLUMNS = {
-  users: ["id", "name", "email", "role"],
+  users: ["id", "name", "email", "role", "password_hash", "permissions"],
   clients: ["id", "name", "cnpj", "address", "contact"],
   products: ["id", "name", "sku", "price", "unit"],
   report_templates: ["id", "name", "description", "structure"],

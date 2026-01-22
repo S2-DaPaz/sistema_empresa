@@ -1,11 +1,15 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiGet } from "../api";
+import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
 
 export default function Dashboard() {
+  const { hasPermission } = useAuth();
+  const canView = hasPermission(PERMISSIONS.VIEW_DASHBOARD);
   const [summary, setSummary] = useState(null);
   const [recentReports, setRecentReports] = useState([]);
 
   useEffect(() => {
+    if (!canView) return;
     async function load() {
       try {
         const [summaryData, reports] = await Promise.all([
@@ -21,7 +25,20 @@ export default function Dashboard() {
     }
 
     load();
-  }, []);
+  }, [canView]);
+
+  if (!canView) {
+    return (
+      <section className="section">
+        <div className="section-header">
+          <h2 className="section-title">Painel</h2>
+        </div>
+        <div className="card">
+          <p>Você não tem permissão para visualizar o painel.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="content">

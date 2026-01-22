@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import FormField from "./FormField";
 
@@ -7,7 +7,9 @@ export default function EntityManager({
   endpoint,
   fields,
   hint,
-  primaryField
+  primaryField,
+  canManage = true,
+  canView = true
 }) {
   const [items, setItems] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -45,8 +47,10 @@ export default function EntityManager({
   }
 
   useEffect(() => {
-    loadItems();
-  }, []);
+    if (canView) {
+      loadItems();
+    }
+  }, [canView]);
 
   function resetForm() {
     setForm(initialForm);
@@ -73,10 +77,12 @@ export default function EntityManager({
 
   function handleEdit(item) {
     setActiveId(item.id);
-    setForm(fields.reduce((acc, field) => {
-      acc[field.name] = item[field.name] ?? "";
-      return acc;
-    }, {}));
+    setForm(
+      fields.reduce((acc, field) => {
+        acc[field.name] = item[field.name] ?? "";
+        return acc;
+      }, {})
+    );
   }
 
   async function handleDelete(id) {
@@ -93,6 +99,19 @@ export default function EntityManager({
   }
 
   const titleField = primaryField || fields[0]?.name;
+
+  if (!canView) {
+    return (
+      <section className="section">
+        <div className="section-header">
+          <h2 className="section-title">{title}</h2>
+        </div>
+        <div className="card">
+          <p>Você não tem permissão para visualizar este conteúdo.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="section">
@@ -124,49 +143,58 @@ export default function EntityManager({
                   .filter(Boolean)
                   .join(" | ")}
               </small>
-              <div className="inline" style={{ marginTop: "12px" }}>
-                <button className="btn secondary" onClick={() => handleEdit(item)}>
-                  Editar
-                </button>
-                <button className="btn ghost" onClick={() => handleDelete(item.id)}>
-                  Remover
-                </button>
-              </div>
+              {canManage && (
+                <div className="inline" style={{ marginTop: "12px" }}>
+                  <button className="btn secondary" onClick={() => handleEdit(item)}>
+                    Editar
+                  </button>
+                  <button className="btn ghost" onClick={() => handleDelete(item.id)}>
+                    Remover
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
 
-        <form className="card" onSubmit={handleSubmit}>
-          <h3>{activeId ? "Editar" : "Novo"}</h3>
-          <div className="form-grid">
-            {fields.map((field) => (
-              <FormField
-                key={field.name}
-                label={field.label}
-                type={field.type}
-                value={form[field.name]}
-                options={field.options}
-                placeholder={field.placeholder}
-                className={field.className}
-                onChange={(value) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    [field.name]: value
-                  }))
-                }
-              />
-            ))}
+        {canManage ? (
+          <form className="card" onSubmit={handleSubmit}>
+            <h3>{activeId ? "Editar" : "Novo"}</h3>
+            <div className="form-grid">
+              {fields.map((field) => (
+                <FormField
+                  key={field.name}
+                  label={field.label}
+                  type={field.type}
+                  value={form[field.name]}
+                  options={field.options}
+                  placeholder={field.placeholder}
+                  className={field.className}
+                  onChange={(value) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      [field.name]: value
+                    }))
+                  }
+                />
+              ))}
+            </div>
+            {error && <p className="muted">{error}</p>}
+            <div className="inline" style={{ marginTop: "16px" }}>
+              <button className="btn primary" type="submit">
+                {activeId ? "Atualizar" : "Salvar"}
+              </button>
+              <button className="btn ghost" type="button" onClick={resetForm}>
+                Limpar
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="card">
+            <h3>Somente leitura</h3>
+            <small>Você não tem permissão para editar ou criar registros.</small>
           </div>
-          {error && <p className="muted">{error}</p>}
-          <div className="inline" style={{ marginTop: "16px" }}>
-            <button className="btn primary" type="submit">
-              {activeId ? "Atualizar" : "Salvar"}
-            </button>
-            <button className="btn ghost" type="button" onClick={resetForm}>
-              Limpar
-            </button>
-          </div>
-        </form>
+        )}
       </div>
     </section>
   );

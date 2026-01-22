@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiDelete, apiGet } from "../api";
+import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
 
 function formatDateKey(value) {
   if (!value) return null;
@@ -45,8 +46,22 @@ function buildCalendarDays(monthDate) {
   return days;
 }
 
+function normalizeText(value) {
+  if (!value) return "";
+  return value
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export default function Tasks() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canView = hasPermission(PERMISSIONS.VIEW_TASKS);
+  const canManage = hasPermission(PERMISSIONS.MANAGE_TASKS);
+  const [searchParams] = useSearchParams();
+
   const [tasks, setTasks] = useState([]);
   const [viewMode, setViewMode] = useState("list");
   const [calendarMonth, setCalendarMonth] = useState(new Date());
@@ -64,6 +79,10 @@ export default function Tasks() {
     baixa: "Baixa"
   };
 
+  const searchTerm = searchParams.get("q") || "";
+  const statusFilter = searchParams.get("status") || "all";
+  const priorityFilter = searchParams.get("priority") || "all";
+
   function formatStatus(value) {
     return statusLabels[value] || value || "Aberta";
   }
@@ -73,15 +92,22 @@ export default function Tasks() {
   }
 
   async function loadTasks() {
-    const data = await apiGet("/tasks");
-    setTasks(data || []);
+    try {
+      const data = await apiGet("/tasks");
+      setTasks(data || []);
+    } catch (err) {
+      setError(err.message || "Falha ao carregar tarefas");
+    }
   }
 
   useEffect(() => {
-    loadTasks();
-  }, []);
+    if (canView) {
+      loadTasks();
+    }
+  }, [canView]);
 
   async function handleDelete(id) {
+    if (!canManage) return;
     setError("");
     if (!window.confirm("Remover esta tarefa?")) return;
     try {
@@ -92,15 +118,34 @@ export default function Tasks() {
     }
   }
 
+  const filteredTasks = useMemo(() => {
+    const query = normalizeText(searchTerm.trim());
+    return tasks.filter((task) => {
+      const matchesStatus = statusFilter === "all" || task.status === statusFilter;
+      const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter;
+      if (!matchesStatus || !matchesPriority) return false;
+      if (!query) return true;
+      const haystack = [
+        task.title,
+        task.client_name,
+        task.task_type_name,
+        task.id?.toString()
+      ]
+        .map(normalizeText)
+        .join(" ");
+      return haystack.includes(query);
+    });
+  }, [tasks, searchTerm, statusFilter, priorityFilter]);
+
   const tasksByDate = useMemo(() => {
-    return tasks.reduce((acc, task) => {
+    return filteredTasks.reduce((acc, task) => {
       const key = getTaskDate(task);
       if (!key) return acc;
       if (!acc[key]) acc[key] = [];
       acc[key].push(task);
       return acc;
     }, {});
-  }, [tasks]);
+  }, [filteredTasks]);
 
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
 
@@ -108,6 +153,19 @@ export default function Tasks() {
     if (!selectedDate) return [];
     return tasksByDate[selectedDate] || [];
   }, [selectedDate, tasksByDate]);
+
+  if (!canView) {
+    return (
+      <section className="section">
+        <div className="section-header">
+          <h2 className="section-title">Tarefas</h2>
+        </div>
+        <div className="card">
+          <p>Você não tem permissão para visualizar tarefas.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="section">
@@ -128,9 +186,15 @@ export default function Tasks() {
           >
             Calendário
           </button>
-          <button className="btn primary" type="button" onClick={() => navigate("/tarefas/nova")}>
-            Nova tarefa
-          </button>
+          {canManage && (
+            <button
+              className="btn primary"
+              type="button"
+              onClick={() => navigate("/tarefas/nova")}
+            >
+              Nova tarefa
+            </button>
+          )}
         </div>
       </div>
 
@@ -190,6 +254,11 @@ export default function Tasks() {
             })}
           </div>
           <div className="list" style={{ marginTop: "16px" }}>
+            {!selectedDate && filteredTasks.length === 0 && (
+              <div className="card">
+                <small>Nenhuma tarefa com os filtros atuais.</small>
+              </div>
+            )}
             {selectedDate && tasksForSelectedDate.length === 0 && (
               <div className="card">
                 <small>Nenhuma tarefa para este dia.</small>
@@ -221,13 +290,17 @@ export default function Tasks() {
 
       {viewMode === "list" && (
         <div className="list">
-          {tasks.length === 0 && (
+          {filteredTasks.length === 0 && (
             <div className="card">
-              <h3>Nenhuma tarefa</h3>
-              <small>Cadastre a primeira tarefa para iniciar.</small>
+              <h3>{tasks.length === 0 ? "Nenhuma tarefa" : "Nenhuma tarefa encontrada"}</h3>
+              <small>
+                {tasks.length === 0
+                  ? "Cadastre a primeira tarefa para iniciar."
+                  : "Ajuste a busca ou os filtros para ver resultados."}
+              </small>
             </div>
           )}
-          {tasks.map((task) => (
+          {filteredTasks.map((task) => (
             <div key={task.id} className="card">
               <h3>{task.title}</h3>
               <small>
@@ -245,9 +318,11 @@ export default function Tasks() {
                 >
                   Abrir
                 </button>
-                <button className="btn ghost" onClick={() => handleDelete(task.id)}>
-                  Remover
-                </button>
+                {canManage && (
+                  <button className="btn ghost" onClick={() => handleDelete(task.id)}>
+                    Remover
+                  </button>
+                )}
               </div>
             </div>
           ))}

@@ -1,9 +1,35 @@
-﻿require("dotenv").config();
+const path = require("path");
+const { pathToFileURL } = require("url");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
+const fs = require("fs");
 const { initDb } = require("./db");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const puppeteer = require("puppeteer");
 
 const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || "rv-sistema-secret";
+const JWT_TTL = process.env.JWT_TTL || "7d";
+
+function resolveStaticDir() {
+  const candidates = [];
+  if (process.env.STATIC_DIR) {
+    candidates.push(process.env.STATIC_DIR);
+  }
+  candidates.push(path.join(__dirname, "..", "web", "dist"));
+  candidates.push(path.join(process.cwd(), "web", "dist"));
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const indexPath = path.join(candidate, "index.html");
+    if (fs.existsSync(indexPath)) {
+      return candidate;
+    }
+  }
+  return null;
+}
 
 function isEmpty(value) {
   return value === undefined || value === null || value === "";
@@ -63,6 +89,166 @@ function calcBudgetTotals(items, discount, tax) {
   };
 }
 
+const PERMISSIONS = {
+  VIEW_DASHBOARD: "view_dashboard",
+  VIEW_CLIENTS: "view_clients",
+  MANAGE_CLIENTS: "manage_clients",
+  VIEW_TASKS: "view_tasks",
+  MANAGE_TASKS: "manage_tasks",
+  VIEW_TEMPLATES: "view_templates",
+  MANAGE_TEMPLATES: "manage_templates",
+  VIEW_BUDGETS: "view_budgets",
+  MANAGE_BUDGETS: "manage_budgets",
+  VIEW_USERS: "view_users",
+  MANAGE_USERS: "manage_users",
+  VIEW_PRODUCTS: "view_products",
+  MANAGE_PRODUCTS: "manage_products",
+  VIEW_TASK_TYPES: "view_task_types",
+  MANAGE_TASK_TYPES: "manage_task_types"
+};
+
+const ALL_PERMISSIONS = Object.values(PERMISSIONS);
+
+const ROLE_DEFAULTS = {
+  administracao: ALL_PERMISSIONS,
+  gestor: [
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.VIEW_CLIENTS,
+    PERMISSIONS.MANAGE_CLIENTS,
+    PERMISSIONS.VIEW_TASKS,
+    PERMISSIONS.MANAGE_TASKS,
+    PERMISSIONS.VIEW_TEMPLATES,
+    PERMISSIONS.MANAGE_TEMPLATES,
+    PERMISSIONS.VIEW_BUDGETS,
+    PERMISSIONS.MANAGE_BUDGETS,
+    PERMISSIONS.VIEW_PRODUCTS,
+    PERMISSIONS.MANAGE_PRODUCTS,
+    PERMISSIONS.VIEW_TASK_TYPES,
+    PERMISSIONS.MANAGE_TASK_TYPES
+  ],
+  tecnico: [
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.VIEW_CLIENTS,
+    PERMISSIONS.VIEW_TASKS,
+    PERMISSIONS.MANAGE_TASKS,
+    PERMISSIONS.VIEW_BUDGETS,
+    PERMISSIONS.VIEW_PRODUCTS
+  ],
+  visitante: [
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.VIEW_CLIENTS,
+    PERMISSIONS.VIEW_TASKS,
+    PERMISSIONS.VIEW_TEMPLATES,
+    PERMISSIONS.VIEW_BUDGETS,
+    PERMISSIONS.VIEW_PRODUCTS,
+    PERMISSIONS.VIEW_TASK_TYPES
+  ]
+};
+
+function parsePermissions(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function getUserPermissions(user) {
+  if (!user) return [];
+  if (user.role === "administracao") return ALL_PERMISSIONS;
+  const base = ROLE_DEFAULTS[user.role] || ROLE_DEFAULTS.visitante;
+  const custom = parsePermissions(user.permissions);
+  return Array.from(new Set([...base, ...custom]));
+}
+
+function hasPermission(user, permission) {
+  if (!user) return false;
+  if (user.role === "administracao") return true;
+  const permissions = new Set(getUserPermissions(user));
+  if (permissions.has(permission)) return true;
+  if (permission.startsWith("view_")) {
+    const manage = permission.replace("view_", "manage_");
+    return permissions.has(manage);
+  }
+  return false;
+}
+
+function normalizeUser(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    permissions: parsePermissions(user.permissions)
+  };
+}
+
+function signToken(user) {
+  return jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: JWT_TTL });
+}
+
+function createAuthMiddleware(db) {
+  return async (req, res, next) => {
+    if (req.method === "OPTIONS") return next();
+    if (req.path === "/health" || req.path === "/auth/login" || req.path === "/auth/register") {
+      return next();
+    }
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!token) {
+      return res.status(401).json({ error: "Não autorizado" });
+    }
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      const user = await db.get("SELECT id, name, email, role, permissions FROM users WHERE id = ?", [payload.id]);
+      if (!user) {
+        return res.status(401).json({ error: "Usuário não encontrado" });
+      }
+      req.user = { ...normalizeUser(user), permissions: getUserPermissions(user) };
+      return next();
+    } catch (error) {
+      return res.status(401).json({ error: "Token inválido" });
+    }
+  };
+}
+
+function requirePermission(permission) {
+  return (req, res, next) => {
+    if (!req.user || !hasPermission(req.user, permission)) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+    return next();
+  };
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== "administracao") {
+    return res.status(403).json({ error: "Acesso restrito ao administrador" });
+  }
+  return next();
+}
+
+async function ensureAdminUser(db) {
+  const name = process.env.ADMIN_NAME || "Administrador";
+  const email = process.env.ADMIN_EMAIL || "admin@local";
+  const password = process.env.ADMIN_PASSWORD || "admin123";
+  const existing = await db.get("SELECT id FROM users WHERE lower(email) = lower(?)", [email]);
+  if (existing) return;
+  const hash = await bcrypt.hash(password, 10);
+  await db.run(
+    "INSERT INTO users (name, email, role, password_hash, permissions) VALUES (?, ?, ?, ?, ?)",
+    [name, email, "administracao", hash, JSON.stringify([])]
+  );
+  console.log(`Usuário admin criado: ${email}`);
+}
+
 function safeJsonParse(value) {
   if (!value || typeof value !== "string") return null;
   try {
@@ -70,6 +256,174 @@ function safeJsonParse(value) {
   } catch (error) {
     return null;
   }
+}
+
+let pdfHelpersPromise;
+let pdfBrowserPromise;
+let cachedLogoDataUrl;
+
+function resolveLogoPath() {
+  const candidates = [
+    process.env.PDF_LOGO_PATH,
+    path.join(process.cwd(), "Logo.png"),
+    path.join(__dirname, "..", "web", "src", "assets", "Logo.png"),
+    path.join(__dirname, "..", "web", "src", "assets", "rv-logo.png")
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
+function getLogoDataUrl() {
+  if (cachedLogoDataUrl) return cachedLogoDataUrl;
+  const logoPath = resolveLogoPath();
+  if (!logoPath) return null;
+  const buffer = fs.readFileSync(logoPath);
+  cachedLogoDataUrl = `data:image/png;base64,${buffer.toString("base64")}`;
+  return cachedLogoDataUrl;
+}
+
+async function loadPdfHelpers() {
+  if (!pdfHelpersPromise) {
+    const modulePath = path.join(__dirname, "..", "web", "src", "utils", "pdf.js");
+    if (!fs.existsSync(modulePath)) {
+      throw new Error("Template de PDF não encontrado.");
+    }
+    pdfHelpersPromise = import(pathToFileURL(modulePath).href);
+  }
+  return pdfHelpersPromise;
+}
+
+async function getPdfBrowser() {
+  if (!pdfBrowserPromise) {
+    pdfBrowserPromise = puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
+  }
+  return pdfBrowserPromise;
+}
+
+async function renderPdfFromHtml(html) {
+  const browser = await getPdfBrowser();
+  const page = await browser.newPage();
+  await page.setContent(html, { waitUntil: "networkidle0" });
+  const pdf = await page.pdf({ format: "A4", printBackground: true });
+  await page.close();
+  return Buffer.from(pdf);
+}
+
+function normalizeReportContent(report) {
+  const content = safeJsonParse(report.content) || report.content || {};
+  const templateStructure =
+    safeJsonParse(report.template_structure) || report.template_structure || {};
+  const layout =
+    content.layout ||
+    templateStructure.layout || {
+      sectionColumns: 1,
+      fieldColumns: 1
+    };
+  const sections = content.sections || templateStructure.sections || [];
+  return {
+    ...report,
+    content: {
+      sections,
+      layout,
+      answers: content.answers || {},
+      photos: content.photos || []
+    }
+  };
+}
+
+async function fetchTaskPdfData(db, taskId) {
+  const task = await db.get("SELECT * FROM tasks WHERE id = ?", [taskId]);
+  if (!task) return null;
+  const client = task.client_id
+    ? await db.get("SELECT * FROM clients WHERE id = ?", [task.client_id])
+    : null;
+
+  const reportRows = await db.all(
+    `
+    SELECT
+      reports.*,
+      report_templates.structure AS template_structure,
+      equipments.name AS equipment_name
+    FROM reports
+    LEFT JOIN report_templates ON report_templates.id = reports.template_id
+    LEFT JOIN equipments ON equipments.id = reports.equipment_id
+    WHERE reports.task_id = ?
+    ORDER BY reports.id ASC
+  `,
+    [taskId]
+  );
+  const reports = reportRows.map((row) => normalizeReportContent(row));
+
+  const budgets = await db.all(
+    `
+    SELECT
+      budgets.*,
+      clients.name AS client_name,
+      reports.title AS report_title,
+      tasks.title AS task_title
+    FROM budgets
+    LEFT JOIN clients ON clients.id = budgets.client_id
+    LEFT JOIN reports ON reports.id = budgets.report_id
+    LEFT JOIN tasks ON tasks.id = budgets.task_id
+    WHERE budgets.task_id = ?
+    ORDER BY budgets.id ASC
+  `,
+    [taskId]
+  );
+
+  if (budgets.length) {
+    const ids = budgets.map((budget) => budget.id);
+    const placeholders = ids.map(() => "?").join(", ");
+    const items = await db.all(
+      `SELECT * FROM budget_items WHERE budget_id IN (${placeholders}) ORDER BY id ASC`,
+      ids
+    );
+    const grouped = new Map();
+    items.forEach((item) => {
+      if (!grouped.has(item.budget_id)) grouped.set(item.budget_id, []);
+      grouped.get(item.budget_id).push(item);
+    });
+    budgets.forEach((budget) => {
+      budget.items = grouped.get(budget.id) || [];
+    });
+  }
+
+  return {
+    task: parseJsonFields(task, ["signature_pages"]),
+    client,
+    reports,
+    budgets
+  };
+}
+
+async function fetchBudgetPdfData(db, budgetId) {
+  const budget = await db.get(
+    `
+    SELECT
+      budgets.*,
+      clients.name AS client_name,
+      reports.title AS report_title,
+      tasks.title AS task_title
+    FROM budgets
+    LEFT JOIN clients ON clients.id = budgets.client_id
+    LEFT JOIN reports ON reports.id = budgets.report_id
+    LEFT JOIN tasks ON tasks.id = budgets.task_id
+    WHERE budgets.id = ?
+  `,
+    [budgetId]
+  );
+  if (!budget) return null;
+  budget.items = await db.all(
+    "SELECT * FROM budget_items WHERE budget_id = ? ORDER BY id ASC",
+    [budgetId]
+  );
+  const client = budget.client_id
+    ? await db.get("SELECT * FROM clients WHERE id = ?", [budget.client_id])
+    : null;
+  return { budget, client };
 }
 
 async function createReportForTask(db, task) {
@@ -219,10 +573,26 @@ async function createReportForEquipment(db, task, equipment) {
 }
 
 function createCrudRoutes(db, config) {
-  const { table, fields, jsonFields = [], orderBy = "id DESC" } = config;
+  const { table, fields, jsonFields = [], orderBy = "id DESC", permissions } = config;
   const router = express.Router();
 
-  router.get("/", async (req, res) => {
+  function ensureView(req, res, next) {
+    if (!permissions?.view) return next();
+    if (!hasPermission(req.user, permissions.view)) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+    return next();
+  }
+
+  function ensureManage(req, res, next) {
+    if (!permissions?.manage) return next();
+    if (!hasPermission(req.user, permissions.manage)) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+    return next();
+  }
+
+  router.get("/", ensureView, async (req, res) => {
     try {
       const items = await db.all(`SELECT * FROM ${table} ORDER BY ${orderBy}`);
       res.json(parseJsonList(items, jsonFields));
@@ -231,7 +601,7 @@ function createCrudRoutes(db, config) {
     }
   });
 
-  router.get("/:id", async (req, res) => {
+  router.get("/:id", ensureView, async (req, res) => {
     try {
       const item = await db.get(`SELECT * FROM ${table} WHERE id = ?`, [req.params.id]);
       if (!item) {
@@ -243,7 +613,7 @@ function createCrudRoutes(db, config) {
     }
   });
 
-  router.post("/", async (req, res) => {
+  router.post("/", ensureManage, async (req, res) => {
     try {
       const data = buildPayload(req.body, fields, jsonFields);
       const placeholders = fields.map(() => "?").join(", ");
@@ -256,7 +626,7 @@ function createCrudRoutes(db, config) {
     }
   });
 
-  router.put("/:id", async (req, res) => {
+  router.put("/:id", ensureManage, async (req, res) => {
     try {
       const data = buildPayload(req.body, fields, jsonFields);
       const setClause = fields.map((field) => `${field} = ?`).join(", ");
@@ -271,7 +641,7 @@ function createCrudRoutes(db, config) {
     }
   });
 
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", ensureManage, async (req, res) => {
     try {
       await db.run(`DELETE FROM ${table} WHERE id = ?`, [req.params.id]);
       res.json({ ok: true });
@@ -285,6 +655,7 @@ function createCrudRoutes(db, config) {
 
 async function main() {
   const db = await initDb();
+  await ensureAdminUser(db);
   const app = express();
 
   app.use(cors());
@@ -294,7 +665,57 @@ async function main() {
     res.json({ ok: true });
   });
 
-  app.get("/api/summary", async (req, res) => {
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const missing = ensureFields(req.body, ["name", "email", "password"]);
+      if (missing.length) {
+        return res.status(400).json({ error: "Campos obrigatórios ausentes", missing });
+      }
+      const exists = await db.get("SELECT id FROM users WHERE lower(email) = lower(?)", [req.body.email]);
+      if (exists) {
+        return res.status(400).json({ error: "E-mail já cadastrado" });
+      }
+      const hash = await bcrypt.hash(req.body.password, 10);
+      const result = await db.run(
+        "INSERT INTO users (name, email, role, password_hash, permissions) VALUES (?, ?, ?, ?, ?)",
+        [req.body.name, req.body.email, "visitante", hash, JSON.stringify([])]
+      );
+      const user = await db.get("SELECT id, name, email, role, permissions FROM users WHERE id = ?", [result.lastID]);
+      const token = signToken(user);
+      res.status(201).json({ user: normalizeUser(user), token });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao cadastrar" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const missing = ensureFields(req.body, ["email", "password"]);
+      if (missing.length) {
+        return res.status(400).json({ error: "Campos obrigatórios ausentes", missing });
+      }
+      const user = await db.get("SELECT * FROM users WHERE lower(email) = lower(?)", [req.body.email]);
+      if (!user || !user.password_hash) {
+        return res.status(401).json({ error: "Credenciais inválidas" });
+      }
+      const valid = await bcrypt.compare(req.body.password, user.password_hash);
+      if (!valid) {
+        return res.status(401).json({ error: "Credenciais inválidas" });
+      }
+      const token = signToken(user);
+      res.json({ user: normalizeUser(user), token });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao autenticar" });
+    }
+  });
+
+  app.use("/api", createAuthMiddleware(db));
+
+  app.get("/api/auth/me", (req, res) => {
+    res.json({ user: req.user });
+  });
+
+  app.get("/api/summary", requirePermission(PERMISSIONS.VIEW_DASHBOARD), async (req, res) => {
     try {
       const tables = [
         "clients",
@@ -320,16 +741,8 @@ async function main() {
     createCrudRoutes(db, {
       table: "clients",
       fields: ["name", "cnpj", "address", "contact"],
-      orderBy: "name ASC"
-    })
-  );
-
-  app.use(
-    "/api/users",
-    createCrudRoutes(db, {
-      table: "users",
-      fields: ["name", "email", "role"],
-      orderBy: "name ASC"
+      orderBy: "name ASC",
+      permissions: { view: PERMISSIONS.VIEW_CLIENTS, manage: PERMISSIONS.MANAGE_CLIENTS }
     })
   );
 
@@ -338,11 +751,86 @@ async function main() {
     createCrudRoutes(db, {
       table: "products",
       fields: ["name", "sku", "price", "unit"],
-      orderBy: "name ASC"
+      orderBy: "name ASC",
+      permissions: { view: PERMISSIONS.VIEW_PRODUCTS, manage: PERMISSIONS.MANAGE_PRODUCTS }
     })
   );
 
-  app.get("/api/equipments", async (req, res) => {
+  app.get("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const users = await db.all("SELECT id, name, email, role, permissions FROM users ORDER BY name ASC");
+      res.json(users.map(normalizeUser));
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao listar usuários" });
+    }
+  });
+
+  app.post("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const missing = ensureFields(req.body, ["name", "email", "role", "password"]);
+      if (missing.length) {
+        return res.status(400).json({ error: "Campos obrigatórios ausentes", missing });
+      }
+      const exists = await db.get("SELECT id FROM users WHERE lower(email) = lower(?)", [req.body.email]);
+      if (exists) {
+        return res.status(400).json({ error: "E-mail já cadastrado" });
+      }
+      const hash = await bcrypt.hash(req.body.password, 10);
+      const permissions = Array.isArray(req.body.permissions) ? req.body.permissions : [];
+      const result = await db.run(
+        "INSERT INTO users (name, email, role, password_hash, permissions) VALUES (?, ?, ?, ?, ?)",
+        [req.body.name, req.body.email, req.body.role, hash, JSON.stringify(permissions)]
+      );
+      const user = await db.get("SELECT id, name, email, role, permissions FROM users WHERE id = ?", [result.lastID]);
+      res.status(201).json(normalizeUser(user));
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao criar usuário" });
+    }
+  });
+
+  app.put("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const targetId = Number(req.params.id);
+      if (req.user?.id === targetId && req.body.role && req.body.role !== req.user.role) {
+        return res.status(400).json({ error: "Não é permitido alterar o próprio cargo" });
+      }
+      const permissions = Array.isArray(req.body.permissions) ? req.body.permissions : [];
+      const fields = ["name", "email", "role", "permissions"];
+      const data = {
+        name: req.body.name,
+        email: req.body.email,
+        role: req.body.role,
+        permissions: JSON.stringify(permissions)
+      };
+      const setClause = fields.map((field) => `${field} = ?`).join(", ");
+      const values = fields.map((field) => data[field]);
+      values.push(req.params.id);
+      await db.run(`UPDATE users SET ${setClause} WHERE id = ?`, values);
+      if (req.body.password) {
+        const hash = await bcrypt.hash(req.body.password, 10);
+        await db.run("UPDATE users SET password_hash = ? WHERE id = ?", [hash, req.params.id]);
+      }
+      const user = await db.get("SELECT id, name, email, role, permissions FROM users WHERE id = ?", [req.params.id]);
+      res.json(normalizeUser(user));
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao atualizar usuário" });
+    }
+  });
+
+  app.delete("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const targetId = Number(req.params.id);
+      if (req.user?.id === targetId) {
+        return res.status(400).json({ error: "Não é permitido remover o próprio usuário" });
+      }
+      await db.run("DELETE FROM users WHERE id = ?", [req.params.id]);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao remover usuário" });
+    }
+  });
+
+  app.get("/api/equipments", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const filters = [];
       const params = [];
@@ -369,7 +857,7 @@ async function main() {
     }
   });
 
-  app.get("/api/equipments/:id", async (req, res) => {
+  app.get("/api/equipments/:id", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const equipment = await db.get(
         `
@@ -391,7 +879,7 @@ async function main() {
     }
   });
 
-  app.post("/api/equipments", async (req, res) => {
+  app.post("/api/equipments", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       const missing = ensureFields(req.body, ["client_id", "name"]);
       if (missing.length) {
@@ -413,7 +901,7 @@ async function main() {
     }
   });
 
-  app.put("/api/equipments/:id", async (req, res) => {
+  app.put("/api/equipments/:id", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       const fields = ["client_id", "name", "model", "serial", "description", "created_at"];
       const payload = {
@@ -433,7 +921,7 @@ async function main() {
     }
   });
 
-  app.delete("/api/equipments/:id", async (req, res) => {
+  app.delete("/api/equipments/:id", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       await db.run("DELETE FROM equipments WHERE id = ?", [req.params.id]);
       res.json({ ok: true });
@@ -442,7 +930,7 @@ async function main() {
     }
   });
 
-  app.get("/api/tasks/:id/equipments", async (req, res) => {
+  app.get("/api/tasks/:id/equipments", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const rows = await db.all(
         `
@@ -462,7 +950,7 @@ async function main() {
     }
   });
 
-  app.post("/api/tasks/:id/equipments", async (req, res) => {
+  app.post("/api/tasks/:id/equipments", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       const missing = ensureFields(req.body, ["equipment_id"]);
       if (missing.length) {
@@ -500,7 +988,7 @@ async function main() {
     }
   });
 
-  app.delete("/api/tasks/:id/equipments/:equipmentId", async (req, res) => {
+  app.delete("/api/tasks/:id/equipments/:equipmentId", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       await db.run(
         "DELETE FROM task_equipments WHERE task_id = ? AND equipment_id = ?",
@@ -517,11 +1005,12 @@ async function main() {
     createCrudRoutes(db, {
       table: "task_types",
       fields: ["name", "description", "report_template_id"],
-      orderBy: "name ASC"
+      orderBy: "name ASC",
+      permissions: { view: PERMISSIONS.VIEW_TASK_TYPES, manage: PERMISSIONS.MANAGE_TASK_TYPES }
     })
   );
 
-  app.get("/api/tasks", async (req, res) => {
+  app.get("/api/tasks", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const filters = [];
       const params = [];
@@ -571,7 +1060,7 @@ async function main() {
     }
   });
 
-  app.get("/api/tasks/:id", async (req, res) => {
+  app.get("/api/tasks/:id", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const task = await db.get(
         `
@@ -608,7 +1097,7 @@ async function main() {
     }
   });
 
-  app.post("/api/tasks", async (req, res) => {
+  app.post("/api/tasks", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       const missing = ensureFields(req.body, ["title"]);
       if (missing.length) {
@@ -644,7 +1133,7 @@ async function main() {
     }
   });
 
-  app.put("/api/tasks/:id", async (req, res) => {
+  app.put("/api/tasks/:id", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       const fields = [
         "title",
@@ -676,12 +1165,40 @@ async function main() {
     }
   });
 
-  app.delete("/api/tasks/:id", async (req, res) => {
+  app.delete("/api/tasks/:id", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       await db.run("DELETE FROM tasks WHERE id = ?", [req.params.id]);
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao remover tarefa" });
+    }
+  });
+
+  app.get("/api/tasks/:id/pdf", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
+    try {
+      const data = await fetchTaskPdfData(db, req.params.id);
+      if (!data) {
+        return res.status(404).json({ error: "Tarefa não encontrada" });
+      }
+      const { buildTaskPdfHtml } = await loadPdfHelpers();
+      const html = buildTaskPdfHtml({
+        task: data.task,
+        client: data.client,
+        reports: data.reports,
+        budgets: data.budgets,
+        signatureMode: data.task.signature_mode,
+        signatureScope: data.task.signature_scope,
+        signatureClient: data.task.signature_client,
+        signatureTech: data.task.signature_tech,
+        signaturePages: data.task.signature_pages || {},
+        logoUrl: getLogoDataUrl()
+      });
+      const pdf = await renderPdfFromHtml(html);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename=\"tarefa_${req.params.id}.pdf\"`);
+      res.send(pdf);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao gerar PDF da tarefa" });
     }
   });
 
@@ -691,11 +1208,12 @@ async function main() {
       table: "report_templates",
       fields: ["name", "description", "structure"],
       jsonFields: ["structure"],
-      orderBy: "name ASC"
+      orderBy: "name ASC",
+      permissions: { view: PERMISSIONS.VIEW_TEMPLATES, manage: PERMISSIONS.MANAGE_TEMPLATES }
     })
   );
 
-  app.get("/api/reports", async (req, res) => {
+  app.get("/api/reports", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const filters = [];
       const params = [];
@@ -736,7 +1254,7 @@ async function main() {
     }
   });
 
-  app.get("/api/reports/:id", async (req, res) => {
+  app.get("/api/reports/:id", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const report = await db.get(
         `
@@ -764,7 +1282,7 @@ async function main() {
     }
   });
 
-  app.post("/api/reports", async (req, res) => {
+  app.post("/api/reports", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       const missing = ensureFields(req.body, ["client_id", "template_id"]);
       if (missing.length) {
@@ -795,7 +1313,7 @@ async function main() {
     }
   });
 
-  app.put("/api/reports/:id", async (req, res) => {
+  app.put("/api/reports/:id", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       const fields = [
         "title",
@@ -824,7 +1342,7 @@ async function main() {
     }
   });
 
-  app.delete("/api/reports/:id", async (req, res) => {
+  app.delete("/api/reports/:id", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
       await db.run("DELETE FROM reports WHERE id = ?", [req.params.id]);
       res.json({ ok: true });
@@ -833,7 +1351,7 @@ async function main() {
     }
   });
 
-  app.get("/api/budgets", async (req, res) => {
+  app.get("/api/budgets", requirePermission(PERMISSIONS.VIEW_BUDGETS), async (req, res) => {
     try {
       const filters = [];
       const params = [];
@@ -894,7 +1412,7 @@ async function main() {
     }
   });
 
-  app.get("/api/budgets/:id", async (req, res) => {
+  app.get("/api/budgets/:id", requirePermission(PERMISSIONS.VIEW_BUDGETS), async (req, res) => {
     try {
       const budget = await db.get(
         `
@@ -925,7 +1443,28 @@ async function main() {
     }
   });
 
-  app.post("/api/budgets", async (req, res) => {
+  app.get("/api/budgets/:id/pdf", requirePermission(PERMISSIONS.VIEW_BUDGETS), async (req, res) => {
+    try {
+      const data = await fetchBudgetPdfData(db, req.params.id);
+      if (!data) {
+        return res.status(404).json({ error: "Orçamento não encontrado" });
+      }
+      const { buildBudgetPdfHtml } = await loadPdfHelpers();
+      const html = buildBudgetPdfHtml({
+        budget: data.budget,
+        client: data.client,
+        logoUrl: getLogoDataUrl()
+      });
+      const pdf = await renderPdfFromHtml(html);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename=\"orcamento_${req.params.id}.pdf\"`);
+      res.send(pdf);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao gerar PDF do orçamento" });
+    }
+  });
+
+  app.post("/api/budgets", requirePermission(PERMISSIONS.MANAGE_BUDGETS), async (req, res) => {
     try {
       const missing = ensureFields(req.body, ["client_id"]);
       if (missing.length) {
@@ -1006,7 +1545,7 @@ async function main() {
     }
   });
 
-  app.put("/api/budgets/:id", async (req, res) => {
+  app.put("/api/budgets/:id", requirePermission(PERMISSIONS.MANAGE_BUDGETS), async (req, res) => {
     try {
       const rawItems = Array.isArray(req.body.items) ? req.body.items : [];
       const items = rawItems.map((item) => {
@@ -1080,7 +1619,7 @@ async function main() {
     }
   });
 
-  app.delete("/api/budgets/:id", async (req, res) => {
+  app.delete("/api/budgets/:id", requirePermission(PERMISSIONS.MANAGE_BUDGETS), async (req, res) => {
     try {
       await db.run("DELETE FROM budgets WHERE id = ?", [req.params.id]);
       res.json({ ok: true });
@@ -1089,13 +1628,38 @@ async function main() {
     }
   });
 
-  app.listen(PORT, () => {
-    console.log(`API rodando em http://localhost:${PORT}`);
+  const staticDir = resolveStaticDir();
+  if (staticDir) {
+    app.use(express.static(staticDir));
+    app.get("*", (req, res) => {
+      if (req.path.startsWith("/api")) {
+        return res.status(404).json({ error: "Rota não encontrada" });
+      }
+      res.sendFile(path.join(staticDir, "index.html"));
+    });
+  } else {
+    app.get("/", (req, res) => {
+      res
+        .status(404)
+        .send("Front-end não encontrado. Gere o build do web/dist.");
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const server = app.listen(PORT, () => {
+      console.log(`API rodando em http://localhost:${PORT}`);
+      resolve(server);
+    });
+    server.on("error", reject);
   });
 }
 
-main().catch((error) => {
-  console.error("Falha ao iniciar o servidor", error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("Falha ao iniciar o servidor", error);
+    process.exit(1);
+  });
+}
+
+module.exports = { main };
 

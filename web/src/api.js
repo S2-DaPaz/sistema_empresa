@@ -1,16 +1,30 @@
-﻿const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || "";
+let authToken = "";
+
+export function setAuthToken(token) {
+  authToken = token || "";
+}
 
 async function request(path, options = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
+
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
   const response = await fetch(`${API_URL}/api${path}`, {
-    headers: {
-      "Content-Type": "application/json"
-    },
-    ...options
+    ...options,
+    headers
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || "Request failed");
+    const err = new Error(error.error || "Request failed");
+    err.status = response.status;
+    throw err;
   }
 
   if (response.status === 204) return null;

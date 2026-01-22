@@ -1,4 +1,5 @@
 import EntityManager from "../components/EntityManager";
+import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
 
 const fields = [
   { name: "name", label: "Nome", type: "text", placeholder: "Nome do cliente" },
@@ -14,6 +15,10 @@ const fields = [
 ];
 
 export default function Clients() {
+  const { hasPermission } = useAuth();
+  const canView = hasPermission(PERMISSIONS.VIEW_CLIENTS);
+  const canManage = hasPermission(PERMISSIONS.MANAGE_CLIENTS);
+
   return (
     <EntityManager
       title="Clientes"
@@ -21,6 +26,8 @@ export default function Clients() {
       fields={fields}
       hint="Cadastre empresas e contatos principais"
       primaryField="name"
+      canView={canView}
+      canManage={canManage}
     />
   );
 }

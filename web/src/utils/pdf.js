@@ -151,12 +151,8 @@ function buildReportPageHtml({ report, task, client, signatureHtml, logoUrl }) {
   const reportTitle = report?.title || task?.title || "Relatório";
   const taskTitle = task?.title && task?.title !== reportTitle ? task.title : "";
 
-  const watermarkStyle = logoUrl
-    ? `style="--watermark-url: url('${escapeHtml(logoUrl)}')"`
-    : "";
-  const watermarkHtml = logoUrl
-    ? `<div class="watermark"><img src="${logoUrl}" alt="Marca d'água" /></div>`
-    : "";
+  const watermarkStyle = "";
+  const watermarkHtml = "";
 
   const metaChips = [
     { label: "Tarefa", value: task?.id ? `#${task.id}` : "-" },
@@ -528,15 +524,15 @@ export function buildTaskPdfHtml({
   .page:last-child { page-break-after: auto; }
   .report-page { position: relative; overflow: hidden; }
   .report-page > *:not(.watermark) { position: relative; z-index: 1; }
-  .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0; opacity: 0.22; }
+  .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0; opacity: 0.16; }
   .watermark img { width: 85%; height: auto; max-height: 85%; object-fit: contain; }
-  .report-page .watermark { opacity: 0.2; }
-  .budget-page .watermark { opacity: 0.24; }
+  .report-page .watermark { opacity: 0.14; }
+  .budget-page .watermark { opacity: 0.16; }
   .page-header { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid #d7dde6; padding-bottom: 12px; margin-bottom: 16px; }
   .page-header h1 { margin: 0 0 6px; font-size: 20px; }
   .page-header p { margin: 2px 0; font-size: 12px; color: #50607b; }
   .logo { width: 120px; height: auto; object-fit: contain; }
-  .report-header { display: grid; grid-template-columns: 96px 1fr 220px; gap: 12px; align-items: center; padding: 12px; border-radius: 16px; border: 1px solid #d9e2ee; background: linear-gradient(120deg, rgba(26, 167, 214, 0.14), rgba(20, 194, 163, 0.08)); }
+  .report-header { display: grid; grid-template-columns: 96px 1fr 220px; gap: 12px; align-items: center; padding: 12px; border-radius: 16px; border: 1px solid #d9e2ee; background: #f7fafe; }
   .brand-mark { width: 96px; height: 96px; background: #ffffff; border-radius: 16px; border: 1px solid #d9e2ee; display: flex; align-items: center; justify-content: center; }
   .brand-mark img { width: 92px; height: 92px; object-fit: contain; }
   .brand-body h1 { margin: 4px 0; font-size: 20px; }
@@ -549,7 +545,7 @@ export function buildTaskPdfHtml({
   .company-card { background: #ffffff; border-radius: 12px; border: 1px solid #d9e2ee; padding: 8px 10px; font-size: 10px; color: #50607b; line-height: 1.4; }
   .company-name { font-weight: 700; font-size: 11px; color: #0c1b2a; margin-bottom: 4px; }
   .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .info-card { background: #f6f9fd; border: 1px solid #e1e6ef; border-radius: 12px; padding: 10px 12px; }
+  .info-card { background: #fbfdff; border: 1px solid #e1e6ef; border-radius: 12px; padding: 10px 12px; }
   .info-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #2a67f1; margin-bottom: 6px; }
   .info-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; font-size: 11px; padding: 3px 0; border-bottom: 1px dashed #e1e6ef; }
   .info-row:last-child { border-bottom: none; }
@@ -557,8 +553,8 @@ export function buildTaskPdfHtml({
   .section-intro { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
   .intro-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #17304f; }
   .intro-line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(26, 167, 214, 0.6), rgba(20, 194, 163, 0.2)); }
-  .section-card { background: #ffffff; border: 1px solid #d7e0ec; border-left: 4px solid #1aa7d6; border-radius: 12px; padding: 12px 14px; box-shadow: 0 8px 18px rgba(12, 27, 42, 0.08); }
-  .section-card h3 { margin: -12px -14px 10px; padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #17304f; background: linear-gradient(90deg, rgba(26, 167, 214, 0.22), rgba(20, 194, 163, 0.14)); background-color: rgba(26, 167, 214, 0.2); border-bottom: 1px solid #d7e0ec; border-top-left-radius: 10px; border-top-right-radius: 10px; }
+  .section-card { background: #ffffff; border: 1px solid #d7e0ec; border-left: 4px solid #1aa7d6; border-radius: 12px; padding: 12px 14px; }
+  .section-card h3 { margin: -12px -14px 10px; padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #17304f; background: #eef4fb; border-bottom: 1px solid #d7e0ec; border-top-left-radius: 10px; border-top-right-radius: 10px; }
   .report-sections { display: grid; grid-template-columns: repeat(var(--section-cols, 1), minmax(0, 1fr)); gap: 12px; }
   .fields-grid { display: grid; grid-template-columns: repeat(var(--field-cols, 1), minmax(0, 1fr)); gap: 10px; }
   .report-sections .empty { grid-column: 1 / -1; }
@@ -585,7 +581,7 @@ export function buildTaskPdfHtml({
   .report-footer .signature-item img { height: 90px; }
   .report-footer .signature-line { margin-top: 16px; }
 
-  .budget-page { position: relative; border: 2px solid #1aa7d6; border-radius: 18px; padding: 12mm; background: #ffffff; overflow: hidden; }
+  .budget-page { position: relative; border: 1px solid #1aa7d6; border-radius: 18px; padding: 12mm; background: #ffffff; overflow: hidden; }
   .budget-page > *:not(.watermark) { position: relative; z-index: 1; }
   .budget-content { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; }
   .budget-header { display: flex; align-items: center; gap: 14px; }
@@ -642,9 +638,9 @@ export function buildBudgetPdfHtml({ budget, client, logoUrl }) {
   * { box-sizing: border-box; }
   body { font-family: "Helvetica Neue", Arial, sans-serif; color: #0c1b2a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .page { padding: 8mm; min-height: 260mm; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; }
-  .budget-page { position: relative; border: 2px solid #1aa7d6; border-radius: 18px; padding: 12mm; background: #ffffff; overflow: hidden; }
+  .budget-page { position: relative; border: 1px solid #1aa7d6; border-radius: 18px; padding: 12mm; background: #ffffff; overflow: hidden; }
   .budget-page > *:not(.watermark) { position: relative; z-index: 1; }
-  .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0; opacity: 0.24; }
+  .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0; opacity: 0.16; }
   .watermark img { width: 85%; height: auto; max-height: 85%; object-fit: contain; }
   .budget-content { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; }
   .budget-header { display: flex; align-items: center; gap: 14px; }

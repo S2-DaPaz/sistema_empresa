@@ -1,0 +1,6 @@
+;!@Install@!UTF-8!
+Title="RV Sistema Empresa"
+BeginPrompt="Deseja instalar o RV Sistema Empresa?"
+InstallPath="%LOCALAPPDATA%\\RV Sistema Empresa"
+RunProgram="setup.cmd"
+;!@InstallEnd@!

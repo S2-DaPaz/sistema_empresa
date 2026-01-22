@@ -15,7 +15,8 @@ export default function BudgetForm({
   reportId,
   products,
   clients = [],
-  onSaved
+  onSaved,
+  canManage = true
 }) {
   const [localClientId, setLocalClientId] = useState(clientId || "");
   const [status, setStatus] = useState("rascunho");
@@ -54,6 +55,7 @@ export default function BudgetForm({
   }
 
   function addItem() {
+    if (!canManage) return;
     setItems((prev) => [
       ...prev,
       { id: uid(), product_id: "", description: "", qty: 1, unit_price: 0 }
@@ -61,6 +63,7 @@ export default function BudgetForm({
   }
 
   function removeItem(id) {
+    if (!canManage) return;
     setItems((prev) => prev.filter((item) => item.id !== id));
   }
 
@@ -86,6 +89,7 @@ export default function BudgetForm({
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (!canManage) return;
     setError("");
 
     if (!effectiveClientId) {
@@ -151,6 +155,7 @@ export default function BudgetForm({
             value={localClientId}
             options={clients.map((client) => ({ value: client.id, label: client.name }))}
             onChange={setLocalClientId}
+            disabled={!canManage}
           />
         )}
         <FormField
@@ -163,44 +168,57 @@ export default function BudgetForm({
             { value: "aprovado", label: "Aprovado" }
           ]}
           onChange={setStatus}
+          disabled={!canManage}
         />
         <FormField
           label="Desconto"
           type="number"
           value={discount}
           onChange={setDiscount}
+          disabled={!canManage}
         />
-        <FormField label="Taxa" type="number" value={tax} onChange={setTax} />
+        <FormField
+          label="Taxa"
+          type="number"
+          value={tax}
+          onChange={setTax}
+          disabled={!canManage}
+        />
       </div>
       <div className="form-grid">
         <FormField
           label="Validade da proposta"
           value={proposalValidity}
           onChange={setProposalValidity}
+          disabled={!canManage}
         />
         <FormField
           label="Condição de pagamento"
           value={paymentTerms}
           onChange={setPaymentTerms}
+          disabled={!canManage}
         />
         <FormField
           label="Prazo de realização dos serviços"
           value={serviceDeadline}
           onChange={setServiceDeadline}
+          disabled={!canManage}
         />
         <FormField
           label="Prazo de validade dos produtos"
           value={productValidity}
           onChange={setProductValidity}
+          disabled={!canManage}
         />
       </div>
       <div className="form-grid">
         <FormField
-          label="Observação"
+          label="Observações"
           type="textarea"
           value={notes}
           onChange={setNotes}
           className="full"
+          disabled={!canManage}
         />
         <FormField
           label="Nota interna"
@@ -208,17 +226,11 @@ export default function BudgetForm({
           value={internalNote}
           onChange={setInternalNote}
           className="full"
+          disabled={!canManage}
         />
       </div>
 
-      <div className="section-header" style={{ marginTop: "16px" }}>
-        <h3 className="section-title">Itens</h3>
-        <button className="btn secondary" type="button" onClick={addItem}>
-          Adicionar item
-        </button>
-      </div>
-
-      <div className="list">
+      <div className="list" style={{ marginTop: "16px" }}>
         {items.map((item) => (
           <div key={item.id} className="card">
             <div className="form-grid">
@@ -228,44 +240,57 @@ export default function BudgetForm({
                 value={item.product_id}
                 options={productOptions}
                 onChange={(value) => handleProductChange(item.id, value)}
+                disabled={!canManage}
               />
               <FormField
                 label="Descrição"
                 value={item.description}
                 onChange={(value) => updateItem(item.id, { description: value })}
+                disabled={!canManage}
               />
               <FormField
-                label="Qtd."
+                label="Quantidade"
                 type="number"
                 value={item.qty}
                 onChange={(value) => updateItem(item.id, { qty: value })}
+                disabled={!canManage}
               />
               <FormField
-                label="Valor"
+                label="Valor unitário"
                 type="number"
                 value={item.unit_price}
                 onChange={(value) => updateItem(item.id, { unit_price: value })}
+                disabled={!canManage}
               />
             </div>
-            <div className="inline" style={{ marginTop: "10px" }}>
-              <button className="btn ghost" type="button" onClick={() => removeItem(item.id)}>
-                Remover item
-              </button>
+            <div className="inline" style={{ justifyContent: "space-between", marginTop: "10px" }}>
+              <small>Total: {formatter.format(item.qty * item.unit_price)}</small>
+              {canManage && (
+                <button className="btn ghost" type="button" onClick={() => removeItem(item.id)}>
+                  Remover item
+                </button>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      <div className="inline" style={{ justifyContent: "space-between", marginTop: "16px" }}>
-        <div className="inline">
-          <span className="badge">Subtotal: {formatter.format(subtotal)}</span>
-          <span className="badge">Total: {formatter.format(total)}</span>
-        </div>
-        <button className="btn primary" type="submit">
-          Salvar orçamento
+      <div className="inline" style={{ marginTop: "12px" }}>
+        {canManage && (
+          <button className="btn secondary" type="button" onClick={addItem}>
+            Adicionar item
+          </button>
+        )}
+        <span className="badge">Subtotal: {formatter.format(subtotal)}</span>
+        <span className="badge">Total: {formatter.format(total)}</span>
+      </div>
+
+      {error && <p className="muted">{error}</p>}
+      <div className="inline" style={{ marginTop: "16px" }}>
+        <button className="btn primary" type="submit" disabled={!canManage}>
+          {canManage ? "Salvar orçamento" : "Somente leitura"}
         </button>
       </div>
-      {error && <p className="muted">{error}</p>}
     </form>
   );
 }

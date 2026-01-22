@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export default function SignaturePad({ value, onChange }) {
+export default function SignaturePad({ value, onChange, disabled = false }) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const lastPointRef = useRef(null);
@@ -29,6 +29,7 @@ export default function SignaturePad({ value, onChange }) {
   }
 
   function startDrawing(event) {
+    if (disabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -44,6 +45,7 @@ export default function SignaturePad({ value, onChange }) {
   }
 
   function draw(event) {
+    if (disabled) return;
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -56,6 +58,7 @@ export default function SignaturePad({ value, onChange }) {
   }
 
   function endDrawing() {
+    if (disabled) return;
     if (!isDrawing) return;
     setIsDrawing(false);
     lastPointRef.current = null;
@@ -65,6 +68,7 @@ export default function SignaturePad({ value, onChange }) {
   }
 
   function handleClear() {
+    if (disabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -78,13 +82,14 @@ export default function SignaturePad({ value, onChange }) {
         ref={canvasRef}
         width={520}
         height={160}
+        className={disabled ? "is-disabled" : ""}
         onPointerDown={startDrawing}
         onPointerMove={draw}
         onPointerUp={endDrawing}
         onPointerLeave={endDrawing}
       />
       <div className="inline" style={{ marginTop: "8px" }}>
-        <button className="btn ghost" type="button" onClick={handleClear}>
+        <button className="btn ghost" type="button" onClick={handleClear} disabled={disabled}>
           Limpar assinatura
         </button>
       </div>

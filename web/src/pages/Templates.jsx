@@ -1,6 +1,7 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import FormField from "../components/FormField";
+import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
 
 const typeOptions = [
   { value: "text", label: "Texto curto" },
@@ -20,6 +21,10 @@ function uid() {
 }
 
 export default function Templates() {
+  const { hasPermission } = useAuth();
+  const canView = hasPermission(PERMISSIONS.VIEW_TEMPLATES);
+  const canManage = hasPermission(PERMISSIONS.MANAGE_TEMPLATES);
+
   const [items, setItems] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [name, setName] = useState("");
@@ -36,8 +41,10 @@ export default function Templates() {
   }
 
   useEffect(() => {
-    loadItems();
-  }, []);
+    if (canView) {
+      loadItems();
+    }
+  }, [canView]);
 
   function resetForm() {
     setActiveId(null);
@@ -65,7 +72,9 @@ export default function Templates() {
   }
 
   function updateSection(id, updates) {
-    setSections((prev) => prev.map((section) => (section.id === id ? { ...section, ...updates } : section)));
+    setSections((prev) =>
+      prev.map((section) => (section.id === id ? { ...section, ...updates } : section))
+    );
   }
 
   function removeSection(id) {
@@ -177,6 +186,19 @@ export default function Templates() {
     }
   }
 
+  if (!canView) {
+    return (
+      <section className="section">
+        <div className="section-header">
+          <h2 className="section-title">Modelos de relatório</h2>
+        </div>
+        <div className="card">
+          <p>Você não tem permissão para visualizar este conteúdo.</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="section">
       <div className="section-header">
@@ -196,186 +218,210 @@ export default function Templates() {
             <div key={item.id} className="card">
               <h3>{item.name}</h3>
               <small>{item.description || "Sem descrição"}</small>
-              <div className="inline" style={{ marginTop: "12px" }}>
-                <button className="btn secondary" onClick={() => handleEdit(item)}>
-                  Editar
-                </button>
-                <button className="btn ghost" onClick={() => handleDelete(item.id)}>
-                  Remover
-                </button>
-              </div>
+              {canManage && (
+                <div className="inline" style={{ marginTop: "12px" }}>
+                  <button className="btn secondary" onClick={() => handleEdit(item)}>
+                    Editar
+                  </button>
+                  <button className="btn ghost" onClick={() => handleDelete(item.id)}>
+                    Remover
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
 
-        <form className="card" onSubmit={handleSubmit}>
-          <h3>{activeId ? "Editar modelo" : "Novo modelo"}</h3>
-          <div className="form-grid">
-            <FormField label="Nome" value={name} onChange={setName} />
-            <FormField
-              label="Descrição"
-              type="textarea"
-              value={description}
-              onChange={setDescription}
-              className="full"
-            />
-            <FormField
-              label="Colunas das seções"
-              type="select"
-              value={sectionColumns}
-              options={[
-                { value: "1", label: "1 coluna" },
-                { value: "2", label: "2 colunas" },
-                { value: "3", label: "3 colunas" }
-              ]}
-              onChange={setSectionColumns}
-            />
-            <FormField
-              label="Colunas dos campos"
-              type="select"
-              value={fieldColumns}
-              options={[
-                { value: "1", label: "1 coluna" },
-                { value: "2", label: "2 colunas" },
-                { value: "3", label: "3 colunas" }
-              ]}
-              onChange={setFieldColumns}
-            />
-          </div>
+        {canManage ? (
+          <form className="card" onSubmit={handleSubmit}>
+            <h3>{activeId ? "Editar modelo" : "Novo modelo"}</h3>
+            <div className="form-grid">
+              <FormField label="Nome" value={name} onChange={setName} />
+              <FormField
+                label="Descrição"
+                type="textarea"
+                value={description}
+                onChange={setDescription}
+                className="full"
+              />
+              <FormField
+                label="Colunas das seções"
+                type="select"
+                value={sectionColumns}
+                options={[
+                  { value: "1", label: "1 coluna" },
+                  { value: "2", label: "2 colunas" },
+                  { value: "3", label: "3 colunas" }
+                ]}
+                onChange={setSectionColumns}
+              />
+              <FormField
+                label="Colunas dos campos"
+                type="select"
+                value={fieldColumns}
+                options={[
+                  { value: "1", label: "1 coluna" },
+                  { value: "2", label: "2 colunas" },
+                  { value: "3", label: "3 colunas" }
+                ]}
+                onChange={setFieldColumns}
+              />
+            </div>
 
-          <div style={{ marginTop: "18px" }}>
-            <div className="section-header">
-              <h3 className="section-title">Seções</h3>
-              <button className="btn secondary" type="button" onClick={addSection}>
-                Adicionar seção
+            <div style={{ marginTop: "18px" }}>
+              <div className="section-header">
+                <h3 className="section-title">Seções</h3>
+                <button className="btn secondary" type="button" onClick={addSection}>
+                  Adicionar seção
+                </button>
+              </div>
+
+              <div className="list">
+                {sections.length === 0 && (
+                  <div className="card">
+                    <small>Adicione seções e campos para o relatório.</small>
+                  </div>
+                )}
+                {sections.map((section) => (
+                  <div key={section.id} className="card">
+                    <div className="inline" style={{ justifyContent: "space-between" }}>
+                      <FormField
+                        label="Título da seção"
+                        value={section.title}
+                        onChange={(value) => updateSection(section.id, { title: value })}
+                      />
+                      <button
+                        className="btn ghost"
+                        type="button"
+                        onClick={() => removeSection(section.id)}
+                      >
+                        Remover seção
+                      </button>
+                    </div>
+
+                    <div className="section-header" style={{ marginTop: "12px" }}>
+                      <h3 className="section-title">Campos</h3>
+                      <button
+                        className="btn secondary"
+                        type="button"
+                        onClick={() => addField(section.id)}
+                      >
+                        Adicionar campo
+                      </button>
+                    </div>
+
+                    <div className="list">
+                      {section.fields.length === 0 && (
+                        <div className="card">
+                          <small>Adicione campos a esta seção.</small>
+                        </div>
+                      )}
+                      {section.fields.map((field) => (
+                        <div key={field.id} className="card">
+                          <div className="form-grid">
+                            <FormField
+                              label="Label"
+                              value={field.label}
+                              onChange={(value) =>
+                                updateField(section.id, field.id, { label: value })
+                              }
+                            />
+                            <FormField
+                              label="Tipo"
+                              type="select"
+                              value={field.type}
+                              options={typeOptions}
+                              onChange={(value) =>
+                                updateField(section.id, field.id, { type: value })
+                              }
+                            />
+                            {field.type === "select" && (
+                              <div className="card" style={{ padding: "12px" }}>
+                                <div className="inline" style={{ justifyContent: "space-between" }}>
+                                  <FormField
+                                    label="Adicionar opção"
+                                    value={optionDrafts[field.id] || ""}
+                                    onChange={(value) => updateOptionDraft(field.id, value)}
+                                  />
+                                  <button
+                                    className="btn secondary"
+                                    type="button"
+                                    onClick={() =>
+                                      addOption(section.id, field.id, field.options || [])
+                                    }
+                                  >
+                                    Incluir
+                                  </button>
+                                </div>
+                                {(field.options || []).length > 0 ? (
+                                  <div className="list" style={{ marginTop: "10px" }}>
+                                    {(field.options || []).map((option, index) => (
+                                      <div key={`${field.id}-${option}-${index}`} className="inline">
+                                        <span>{option}</span>
+                                        <button
+                                          className="btn ghost"
+                                          type="button"
+                                          onClick={() =>
+                                            removeOption(
+                                              section.id,
+                                              field.id,
+                                              index,
+                                              field.options || []
+                                            )
+                                          }
+                                        >
+                                          Remover
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <small className="muted">Nenhuma opção adicionada.</small>
+                                )}
+                              </div>
+                            )}
+                            <FormField
+                              label="Obrigatório"
+                              type="checkbox"
+                              value={field.required}
+                              onChange={(value) =>
+                                updateField(section.id, field.id, { required: value })
+                              }
+                            />
+                          </div>
+                          <div className="inline" style={{ marginTop: "10px" }}>
+                            <button
+                              className="btn ghost"
+                              type="button"
+                              onClick={() => removeField(section.id, field.id)}
+                            >
+                              Remover campo
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {error && <p className="muted">{error}</p>}
+            <div className="inline" style={{ marginTop: "16px" }}>
+              <button className="btn primary" type="submit">
+                {activeId ? "Atualizar" : "Salvar"}
+              </button>
+              <button className="btn ghost" type="button" onClick={resetForm}>
+                Limpar
               </button>
             </div>
-
-            <div className="list">
-              {sections.length === 0 && (
-                <div className="card">
-                  <small>Adicione seções e campos para o relatório.</small>
-                </div>
-              )}
-              {sections.map((section) => (
-                <div key={section.id} className="card">
-                  <div className="inline" style={{ justifyContent: "space-between" }}>
-                    <FormField
-                      label="Título da seção"
-                      value={section.title}
-                      onChange={(value) => updateSection(section.id, { title: value })}
-                    />
-                    <button className="btn ghost" type="button" onClick={() => removeSection(section.id)}>
-                      Remover seção
-                    </button>
-                  </div>
-
-                  <div className="section-header" style={{ marginTop: "12px" }}>
-                    <h3 className="section-title">Campos</h3>
-                    <button
-                      className="btn secondary"
-                      type="button"
-                      onClick={() => addField(section.id)}
-                    >
-                      Adicionar campo
-                    </button>
-                  </div>
-
-                  <div className="list">
-                    {section.fields.length === 0 && (
-                      <div className="card">
-                        <small>Adicione campos a esta seção.</small>
-                      </div>
-                    )}
-                    {section.fields.map((field) => (
-                      <div key={field.id} className="card">
-                        <div className="form-grid">
-                          <FormField
-                            label="Label"
-                            value={field.label}
-                            onChange={(value) => updateField(section.id, field.id, { label: value })}
-                          />
-                          <FormField
-                            label="Tipo"
-                            type="select"
-                            value={field.type}
-                            options={typeOptions}
-                            onChange={(value) => updateField(section.id, field.id, { type: value })}
-                          />
-                          {field.type === "select" && (
-                            <div className="card" style={{ padding: "12px" }}>
-                              <div className="inline" style={{ justifyContent: "space-between" }}>
-                                <FormField
-                                  label="Adicionar opção"
-                                  value={optionDrafts[field.id] || ""}
-                                  onChange={(value) => updateOptionDraft(field.id, value)}
-                                />
-                                <button
-                                  className="btn secondary"
-                                  type="button"
-                                  onClick={() => addOption(section.id, field.id, field.options || [])}
-                                >
-                                  Incluir
-                                </button>
-                              </div>
-                              {(field.options || []).length > 0 ? (
-                                <div className="list" style={{ marginTop: "10px" }}>
-                                  {(field.options || []).map((option, index) => (
-                                    <div key={`${field.id}-${option}-${index}`} className="inline">
-                                      <span>{option}</span>
-                                      <button
-                                        className="btn ghost"
-                                        type="button"
-                                        onClick={() =>
-                                          removeOption(section.id, field.id, index, field.options || [])
-                                        }
-                                      >
-                                        Remover
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <small className="muted">Nenhuma opção adicionada.</small>
-                              )}
-                            </div>
-                          )}
-                          <FormField
-                            label="Obrigatório"
-                            type="checkbox"
-                            value={field.required}
-                            onChange={(value) =>
-                              updateField(section.id, field.id, { required: value })
-                            }
-                          />
-                        </div>
-                        <div className="inline" style={{ marginTop: "10px" }}>
-                          <button
-                            className="btn ghost"
-                            type="button"
-                            onClick={() => removeField(section.id, field.id)}
-                          >
-                            Remover campo
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+          </form>
+        ) : (
+          <div className="card">
+            <h3>Somente leitura</h3>
+            <small>Você não tem permissão para editar modelos.</small>
           </div>
-
-          {error && <p className="muted">{error}</p>}
-          <div className="inline" style={{ marginTop: "16px" }}>
-            <button className="btn primary" type="submit">
-              {activeId ? "Atualizar" : "Salvar"}
-            </button>
-            <button className="btn ghost" type="button" onClick={resetForm}>
-              Limpar
-            </button>
-          </div>
-        </form>
+        )}
       </div>
     </section>
   );

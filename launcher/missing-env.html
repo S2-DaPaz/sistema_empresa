@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configurar banco</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Segoe UI", sans-serif;
+        background: #f4f8fb;
+        color: #17324a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+      .panel {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 28px 36px;
+        box-shadow: 0 12px 32px rgba(23, 50, 74, 0.12);
+        max-width: 520px;
+      }
+      .title {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      .message {
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+      .code {
+        background: #f2f5f7;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-family: Consolas, monospace;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="panel">
+      <div class="title">Configure o banco de dados</div>
+      <div class="message">
+        Foi aberto o arquivo <strong>server.env</strong>. Cole sua
+        <strong>DATABASE_URL</strong> do Neon e salve.
+      </div>
+      <div class="code">
+        DATABASE_URL=postgresql://usuario:senha@host:porta/banco?sslmode=require
+      </div>
+      <div class="message">Depois, abra o sistema novamente.</div>
+    </div>
+  </body>
+</html>
