@@ -56,3 +56,37 @@ export function RequireAdmin({ children }) {
 
   return children || <Outlet />;
 }
+
+export function RequirePermission({ permission, children }) {
+  const { user, loading, hasPermission } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="auth-loading">
+        <div className="card">
+          <h3>Carregando acesso</h3>
+          <small>Validando permissões.</small>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!hasPermission(permission)) {
+    return (
+      <section className="section">
+        <div className="section-header">
+          <h2 className="section-title">Acesso restrito</h2>
+        </div>
+        <div className="card">
+          <p>Você não possui permissão para acessar esta área.</p>
+        </div>
+      </section>
+    );
+  }
+
+  return children || <Outlet />;
+}

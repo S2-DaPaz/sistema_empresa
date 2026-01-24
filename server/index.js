@@ -284,7 +284,9 @@ function getLogoDataUrl() {
 
 async function loadPdfHelpers() {
   if (!pdfHelpersPromise) {
-    const modulePath = path.join(__dirname, "..", "web", "src", "utils", "pdf.js");
+    const modulePath =
+      process.env.PDF_TEMPLATE_PATH ||
+      path.join(__dirname, "..", "web", "src", "utils", "pdf.js");
     if (!fs.existsSync(modulePath)) {
       throw new Error("Template de PDF não encontrado.");
     }
@@ -295,10 +297,20 @@ async function loadPdfHelpers() {
 
 async function getPdfBrowser() {
   if (!pdfBrowserPromise) {
-    pdfBrowserPromise = puppeteer.launch({
+    const launchOptions = {
       headless: "new",
       args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
+    };
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+    if (process.env.PUPPETEER_ARGS) {
+      const extraArgs = process.env.PUPPETEER_ARGS.split(",")
+        .map((arg) => arg.trim())
+        .filter(Boolean);
+      launchOptions.args = [...launchOptions.args, ...extraArgs];
+    }
+    pdfBrowserPromise = puppeteer.launch(launchOptions);
   }
   return pdfBrowserPromise;
 }
@@ -756,7 +768,7 @@ async function main() {
     })
   );
 
-  app.get("/api/users", requireAdmin, async (req, res) => {
+  app.get("/api/users", requirePermission(PERMISSIONS.VIEW_USERS), async (req, res) => {
     try {
       const users = await db.all("SELECT id, name, email, role, permissions FROM users ORDER BY name ASC");
       res.json(users.map(normalizeUser));
@@ -765,7 +777,7 @@ async function main() {
     }
   });
 
-  app.post("/api/users", requireAdmin, async (req, res) => {
+  app.post("/api/users", requirePermission(PERMISSIONS.MANAGE_USERS), async (req, res) => {
     try {
       const missing = ensureFields(req.body, ["name", "email", "role", "password"]);
       if (missing.length) {
@@ -788,7 +800,7 @@ async function main() {
     }
   });
 
-  app.put("/api/users/:id", requireAdmin, async (req, res) => {
+  app.put("/api/users/:id", requirePermission(PERMISSIONS.MANAGE_USERS), async (req, res) => {
     try {
       const targetId = Number(req.params.id);
       if (req.user?.id === targetId && req.body.role && req.body.role !== req.user.role) {
@@ -817,7 +829,7 @@ async function main() {
     }
   });
 
-  app.delete("/api/users/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/users/:id", requirePermission(PERMISSIONS.MANAGE_USERS), async (req, res) => {
     try {
       const targetId = Number(req.params.id);
       if (req.user?.id === targetId) {

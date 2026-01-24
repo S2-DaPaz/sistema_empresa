@@ -10,7 +10,7 @@ const navItems = [
   { to: "/orcamentos", label: "Orçamentos", permission: PERMISSIONS.VIEW_BUDGETS },
   { to: "/produtos", label: "Produtos", permission: PERMISSIONS.VIEW_PRODUCTS },
   { to: "/tipos-tarefa", label: "Tipos de tarefa", permission: PERMISSIONS.VIEW_TASK_TYPES },
-  { to: "/usuarios", label: "Usuários", adminOnly: true }
+  { to: "/usuarios", label: "Usuários", permission: PERMISSIONS.VIEW_USERS }
 ];
 
 export default function Layout() {
@@ -26,7 +26,6 @@ export default function Layout() {
     taskQuery.trim() !== "" || statusFilter !== "all" || priorityFilter !== "all";
 
   const visibleItems = navItems.filter((item) => {
-    if (item.adminOnly) return user?.role === "administracao";
     if (item.permission) return hasPermission(item.permission);
     return true;
   });

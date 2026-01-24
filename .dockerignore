@@ -1,0 +1,10 @@
+**/node_modules
+**/.git
+**/.DS_Store
+**/*.log
+web/dist
+mobile/build
+mobile/.dart_tool
+server/data.db
+installer/
+launcher/

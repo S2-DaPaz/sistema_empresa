@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
-import { RequireAdmin, RequireAuth } from "./components/AuthGate";
+import { RequireAuth, RequirePermission } from "./components/AuthGate";
+import { PERMISSIONS } from "./contexts/AuthContext";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import Tasks from "./pages/Tasks";
@@ -29,9 +30,9 @@ export default function App() {
           <Route
             path="/usuarios"
             element={
-              <RequireAdmin>
+              <RequirePermission permission={PERMISSIONS.VIEW_USERS}>
                 <Users />
-              </RequireAdmin>
+              </RequirePermission>
             }
           />
           <Route path="/produtos" element={<Products />} />

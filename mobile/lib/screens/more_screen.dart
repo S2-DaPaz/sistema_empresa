@@ -5,6 +5,7 @@ import 'task_types_screen.dart';
 import 'templates_screen.dart';
 import 'users_screen.dart';
 import '../services/auth_service.dart';
+import '../services/permissions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/brand_logo.dart';
 
@@ -24,7 +25,7 @@ class MoreScreen extends StatelessWidget {
         builder: (context, session, _) {
           final name = session?.user['name']?.toString() ?? 'Visitante';
           final role = session?.user['role']?.toString() ?? 'visitante';
-          final isAdmin = session?.role == 'administracao';
+          final canViewUsers = AuthService.instance.hasPermission(Permissions.viewUsers);
           return ListView(
             children: [
               const SizedBox(height: 8),
@@ -58,7 +59,7 @@ class MoreScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              if (isAdmin)
+              if (canViewUsers)
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.people_outline),

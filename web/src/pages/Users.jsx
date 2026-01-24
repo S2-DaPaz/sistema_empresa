@@ -27,7 +27,7 @@ const permissionOptions = [
 ];
 
 export default function Users() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [users, setUsers] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [form, setForm] = useState({
@@ -38,6 +38,7 @@ export default function Users() {
     permissions: []
   });
   const [error, setError] = useState("");
+  const canManageUsers = hasPermission(PERMISSIONS.MANAGE_USERS);
 
   const roleLabel = useMemo(() => {
     const map = new Map(roleOptions.map((option) => [option.value, option.label]));
@@ -85,6 +86,10 @@ export default function Users() {
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+    if (!canManageUsers) {
+      setError("Voc\u00ea n\u00e3o possui permiss\u00e3o para gerenciar usu\u00e1rios.");
+      return;
+    }
 
     try {
       if (activeId) {
@@ -106,6 +111,10 @@ export default function Users() {
   }
 
   async function handleDelete(id) {
+    if (!canManageUsers) {
+      setError("Voc\u00ea n\u00e3o possui permiss\u00e3o para gerenciar usu\u00e1rios.");
+      return;
+    }
     if (!window.confirm("Deseja remover este usuário?")) return;
     setError("");
     try {
@@ -143,23 +152,26 @@ export default function Users() {
               <small>{item.email || "Sem e-mail"}</small>
               <small>Cargo: {roleLabel(item.role)}</small>
               <small>Permissões extras: {(item.permissions || []).length}</small>
-              <div className="inline" style={{ marginTop: "12px" }}>
-                <button className="btn secondary" onClick={() => handleEdit(item)}>
-                  Editar
-                </button>
-                <button
-                  className="btn ghost"
-                  onClick={() => handleDelete(item.id)}
-                  disabled={item.id === user?.id}
-                >
-                  Remover
-                </button>
-              </div>
+              {canManageUsers && (
+                <div className="inline" style={{ marginTop: "12px" }}>
+                  <button className="btn secondary" onClick={() => handleEdit(item)}>
+                    Editar
+                  </button>
+                  <button
+                    className="btn ghost"
+                    onClick={() => handleDelete(item.id)}
+                    disabled={item.id === user?.id}
+                  >
+                    Remover
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
 
-        <form className="card" onSubmit={handleSubmit}>
+        {canManageUsers ? (
+          <form className="card" onSubmit={handleSubmit}>
           <h3>{activeId ? "Editar usuário" : "Novo usuário"}</h3>
           <div className="form-grid">
             <FormField
@@ -219,6 +231,12 @@ export default function Users() {
             </button>
           </div>
         </form>
+        ) : (
+          <div className="card">
+            <h3>Acesso somente leitura</h3>
+            <p>Voc\u00ea pode visualizar os usu\u00e1rios, mas n\u00e3o tem permiss\u00e3o para editar.</p>
+          </div>
+        )}
       </div>
     </section>
   );
