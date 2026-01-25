@@ -52,17 +52,6 @@ function loadEnv() {
   });
 }
 
-function ensureDatabaseUrl() {
-  const envPath = ensureEnvFile();
-  const hasUrl = process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0;
-  if (hasUrl) return true;
-
-  const instructionsPath = path.join(__dirname, "missing-env.html");
-  exec(`start \"\" \"${instructionsPath}\"`);
-  exec(`notepad \"${envPath}\"`);
-  return false;
-}
-
 function resolveStaticDir() {
   const candidates = [
     process.env.STATIC_DIR,
@@ -120,33 +109,75 @@ function ensureStaticDir() {
   return resolveStaticDir();
 }
 
-function waitForServer(timeoutMs = 30000) {
-  const start = Date.now();
-  const url = `http://localhost:${PORT}/api/health`;
+const MIME_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".map": "application/json"
+};
 
+function getContentType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return MIME_TYPES[ext] || "application/octet-stream";
+}
+
+function serveFile(res, filePath) {
+  res.writeHead(200, { "Content-Type": getContentType(filePath) });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+function startStaticServer(staticDir) {
   return new Promise((resolve, reject) => {
-    const check = () => {
-      http
-        .get(url, (res) => {
-          res.resume();
-          if (res.statusCode && res.statusCode >= 200) {
-            resolve();
-            return;
-          }
-          retry();
-        })
-        .on("error", retry);
-    };
-
-    const retry = () => {
-      if (Date.now() - start > timeoutMs) {
-        reject(new Error("Servidor nao respondeu a tempo."));
+    const server = http.createServer((req, res) => {
+      if (!staticDir) {
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Front-end nao encontrado.");
         return;
       }
-      setTimeout(check, 500);
-    };
 
-    check();
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        res.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Metodo nao permitido.");
+        return;
+      }
+
+      const url = new URL(req.url, `http://localhost:${PORT}`);
+      let pathname = decodeURIComponent(url.pathname || "/");
+      if (pathname === "/") pathname = "/index.html";
+
+      const filePath = path.join(staticDir, pathname);
+      if (!filePath.startsWith(staticDir)) {
+        res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Acesso negado.");
+        return;
+      }
+
+      fs.stat(filePath, (err, stats) => {
+        if (!err && stats.isFile()) {
+          serveFile(res, filePath);
+          return;
+        }
+        const indexPath = path.join(staticDir, "index.html");
+        if (fs.existsSync(indexPath)) {
+          serveFile(res, indexPath);
+          return;
+        }
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Front-end nao encontrado.");
+      });
+    });
+
+    server.on("error", reject);
+    server.listen(PORT, () => resolve(server));
   });
 }
 
@@ -154,30 +185,19 @@ function openBrowser() {
   exec(`start \"\" \"http://localhost:${PORT}\"`);
 }
 
-async function isServerRunning() {
-  try {
-    await waitForServer(1500);
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
 async function main() {
   loadEnv();
-  if (!ensureDatabaseUrl()) {
-    process.exit(1);
-  }
   const staticDir = ensureStaticDir();
   if (staticDir && !process.env.STATIC_DIR) {
     process.env.STATIC_DIR = staticDir;
   }
 
-  if (!(await isServerRunning())) {
-    const { main: startServer } = require("../server/index.js");
-    await startServer();
+  if (!staticDir) {
+    console.error("Front-end nao encontrado. Gere o build do web/dist.");
+    process.exit(1);
   }
-  await waitForServer();
+
+  await startStaticServer(staticDir);
   openBrowser();
 }
 

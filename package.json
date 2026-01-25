@@ -7,7 +7,7 @@
     "dev:server": "npm run dev --prefix server",
     "dev:web": "npm run dev --prefix web",
     "install:all": "npm install --prefix server && npm install --prefix web",
-    "build:web": "cross-env VITE_API_URL=http://localhost:3001 npm run build --prefix web",
+    "build:web": "npm run build --prefix web",
     "package:local": "npm run build:web && pkg -t node18-win-x64 -o \"dist/launcher/RV Sistema Empresa.exe\" launcher/index.js",
     "installer:local": "npm run package:local && powershell -NoProfile -ExecutionPolicy Bypass -File installer/build-installer.ps1"
   },

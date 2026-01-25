@@ -1,8 +1,8 @@
 RV Sistema Empresa - Instalacao
 
-1) Apos instalar, edite o arquivo:
+1) Instale normalmente e use o atalho na area de trabalho.
+
+2) O sistema ja esta configurado para usar a API na nuvem.
+
+3) Se precisar mudar a porta local do web, edite:
    %APPDATA%\RV Sistema Empresa\server.env
-
-2) Informe a DATABASE_URL do Neon e salve.
-
-3) Abra o sistema pelo atalho na area de trabalho.
