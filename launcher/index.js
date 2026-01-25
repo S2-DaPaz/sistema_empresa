@@ -86,24 +86,27 @@ function copyDir(source, destination) {
   });
 }
 
+function resolveBundledStaticDir() {
+  const sourceDir = process.pkg
+    ? path.join(path.dirname(process.execPath), "web", "dist")
+    : path.join(__dirname, "..", "web", "dist");
+  const indexPath = path.join(sourceDir, "index.html");
+  if (fs.existsSync(indexPath)) {
+    return sourceDir;
+  }
+  return null;
+}
+
 function ensureStaticDir() {
+  const bundledDir = resolveBundledStaticDir();
+  if (bundledDir) {
+    return bundledDir;
+  }
+
   const appDir = path.join(getAppDataDir(), APP_NAME, "web", "dist");
   const indexPath = path.join(appDir, "index.html");
   if (fs.existsSync(indexPath)) {
     return appDir;
-  }
-
-  const sourceDir = process.pkg
-    ? path.join(path.dirname(process.execPath), "web", "dist")
-    : path.join(__dirname, "..", "web", "dist");
-  if (fs.existsSync(sourceDir)) {
-    try {
-      copyDir(sourceDir, appDir);
-      return appDir;
-    } catch (error) {
-      // fallback to snapshot path
-      return sourceDir;
-    }
   }
 
   return resolveStaticDir();
