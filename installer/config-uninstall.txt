@@ -1,0 +1,6 @@
+;!@Install@!UTF-8!
+Title="RV Sistema Empresa - Desinstalar"
+BeginPrompt="Deseja desinstalar o RV Sistema Empresa?"
+InstallPath="%TEMP%\\RV Sistema Empresa Uninstall"
+RunProgram="uninstall.cmd"
+;!@InstallEnd@!
