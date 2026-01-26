@@ -1,9 +1,13 @@
 ﻿import 'dart:convert';
+import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
 
@@ -95,10 +99,8 @@ class UpdateService {
             ),
           ElevatedButton(
             onPressed: () async {
-              await _openUrl(context, info.apkUrl);
-              if (context.mounted && !info.mandatory) {
-                Navigator.pop(context);
-              }
+              Navigator.pop(context);
+              await _downloadAndInstall(context, info);
             },
             child: const Text('Atualizar agora'),
           ),
@@ -107,18 +109,138 @@ class UpdateService {
     );
   }
 
-  Future<void> _openUrl(BuildContext context, String url) async {
-    final rawUri = Uri.tryParse(url);
-    final uri = rawUri != null && rawUri.hasScheme
-        ? rawUri
-        : Uri.parse(ApiConfig.baseUrl).resolve(url);
-    final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!success) {
-      _showSnack(context, 'Nao foi possivel abrir o link de atualizacao.');
-    }
+  Future<void> _downloadAndInstall(BuildContext context, AppUpdateInfo info) async {
+    bool started = false;
+    double progress = 0;
+    bool done = false;
+    String? error;
+    final cancelToken = CancelToken();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          if (!started) {
+            started = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              try {
+                final file = await _downloadApk(
+                  info.apkUrl,
+                  cancelToken,
+                  (value) => setState(() => progress = value),
+                );
+                done = true;
+                setState(() {});
+                final result = await OpenFilex.open(file.path);
+                if (result.type != ResultType.done) {
+                  error = 'Nao foi possivel abrir o instalador.';
+                  setState(() {});
+                }
+              } catch (err) {
+                if (err is DioException && err.type == DioExceptionType.cancel) {
+                  error = 'Download cancelado.';
+                } else {
+                  error = 'Falha ao baixar a atualizacao.';
+                }
+                setState(() {});
+              }
+            });
+          }
+
+          final showProgress = error == null && !done;
+          final progressValue = progress > 0 ? progress : null;
+
+          return AlertDialog(
+            title: const Text('Baixando atualizacao'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (showProgress)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LinearProgressIndicator(value: progressValue),
+                      const SizedBox(height: 8),
+                      Text(
+                        progress > 0
+                            ? 'Progresso: ${(progress * 100).toStringAsFixed(0)}%'
+                            : 'Preparando download...'
+                      ),
+                    ],
+                  ),
+                if (done && error == null)
+                  const Text('Instalador aberto. Conclua a instalacao no Android.'),
+                if (error != null)
+                  Text(error!, style: const TextStyle(color: Colors.redAccent)),
+              ],
+            ),
+            actions: [
+              if (!info.mandatory && showProgress)
+                TextButton(
+                  onPressed: () {
+                    cancelToken.cancel();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancelar'),
+                ),
+              if (!info.mandatory && done && error == null)
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Fechar'),
+                ),
+              if (!info.mandatory && error != null)
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Fechar'),
+                ),
+              if (error != null)
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      progress = 0;
+                      done = false;
+                      error = null;
+                      started = false;
+                    });
+                  },
+                  child: const Text('Tentar novamente'),
+                ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
-  void _showSnack(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  Future<File> _downloadApk(
+    String url,
+    CancelToken cancelToken,
+    ValueChanged<double> onProgress,
+  ) async {
+    final resolved = _resolveApkUrl(url);
+    final directory = await getTemporaryDirectory();
+    final filePath = path.join(
+      directory.path,
+      'rv-tecnocare-${DateTime.now().millisecondsSinceEpoch}.apk',
+    );
+    final dio = Dio();
+    await dio.download(
+      resolved.toString(),
+      filePath,
+      cancelToken: cancelToken,
+      onReceiveProgress: (received, total) {
+        if (total <= 0) return;
+        onProgress(received / total);
+      },
+    );
+    return File(filePath);
+  }
+
+  Uri _resolveApkUrl(String url) {
+    final rawUri = Uri.tryParse(url);
+    if (rawUri != null && rawUri.hasScheme) return rawUri;
+    return Uri.parse(ApiConfig.baseUrl).resolve(url);
   }
 }
