@@ -99,12 +99,7 @@ class AuthSession {
     final base = rolePermissions.isNotEmpty
         ? rolePermissions
         : _roleDefaults[role] ?? _roleDefaults['visitante'] ?? [];
-    if (base.isNotEmpty &&
-        permissions.isNotEmpty &&
-        base.every(permissions.contains)) {
-      return {...permissions}.toList();
-    }
-    return {...base, ...permissions}.toList();
+    return {...base}.toList();
   }
 }
 

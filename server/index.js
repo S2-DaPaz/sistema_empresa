@@ -168,8 +168,7 @@ function getUserPermissions(user) {
     user.role_permissions !== undefined
       ? parsePermissions(user.role_permissions)
       : ROLE_DEFAULTS[user.role] || ROLE_DEFAULTS.visitante;
-  const custom = parsePermissions(user.permissions);
-  return Array.from(new Set([...base, ...custom]));
+  return Array.from(new Set(base));
 }
 
 function hasPermission(user, permission) {
@@ -755,6 +754,26 @@ async function main() {
 
   app.get("/api/health", (req, res) => {
     res.json({ ok: true });
+  });
+
+  app.get("/api/app/mobile-update", (req, res) => {
+    const versionCode = Number(process.env.MOBILE_APP_VERSION_CODE || 0);
+    const versionName = (process.env.MOBILE_APP_VERSION_NAME || "").trim();
+    const apkUrl = (process.env.MOBILE_APP_APK_URL || "").trim();
+    const notes = (process.env.MOBILE_APP_NOTES || "").trim();
+    const mandatory = String(process.env.MOBILE_APP_MANDATORY || "").toLowerCase() === "true";
+
+    if (!apkUrl || !versionCode) {
+      return res.status(204).end();
+    }
+
+    return res.json({
+      versionCode,
+      versionName,
+      apkUrl,
+      notes,
+      mandatory
+    });
   });
 
   app.post("/api/auth/register", async (req, res) => {

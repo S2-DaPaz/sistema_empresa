@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/home_shell.dart';
 import '../screens/login_screen.dart';
 import '../services/auth_service.dart';
+import '../services/update_service.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -21,6 +22,10 @@ class _AuthGateState extends State<AuthGate> {
       if (mounted) {
         setState(() => _loading = false);
       }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      UpdateService.instance.checkForUpdate(context);
     });
   }
 

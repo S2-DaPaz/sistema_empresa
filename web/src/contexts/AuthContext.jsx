@@ -77,18 +77,10 @@ function getUserPermissions(user) {
   if (!user) return [];
   if (user.role_is_admin || user.role === "administracao") return ALL_PERMISSIONS;
   const rolePermissions = parsePermissions(user.role_permissions);
-  const userPermissions = parsePermissions(user.permissions);
-  if (
-    rolePermissions.length &&
-    userPermissions.length &&
-    rolePermissions.every((permission) => userPermissions.includes(permission))
-  ) {
-    return Array.from(new Set(userPermissions));
-  }
   const base = rolePermissions.length
     ? rolePermissions
     : ROLE_DEFAULTS[user.role] || ROLE_DEFAULTS.visitante;
-  return Array.from(new Set([...base, ...userPermissions]));
+  return Array.from(new Set(base));
 }
 
 function hasPermissionFor(user, permission) {
