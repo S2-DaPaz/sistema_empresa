@@ -40,8 +40,7 @@ export default function Users() {
     name: "",
     email: "",
     role: "visitante",
-    password: "",
-    permissions: []
+    password: ""
   });
   const [roleForm, setRoleForm] = useState({
     name: "",
@@ -82,7 +81,7 @@ export default function Users() {
 
   function resetForm() {
     setActiveId(null);
-    setForm({ name: "", email: "", role: "visitante", password: "", permissions: [] });
+    setForm({ name: "", email: "", role: "visitante", password: "" });
     setError("");
   }
 
@@ -98,8 +97,7 @@ export default function Users() {
       name: item.name || "",
       email: item.email || "",
       role: item.role || "visitante",
-      password: "",
-      permissions: Array.isArray(item.permissions) ? item.permissions : []
+      password: ""
     });
   }
 
@@ -109,18 +107,6 @@ export default function Users() {
       name: item.name || item.key || "",
       permissions: Array.isArray(item.permissions) ? item.permissions : [],
       is_admin: Boolean(item.is_admin)
-    });
-  }
-
-  function togglePermission(permission) {
-    setForm((prev) => {
-      const has = prev.permissions.includes(permission);
-      return {
-        ...prev,
-        permissions: has
-          ? prev.permissions.filter((item) => item !== permission)
-          : [...prev.permissions, permission]
-      };
     });
   }
 
@@ -150,7 +136,6 @@ export default function Users() {
           name: form.name,
           email: form.email,
           role: form.role,
-          permissions: form.permissions,
           password: form.password || undefined
         });
       } else {
@@ -270,7 +255,6 @@ export default function Users() {
                   </div>
                   <small>{item.email || "Sem e-mail"}</small>
                   <small>Cargo: {roleName}</small>
-                  <small>Permissões extras: {(item.permissions || []).length}</small>
                   {canManageUsers && (
                     <div className="inline" style={{ marginTop: "12px" }}>
                       <button className="btn secondary" onClick={() => handleEdit(item)}>
@@ -320,25 +304,6 @@ export default function Users() {
                   placeholder={activeId ? "Digite para alterar" : "Crie uma senha"}
                   onChange={(value) => setForm((prev) => ({ ...prev, password: value }))}
                 />
-              </div>
-
-              <div style={{ marginTop: "16px" }}>
-                <h4 className="section-title">Permissões extras</h4>
-                <div className="permission-grid">
-                  {permissionOptions.map((option) => (
-                    <label key={option.id} className="permission-item">
-                      <input
-                        type="checkbox"
-                        checked={form.permissions.includes(option.id)}
-                        onChange={() => togglePermission(option.id)}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-                <small className="muted">
-                  As permissões do cargo são aplicadas automaticamente. Aqui você adiciona extras.
-                </small>
               </div>
 
               {error && <p className="muted">{error}</p>}

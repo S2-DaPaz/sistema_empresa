@@ -244,7 +244,6 @@ class _UsersScreenState extends State<UsersScreen> {
           ..._users.map((item) {
             final roleKey = item['role']?.toString();
             final roleName = item['role_name']?.toString() ?? _roleName(roleKey);
-            final extras = (item['permissions'] as List?)?.length ?? 0;
             final isMe = item['id'] == AuthService.instance.user?['id'];
             return Card(
               child: ListTile(
@@ -259,7 +258,7 @@ class _UsersScreenState extends State<UsersScreen> {
                   ],
                 ),
                 subtitle: Text(
-                  '${item['email']?.toString() ?? 'Sem e-mail'}\nCargo: $roleName | Extras: $extras',
+                  '${item['email']?.toString() ?? 'Sem e-mail'}\nCargo: $roleName',
                 ),
                 isThreeLine: true,
                 trailing: _canManage
@@ -419,7 +418,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   String _role = 'visitante';
-  List<String> _permissions = [];
   bool _saving = false;
   String? _error;
 
@@ -433,7 +431,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
       _nameController.text = user['name']?.toString() ?? '';
       _emailController.text = user['email']?.toString() ?? '';
       _role = user['role']?.toString() ?? 'visitante';
-      _permissions = _parsePermissions(user['permissions']);
     }
     if (widget.roles.isNotEmpty &&
         !widget.roles.any((role) => role['key']?.toString() == _role)) {
@@ -469,16 +466,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
         .toList();
   }
 
-  void _togglePermission(String permission) {
-    setState(() {
-      if (_permissions.contains(permission)) {
-        _permissions = _permissions.where((item) => item != permission).toList();
-      } else {
-        _permissions = [..._permissions, permission];
-      }
-    });
-  }
-
   Future<void> _save() async {
     setState(() {
       _saving = true;
@@ -489,7 +476,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
       'name': _nameController.text.trim(),
       'email': _emailController.text.trim(),
       'role': _role,
-      'permissions': _permissions,
     };
     if (!_isEdit || _passwordController.text.trim().isNotEmpty) {
       payload['password'] = _passwordController.text.trim();
@@ -527,26 +513,6 @@ class _UserFormScreenState extends State<UserFormScreen> {
           AppTextField(
             label: _isEdit ? 'Nova senha (opcional)' : 'Senha',
             controller: _passwordController,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Permissões extras',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 8),
-          ..._permissionOptions.map(
-            (option) => CheckboxListTile(
-              value: _permissions.contains(option.id),
-              onChanged: (_) => _togglePermission(option.id),
-              title: Text(option.label),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'As permissões do cargo são aplicadas automaticamente. Aqui você adiciona extras.',
-            style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
           if (_error != null)
