@@ -145,6 +145,8 @@ const ROLE_DEFAULTS = {
   ]
 };
 
+const RESERVED_ROLE_KEYS = ["administracao", "gestor", "tecnico", "visitante"];
+
 function parsePermissions(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value;
@@ -161,15 +163,18 @@ function parsePermissions(value) {
 
 function getUserPermissions(user) {
   if (!user) return [];
-  if (user.role === "administracao") return ALL_PERMISSIONS;
-  const base = ROLE_DEFAULTS[user.role] || ROLE_DEFAULTS.visitante;
+  if (user.role_is_admin || user.role === "administracao") return ALL_PERMISSIONS;
+  const base =
+    user.role_permissions !== undefined
+      ? parsePermissions(user.role_permissions)
+      : ROLE_DEFAULTS[user.role] || ROLE_DEFAULTS.visitante;
   const custom = parsePermissions(user.permissions);
   return Array.from(new Set([...base, ...custom]));
 }
 
 function hasPermission(user, permission) {
   if (!user) return false;
-  if (user.role === "administracao") return true;
+  if (user.role_is_admin || user.role === "administracao") return true;
   const permissions = new Set(getUserPermissions(user));
   if (permissions.has(permission)) return true;
   if (permission.startsWith("view_")) {
@@ -186,8 +191,50 @@ function normalizeUser(user) {
     name: user.name,
     email: user.email,
     role: user.role,
+    role_name: user.role_name || user.role,
+    role_is_admin: Boolean(user.role_is_admin),
+    role_permissions: parsePermissions(user.role_permissions),
     permissions: parsePermissions(user.permissions)
   };
+}
+
+function normalizeRole(role) {
+  if (!role) return null;
+  return {
+    id: role.id,
+    key: role.key,
+    name: role.name,
+    permissions: parsePermissions(role.permissions),
+    is_admin: Boolean(role.is_admin)
+  };
+}
+
+function slugifyRoleKey(value) {
+  return value
+    .toString()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+async function getUserWithRole(db, userId) {
+  return db.get(
+    `SELECT users.id,
+            users.name,
+            users.email,
+            users.role,
+            users.permissions,
+            roles.name AS role_name,
+            roles.permissions AS role_permissions,
+            roles.is_admin AS role_is_admin
+     FROM users
+     LEFT JOIN roles ON roles.key = users.role
+     WHERE users.id = ?`,
+    [userId]
+  );
 }
 
 function signToken(user) {
@@ -207,7 +254,7 @@ function createAuthMiddleware(db) {
     }
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      const user = await db.get("SELECT id, name, email, role, permissions FROM users WHERE id = ?", [payload.id]);
+      const user = await getUserWithRole(db, payload.id);
       if (!user) {
         return res.status(401).json({ error: "Usuário não encontrado" });
       }
@@ -229,7 +276,7 @@ function requirePermission(permission) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== "administracao") {
+  if (!req.user || !req.user.role_is_admin) {
     return res.status(403).json({ error: "Acesso restrito ao administrador" });
   }
   return next();
@@ -247,6 +294,38 @@ async function ensureAdminUser(db) {
     [name, email, "administracao", hash, JSON.stringify([])]
   );
   console.log(`Usuário admin criado: ${email}`);
+}
+
+
+async function ensureDefaultRoles(db) {
+  const defaults = [
+    { key: "administracao", name: "Administração", permissions: ALL_PERMISSIONS, is_admin: 1 },
+    { key: "gestor", name: "Gestor", permissions: ROLE_DEFAULTS.gestor, is_admin: 0 },
+    { key: "tecnico", name: "Técnico", permissions: ROLE_DEFAULTS.tecnico, is_admin: 0 },
+    { key: "visitante", name: "Visitante", permissions: ROLE_DEFAULTS.visitante, is_admin: 0 }
+  ];
+
+  for (const role of defaults) {
+    const exists = await db.get("SELECT id, name, is_admin FROM roles WHERE key = ?", [role.key]);
+    if (!exists) {
+      await db.run(
+        "INSERT INTO roles (key, name, permissions, is_admin) VALUES (?, ?, ?, ?)",
+        [role.key, role.name, JSON.stringify(role.permissions || []), role.is_admin ? 1 : 0]
+      );
+      continue;
+    }
+    const shouldFixName = !exists.name || exists.name.includes("?");
+    const shouldFixAdmin = role.is_admin && !Number(exists.is_admin);
+    const nextName = shouldFixName ? role.name : exists.name;
+    const nextAdmin = shouldFixAdmin ? 1 : Number(exists.is_admin) ? 1 : 0;
+    if (nextName !== exists.name || nextAdmin !== Number(exists.is_admin)) {
+      await db.run("UPDATE roles SET name = ?, is_admin = ? WHERE id = ?", [
+        nextName,
+        nextAdmin,
+        exists.id
+      ]);
+    }
+  }
 }
 
 function safeJsonParse(value) {
@@ -667,6 +746,7 @@ function createCrudRoutes(db, config) {
 
 async function main() {
   const db = await initDb();
+  await ensureDefaultRoles(db);
   await ensureAdminUser(db);
   const app = express();
 
@@ -692,9 +772,9 @@ async function main() {
         "INSERT INTO users (name, email, role, password_hash, permissions) VALUES (?, ?, ?, ?, ?)",
         [req.body.name, req.body.email, "visitante", hash, JSON.stringify([])]
       );
-      const user = await db.get("SELECT id, name, email, role, permissions FROM users WHERE id = ?", [result.lastID]);
+      const user = await getUserWithRole(db, result.lastID);
       const token = signToken(user);
-      res.status(201).json({ user: normalizeUser(user), token });
+      res.status(201).json({ user: { ...normalizeUser(user), permissions: getUserPermissions(user) }, token });
     } catch (error) {
       res.status(500).json({ error: "Falha ao cadastrar" });
     }
@@ -706,16 +786,17 @@ async function main() {
       if (missing.length) {
         return res.status(400).json({ error: "Campos obrigatórios ausentes", missing });
       }
-      const user = await db.get("SELECT * FROM users WHERE lower(email) = lower(?)", [req.body.email]);
-      if (!user || !user.password_hash) {
+      const rawUser = await db.get("SELECT * FROM users WHERE lower(email) = lower(?)", [req.body.email]);
+      if (!rawUser || !rawUser.password_hash) {
         return res.status(401).json({ error: "Credenciais inválidas" });
       }
-      const valid = await bcrypt.compare(req.body.password, user.password_hash);
+      const valid = await bcrypt.compare(req.body.password, rawUser.password_hash);
       if (!valid) {
         return res.status(401).json({ error: "Credenciais inválidas" });
       }
+      const user = await getUserWithRole(db, rawUser.id);
       const token = signToken(user);
-      res.json({ user: normalizeUser(user), token });
+      res.json({ user: { ...normalizeUser(user), permissions: getUserPermissions(user) }, token });
     } catch (error) {
       res.status(500).json({ error: "Falha ao autenticar" });
     }
@@ -770,7 +851,19 @@ async function main() {
 
   app.get("/api/users", requirePermission(PERMISSIONS.VIEW_USERS), async (req, res) => {
     try {
-      const users = await db.all("SELECT id, name, email, role, permissions FROM users ORDER BY name ASC");
+      const users = await db.all(
+        `SELECT users.id,
+                users.name,
+                users.email,
+                users.role,
+                users.permissions,
+                roles.name AS role_name,
+                roles.permissions AS role_permissions,
+                roles.is_admin AS role_is_admin
+         FROM users
+         LEFT JOIN roles ON roles.key = users.role
+         ORDER BY users.name ASC`
+      );
       res.json(users.map(normalizeUser));
     } catch (error) {
       res.status(500).json({ error: "Falha ao listar usuários" });
@@ -793,7 +886,7 @@ async function main() {
         "INSERT INTO users (name, email, role, password_hash, permissions) VALUES (?, ?, ?, ?, ?)",
         [req.body.name, req.body.email, req.body.role, hash, JSON.stringify(permissions)]
       );
-      const user = await db.get("SELECT id, name, email, role, permissions FROM users WHERE id = ?", [result.lastID]);
+      const user = await getUserWithRole(db, result.lastID);
       res.status(201).json(normalizeUser(user));
     } catch (error) {
       res.status(500).json({ error: "Falha ao criar usuário" });
@@ -822,7 +915,7 @@ async function main() {
         const hash = await bcrypt.hash(req.body.password, 10);
         await db.run("UPDATE users SET password_hash = ? WHERE id = ?", [hash, req.params.id]);
       }
-      const user = await db.get("SELECT id, name, email, role, permissions FROM users WHERE id = ?", [req.params.id]);
+      const user = await getUserWithRole(db, req.params.id);
       res.json(normalizeUser(user));
     } catch (error) {
       res.status(500).json({ error: "Falha ao atualizar usuário" });
@@ -839,6 +932,79 @@ async function main() {
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao remover usuário" });
+    }
+  });
+
+  app.get("/api/roles", requirePermission(PERMISSIONS.VIEW_USERS), async (req, res) => {
+    try {
+      const roles = await db.all("SELECT id, key, name, permissions, is_admin FROM roles ORDER BY name ASC");
+      res.json(roles.map(normalizeRole));
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao listar cargos" });
+    }
+  });
+
+  app.post("/api/roles", requirePermission(PERMISSIONS.MANAGE_USERS), async (req, res) => {
+    try {
+      const missing = ensureFields(req.body, ["name"]);
+      if (missing.length) {
+        return res.status(400).json({ error: "Campos obrigatórios ausentes", missing });
+      }
+      const name = req.body.name.toString().trim();
+      const key = req.body.key ? slugifyRoleKey(req.body.key) : slugifyRoleKey(name);
+      if (!key) {
+        return res.status(400).json({ error: "Código do cargo inválido" });
+      }
+      const exists = await db.get("SELECT id FROM roles WHERE key = ?", [key]);
+      if (exists) {
+        return res.status(400).json({ error: "Já existe um cargo com este código" });
+      }
+      const permissions = Array.isArray(req.body.permissions) ? req.body.permissions : [];
+      const isAdmin = req.body.is_admin ? 1 : 0;
+      const result = await db.run("INSERT INTO roles (key, name, permissions, is_admin) VALUES (?, ?, ?, ?)", [key, name, JSON.stringify(permissions), isAdmin]);
+      const role = await db.get("SELECT id, key, name, permissions, is_admin FROM roles WHERE id = ?", [result.lastID]);
+      res.status(201).json(normalizeRole(role));
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao criar cargo" });
+    }
+  });
+
+  app.put("/api/roles/:id", requirePermission(PERMISSIONS.MANAGE_USERS), async (req, res) => {
+    try {
+      const roleId = Number(req.params.id);
+      const role = await db.get("SELECT id, key FROM roles WHERE id = ?", [roleId]);
+      if (!role) {
+        return res.status(404).json({ error: "Cargo não encontrado" });
+      }
+      const name = req.body.name ? req.body.name.toString().trim() : null;
+      const permissions = Array.isArray(req.body.permissions) ? req.body.permissions : [];
+      const isAdmin = req.body.is_admin ? 1 : 0;
+      await db.run("UPDATE roles SET name = ?, permissions = ?, is_admin = ? WHERE id = ?", [name || role.key, JSON.stringify(permissions), isAdmin, roleId]);
+      const updated = await db.get("SELECT id, key, name, permissions, is_admin FROM roles WHERE id = ?", [roleId]);
+      res.json(normalizeRole(updated));
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao atualizar cargo" });
+    }
+  });
+
+  app.delete("/api/roles/:id", requirePermission(PERMISSIONS.MANAGE_USERS), async (req, res) => {
+    try {
+      const roleId = Number(req.params.id);
+      const role = await db.get("SELECT id, key FROM roles WHERE id = ?", [roleId]);
+      if (!role) {
+        return res.status(404).json({ error: "Cargo não encontrado" });
+      }
+      if (RESERVED_ROLE_KEYS.includes(role.key)) {
+        return res.status(400).json({ error: "Não é permitido remover este cargo" });
+      }
+      const inUse = await db.get("SELECT COUNT(*) AS count FROM users WHERE role = ?", [role.key]);
+      if (Number(inUse?.count || 0) > 0) {
+        return res.status(400).json({ error: "Este cargo está vinculado a usuários" });
+      }
+      await db.run("DELETE FROM roles WHERE id = ?", [roleId]);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao remover cargo" });
     }
   });
 

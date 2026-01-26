@@ -7,6 +7,7 @@ const { initDb } = require("../db");
 
 const SQLITE_FILE = path.join(__dirname, "..", "data.db");
 const TABLES = [
+  "roles",
   "users",
   "clients",
   "products",
@@ -20,6 +21,7 @@ const TABLES = [
   "budget_items"
 ];
 const TABLE_COLUMNS = {
+  roles: ["id", "key", "name", "permissions", "is_admin"],
   users: ["id", "name", "email", "role", "password_hash", "permissions"],
   clients: ["id", "name", "cnpj", "address", "contact"],
   products: ["id", "name", "sku", "price", "unit"],
@@ -84,6 +86,7 @@ const TABLE_COLUMNS = {
   ]
 };
 const TABLES_WITH_ID = [
+  "roles",
   "users",
   "clients",
   "products",
@@ -238,12 +241,18 @@ async function main() {
   await ensureEmptyOrReset(pgDb);
 
   const data = {};
-  for (const table of TABLES) {
+  const rows = await sqliteDb.all(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+  );
+  const availableTables = new Set(rows.map((row) => row.name));
+  const tablesToCopy = TABLES.filter((table) => availableTables.has(table));
+  for (const table of tablesToCopy) {
     data[table] = await sqliteDb.all(`SELECT * FROM ${table}`);
   }
 
   sanitizeData(data);
 
+  if (data.roles) await insertRows(pgDb, "roles", data.roles);
   await insertRows(pgDb, "users", data.users);
   await insertRows(pgDb, "clients", data.clients);
   await insertRows(pgDb, "products", data.products);
@@ -257,7 +266,9 @@ async function main() {
   await insertRows(pgDb, "budget_items", data.budget_items);
 
   for (const table of TABLES_WITH_ID) {
-    await setSequence(pgDb, table);
+    if (data[table]) {
+      await setSequence(pgDb, table);
+    }
   }
 
   await sqliteDb.close();

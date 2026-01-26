@@ -7,6 +7,73 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
 import 'permissions.dart';
 
+List<String> _parsePermissions(dynamic value) {
+  if (value is List) {
+    return value.map((item) => item.toString()).toList();
+  }
+  if (value is String && value.isNotEmpty) {
+    try {
+      final parsed = jsonDecode(value);
+      if (parsed is List) {
+        return parsed.map((item) => item.toString()).toList();
+      }
+    } catch (_) {}
+  }
+  return [];
+}
+
+const Map<String, List<String>> _roleDefaults = {
+  'administracao': [
+    Permissions.viewDashboard,
+    Permissions.viewClients,
+    Permissions.manageClients,
+    Permissions.viewTasks,
+    Permissions.manageTasks,
+    Permissions.viewTemplates,
+    Permissions.manageTemplates,
+    Permissions.viewBudgets,
+    Permissions.manageBudgets,
+    Permissions.viewUsers,
+    Permissions.manageUsers,
+    Permissions.viewProducts,
+    Permissions.manageProducts,
+    Permissions.viewTaskTypes,
+    Permissions.manageTaskTypes,
+  ],
+  'gestor': [
+    Permissions.viewDashboard,
+    Permissions.viewClients,
+    Permissions.manageClients,
+    Permissions.viewTasks,
+    Permissions.manageTasks,
+    Permissions.viewTemplates,
+    Permissions.manageTemplates,
+    Permissions.viewBudgets,
+    Permissions.manageBudgets,
+    Permissions.viewProducts,
+    Permissions.manageProducts,
+    Permissions.viewTaskTypes,
+    Permissions.manageTaskTypes,
+  ],
+  'tecnico': [
+    Permissions.viewDashboard,
+    Permissions.viewClients,
+    Permissions.viewTasks,
+    Permissions.manageTasks,
+    Permissions.viewBudgets,
+    Permissions.viewProducts,
+  ],
+  'visitante': [
+    Permissions.viewDashboard,
+    Permissions.viewClients,
+    Permissions.viewTasks,
+    Permissions.viewTemplates,
+    Permissions.viewBudgets,
+    Permissions.viewProducts,
+    Permissions.viewTaskTypes,
+  ],
+};
+
 class AuthException implements Exception {
   AuthException(this.message);
   final String message;
@@ -22,13 +89,22 @@ class AuthSession {
   final Map<String, dynamic> user;
 
   String get role => user['role']?.toString() ?? 'visitante';
+  bool get roleIsAdmin => user['role_is_admin'] == true;
+  List<String> get rolePermissions => _parsePermissions(user['role_permissions']);
 
-  List<String> get permissions {
-    final raw = user['permissions'];
-    if (raw is List) {
-      return raw.map((value) => value.toString()).toList();
+  List<String> get permissions => _parsePermissions(user['permissions']);
+
+  List<String> get effectivePermissions {
+    if (roleIsAdmin || role == 'administracao') return permissions;
+    final base = rolePermissions.isNotEmpty
+        ? rolePermissions
+        : _roleDefaults[role] ?? _roleDefaults['visitante'] ?? [];
+    if (base.isNotEmpty &&
+        permissions.isNotEmpty &&
+        base.every(permissions.contains)) {
+      return {...permissions}.toList();
     }
-    return [];
+    return {...base, ...permissions}.toList();
   }
 }
 
@@ -46,7 +122,7 @@ class AuthService {
   String? get token => session.value?.token;
   Map<String, dynamic>? get user => session.value?.user;
   bool get isLoggedIn => session.value != null;
-  bool get isAdmin => session.value?.role == 'administracao';
+  bool get isAdmin => session.value?.roleIsAdmin == true || session.value?.role == 'administracao';
 
   Future<void> restore() async {
     final prefs = await SharedPreferences.getInstance();
@@ -107,8 +183,8 @@ class AuthService {
   bool hasPermission(String permission) {
     final current = session.value;
     if (current == null) return false;
-    if (current.role == 'administracao') return true;
-    final perms = current.permissions;
+    if (current.roleIsAdmin || current.role == 'administracao') return true;
+    final perms = current.effectivePermissions;
     if (perms.contains(permission)) return true;
     if (permission.startsWith('view_')) {
       final manage = permission.replaceFirst('view_', 'manage_');

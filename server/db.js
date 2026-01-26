@@ -23,6 +23,14 @@ const SQLITE_SCHEMA = `
     permissions TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    permissions TEXT,
+    is_admin INTEGER DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -154,6 +162,14 @@ const POSTGRES_SCHEMA = `
     role TEXT,
     password_hash TEXT,
     permissions TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    key TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    permissions TEXT,
+    is_admin BOOLEAN DEFAULT FALSE
   );
 
   CREATE TABLE IF NOT EXISTS clients (

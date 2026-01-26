@@ -15,6 +15,7 @@ const navItems = [
 
 export default function Layout() {
   const { user, logout, hasPermission } = useAuth();
+  const roleLabel = user?.role_name || user?.role || "visitante";
   const canManageTasks = hasPermission(PERMISSIONS.MANAGE_TASKS);
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -131,7 +132,7 @@ export default function Layout() {
             )}
             <div className="user-pill">
               <span>{user?.name || "Usuário"}</span>
-              <small>{user?.role || "visitante"}</small>
+              <small>{roleLabel}</small>
               <button className="btn ghost" type="button" onClick={logout}>
                 Sair
               </button>

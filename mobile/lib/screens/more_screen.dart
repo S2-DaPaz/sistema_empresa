@@ -24,7 +24,9 @@ class MoreScreen extends StatelessWidget {
         valueListenable: AuthService.instance.session,
         builder: (context, session, _) {
           final name = session?.user['name']?.toString() ?? 'Visitante';
-          final role = session?.user['role']?.toString() ?? 'visitante';
+          final role = session?.user['role_name']?.toString() ??
+              session?.user['role']?.toString() ??
+              'visitante';
           final canViewUsers = AuthService.instance.hasPermission(Permissions.viewUsers);
           return ListView(
             children: [
