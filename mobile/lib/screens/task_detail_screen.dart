@@ -836,7 +836,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     await _flushReportAutosave();
     await _optimizePhotosForPdf();
     await _warmTaskPdfCache(waitForReady: true, force: true);
-    if (!mounted) return;
     try {
       final bytes = await _fetchTaskPdfWithRetry();
       if (!mounted) return;
@@ -857,8 +856,26 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     }
   }
 
-  Future<void> _shareTaskPdf() async {
+  Future<void> _shareTaskPublicLink() async {
     if (_taskId == null) return;
+    await _flushReportAutosave();
+    if (!mounted) return;
+    try {
+      final response = await _api.post('/tasks/$_taskId/public-link', {});
+      final url = response is Map<String, dynamic> ? response['url']?.toString() ?? '' : '';
+      if (url.isEmpty) {
+        throw Exception('Link publico nao retornado pela API');
+      }
+      await Share.share('Relatorio da tarefa #$_taskId: $url');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+    return;
+  }
+  /*
     if (!ApiConfig.pdfEnabled) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -885,6 +902,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       );
     }
   }
+
+  */
 
   Future<void> _sendReportEmail() async {
     if (_activeReport == null) return;
@@ -1165,10 +1184,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                     children: [
                       ElevatedButton(onPressed: _saveReport, child: const Text('Salvar relatório')),
                       OutlinedButton(onPressed: _sendReportEmail, child: const Text('Enviar e-mail')),
-                      if (ApiConfig.pdfEnabled)
-                        OutlinedButton(onPressed: _exportTaskPdf, child: const Text('Exportar PDF')),
-                      if (ApiConfig.pdfEnabled)
-                        OutlinedButton(onPressed: _shareTaskPdf, child: const Text('Compartilhar')),
+                      OutlinedButton(
+                        onPressed: _shareTaskPublicLink,
+                        child: const Text('Compartilhar link'),
+                      ),
                     ],
                   ),
                 ],

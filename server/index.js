@@ -247,6 +247,9 @@ function createAuthMiddleware(db) {
     if (req.path === "/health" || req.path === "/auth/login" || req.path === "/auth/register") {
       return next();
     }
+    if (req.path.startsWith("/public/")) {
+      return next();
+    }
     const header = req.headers.authorization || "";
     const token = header.startsWith("Bearer ") ? header.slice(7) : null;
     if (!token) {
@@ -349,6 +352,8 @@ const pdfInFlight = {
 };
 const taskWarmTimers = new Map();
 const budgetWarmTimers = new Map();
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
+const PUBLIC_LINK_DEFAULT_DAYS = Math.max(1, Number(process.env.PUBLIC_LINK_DEFAULT_DAYS || 30));
 
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -675,6 +680,193 @@ async function getBudgetPdfCacheStatus(db, budgetId) {
   const hash = computeBudgetPdfHash(data, logoUrl);
   const ready = isCachedPdfReady("budgets", numericBudgetId, hash);
   return { ready, hash, taskId: data.budget?.task_id };
+}
+
+function toBase64Url(buffer) {
+  return buffer
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function generatePublicToken() {
+  return toBase64Url(crypto.randomBytes(24));
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function addDaysIso(days) {
+  const numeric = Number(days);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  const date = new Date();
+  date.setDate(date.getDate() + numeric);
+  return date.toISOString();
+}
+
+function getPublicBaseUrl(req) {
+  if (PUBLIC_BASE_URL) {
+    return PUBLIC_BASE_URL.replace(/\/+$/g, "");
+  }
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const host = req.get("host");
+  return `${protocol}://${host}`;
+}
+
+function buildPublicTaskUrl(req, taskId, token) {
+  const base = getPublicBaseUrl(req);
+  const encodedToken = encodeURIComponent(token);
+  return `${base}/public/tasks/${taskId}?token=${encodedToken}`;
+}
+
+async function getActivePublicLink(db, taskId) {
+  const current = nowIso();
+  return db.get(
+    `
+    SELECT *
+    FROM task_public_links
+    WHERE task_id = ?
+      AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > ?)
+    ORDER BY id DESC
+    LIMIT 1
+  `,
+    [taskId, current]
+  );
+}
+
+async function createPublicLink(db, taskId, userId, expiresAt) {
+  const createdAt = nowIso();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const token = generatePublicToken();
+    try {
+      const result = await db.run(
+        `
+        INSERT INTO task_public_links (task_id, token, created_at, created_by_user_id, expires_at)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+        [taskId, token, createdAt, userId || null, expiresAt]
+      );
+      const row = await db.get("SELECT * FROM task_public_links WHERE id = ?", [
+        result.lastID
+      ]);
+      return row;
+    } catch (error) {
+      const message = String(error?.message || "").toLowerCase();
+      const isUniqueError = message.includes("unique") || message.includes("duplicate");
+      if (!isUniqueError) {
+        throw error;
+      }
+    }
+  }
+  throw new Error("Falha ao gerar token publico");
+}
+
+async function findValidPublicLink(db, taskId, token) {
+  if (!token) return null;
+  const current = nowIso();
+  const link = await db.get(
+    `
+    SELECT *
+    FROM task_public_links
+    WHERE task_id = ?
+      AND token = ?
+      AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > ?)
+    LIMIT 1
+  `,
+    [taskId, token, current]
+  );
+  if (!link) return null;
+  await db.run("UPDATE task_public_links SET last_used_at = ? WHERE id = ?", [
+    current,
+    link.id
+  ]);
+  return link;
+}
+
+function injectPublicToolbar(html, { taskId, token, pdfUrl, refreshUrl }) {
+  const headExtra = `
+<style>
+  body { margin: 0; background: #f2f6fb; }
+  .public-shell { min-height: 100vh; padding: 0 0 40px; }
+  .public-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px;
+    background: rgba(9, 28, 52, 0.94);
+    color: #ffffff;
+    box-shadow: 0 6px 18px rgba(12, 27, 42, 0.18);
+  }
+  .public-toolbar .title {
+    font-weight: 700;
+    margin-right: 8px;
+    letter-spacing: 0.02em;
+  }
+  .public-toolbar button,
+  .public-toolbar a {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 120ms ease;
+  }
+  .public-toolbar button:hover,
+  .public-toolbar a:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+  .public-content {
+    width: min(1100px, 96vw);
+    margin: 16px auto 0;
+    display: grid;
+    gap: 18px;
+  }
+  .public-content .page {
+    box-shadow: 0 18px 38px rgba(17, 52, 86, 0.12);
+    border-radius: 18px;
+    background: #ffffff;
+  }
+  @media print {
+    body { background: #ffffff !important; }
+    .public-toolbar { display: none !important; }
+    .public-shell { padding: 0 !important; }
+    .public-content { width: 100% !important; margin: 0 !important; gap: 0 !important; }
+    .public-content .page { box-shadow: none !important; border-radius: 0 !important; }
+  }
+</style>
+<script>
+  function publicPrint() {
+    window.print();
+  }
+</script>`;
+
+  const toolbarHtml = `
+<div class="public-toolbar">
+  <div class="title">Relatorio da tarefa #${taskId}</div>
+  <button type="button" onclick="publicPrint()">Imprimir</button>
+  <a href="${pdfUrl}" target="_blank" rel="noopener">Baixar PDF</a>
+  <a href="${refreshUrl}">Atualizar</a>
+</div>`;
+
+  let updated = html.replace("</head>", `${headExtra}</head>`);
+  updated = updated.replace(
+    "<body>",
+    `<body data-public-token="${token}"><div class="public-shell">${toolbarHtml}<main class="public-content">`
+  );
+  updated = updated.replace("</body>", "</main></div></body>");
+  return updated;
 }
 
 function resolveLogoPath() {
@@ -1710,6 +1902,59 @@ async function main() {
     }
   });
 
+  app.post("/api/tasks/:id/public-link", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
+    try {
+      const task = await db.get("SELECT id FROM tasks WHERE id = ?", [req.params.id]);
+      if (!task) {
+        return res.status(404).json({ error: "Tarefa nao encontrada" });
+      }
+
+      const forceNew = req.body?.force_new === true || req.body?.forceNew === true;
+      let link = forceNew ? null : await getActivePublicLink(db, task.id);
+      if (!link) {
+        const requestedDays = req.body?.expires_in_days ?? req.body?.expiresInDays;
+        const expiresAt = addDaysIso(requestedDays ?? PUBLIC_LINK_DEFAULT_DAYS);
+        link = await createPublicLink(db, task.id, req.user?.id, expiresAt);
+      }
+
+      const url = buildPublicTaskUrl(req, task.id, link.token);
+      scheduleWarmTaskPdfCache(db, task.id);
+      res.json({
+        id: link.id,
+        token: link.token,
+        url,
+        created_at: link.created_at,
+        expires_at: link.expires_at,
+        reused: !forceNew
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao criar link publico" });
+    }
+  });
+
+  app.delete(
+    "/api/tasks/:id/public-link/:linkId",
+    requirePermission(PERMISSIONS.MANAGE_TASKS),
+    async (req, res) => {
+      try {
+        const link = await db.get(
+          "SELECT id FROM task_public_links WHERE id = ? AND task_id = ?",
+          [req.params.linkId, req.params.id]
+        );
+        if (!link) {
+          return res.status(404).json({ error: "Link publico nao encontrado" });
+        }
+        await db.run("UPDATE task_public_links SET revoked_at = ? WHERE id = ?", [
+          nowIso(),
+          link.id
+        ]);
+        res.json({ ok: true });
+      } catch (error) {
+        res.status(500).json({ error: "Falha ao revogar link publico" });
+      }
+    }
+  );
+
   app.get("/api/tasks/:id/pdf/status", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const status = await getTaskPdfCacheStatus(db, req.params.id);
@@ -2250,6 +2495,101 @@ async function main() {
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao remover orçamento" });
+    }
+  });
+
+  app.get("/public/tasks/:id", async (req, res) => {
+    try {
+      const token = String(req.query.token || "");
+      if (!token) {
+        return res.status(401).send("Token publico ausente.");
+      }
+      const link = await findValidPublicLink(db, req.params.id, token);
+      if (!link) {
+        return res.status(403).send("Link publico invalido ou expirado.");
+      }
+      const data = await fetchTaskPdfData(db, req.params.id);
+      if (!data) {
+        return res.status(404).send("Tarefa nao encontrada.");
+      }
+      const logoUrl = getLogoDataUrl();
+      const { buildTaskPdfHtml } = await loadPdfHelpers();
+      const baseHtml = buildTaskPdfHtml({
+        task: data.task,
+        client: data.client,
+        reports: data.reports,
+        budgets: data.budgets,
+        signatureMode: data.task.signature_mode,
+        signatureScope: data.task.signature_scope,
+        signatureClient: data.task.signature_client,
+        signatureTech: data.task.signature_tech,
+        signaturePages: data.task.signature_pages || {},
+        logoUrl
+      });
+
+      const baseUrl = getPublicBaseUrl(req);
+      const encodedToken = encodeURIComponent(token);
+      const refreshUrl = `${baseUrl}/public/tasks/${req.params.id}?token=${encodedToken}`;
+      const pdfUrl = `${baseUrl}/public/tasks/${req.params.id}/pdf?token=${encodedToken}`;
+      const html = injectPublicToolbar(baseHtml, {
+        taskId: req.params.id,
+        token,
+        pdfUrl,
+        refreshUrl
+      });
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.send(html);
+    } catch (error) {
+      res.status(500).send("Falha ao carregar relatorio publico.");
+    }
+  });
+
+  app.get("/public/tasks/:id/pdf", async (req, res) => {
+    try {
+      const token = String(req.query.token || "");
+      if (!token) {
+        return res.status(401).send("Token publico ausente.");
+      }
+      const link = await findValidPublicLink(db, req.params.id, token);
+      if (!link) {
+        return res.status(403).send("Link publico invalido ou expirado.");
+      }
+      const data = await fetchTaskPdfData(db, req.params.id);
+      if (!data) {
+        return res.status(404).send("Tarefa nao encontrada.");
+      }
+      const logoUrl = getLogoDataUrl();
+      const forceRefresh = req.query.nocache === "1" || req.query.refresh === "1";
+      const cacheHash = computeTaskPdfHash(data, logoUrl);
+      const { buildTaskPdfHtml } = await loadPdfHelpers();
+      const pdf = await getCachedPdf({
+        type: "tasks",
+        id: req.params.id,
+        hash: cacheHash,
+        forceRefresh,
+        render: async () => {
+          const html = buildTaskPdfHtml({
+            task: data.task,
+            client: data.client,
+            reports: data.reports,
+            budgets: data.budgets,
+            signatureMode: data.task.signature_mode,
+            signatureScope: data.task.signature_scope,
+            signatureClient: data.task.signature_client,
+            signatureTech: data.task.signature_tech,
+            signaturePages: data.task.signature_pages || {},
+            logoUrl
+          });
+          return renderPdfFromHtml(html);
+        }
+      });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename=\"tarefa_${req.params.id}.pdf\"`);
+      res.send(pdf);
+    } catch (error) {
+      res.status(500).send("Falha ao gerar PDF publico.");
     }
   });
 
