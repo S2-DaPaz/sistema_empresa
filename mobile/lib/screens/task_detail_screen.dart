@@ -21,6 +21,8 @@ import '../widgets/loading_view.dart';
 import '../widgets/signature_pad.dart';
 import 'pdf_viewer_screen.dart';
 
+enum _PhotoSourceOption { camera, gallery }
+
 class TaskDetailScreen extends StatefulWidget {
   const TaskDetailScreen({super.key, this.taskId});
 
@@ -460,8 +462,45 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   }
 
   Future<void> _addPhotos() async {
-    final files = await _picker.pickMultiImage();
+    final option = await showModalBottomSheet<_PhotoSourceOption>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tirar foto agora'),
+              onTap: () => Navigator.pop(context, _PhotoSourceOption.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Escolher da galeria'),
+              onTap: () => Navigator.pop(context, _PhotoSourceOption.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (option == null) return;
+
+    final files = <XFile>[];
+    if (option == _PhotoSourceOption.camera) {
+      final file = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+      if (file != null) files.add(file);
+    } else {
+      final galleryFiles = await _picker.pickMultiImage(imageQuality: 85);
+      files.addAll(galleryFiles);
+    }
+
     if (files.isEmpty) return;
+    await _appendPhotos(files);
+  }
+
+  Future<void> _appendPhotos(List<XFile> files) async {
     final newPhotos = <Map<String, dynamic>>[];
     for (final file in files) {
       final bytes = await File(file.path).readAsBytes();
@@ -473,6 +512,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
         'dataUrl': dataUrl,
       });
     }
+    if (!mounted) return;
     setState(() => _reportPhotos = [..._reportPhotos, ...newPhotos]);
   }
 

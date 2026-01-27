@@ -271,6 +271,7 @@ function buildReportPageHtml({ report, task, client, signatureHtml, logoUrl }) {
       <div class="report-footer">
         ${signatureHtml}
         ${declarationHtml}
+        ${photosHtml}
       </div>
     `;
 
@@ -317,7 +318,6 @@ function buildReportPageHtml({ report, task, client, signatureHtml, logoUrl }) {
       <div class="report-sections" style="--section-cols: ${sectionColumns}; --field-cols: ${fieldColumns};">
         ${sectionsContent}
       </div>
-      ${photosHtml}
       ${footerHtml}
     </div>
   `;
