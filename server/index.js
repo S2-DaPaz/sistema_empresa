@@ -4,6 +4,7 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
+const crypto = require("crypto");
 const { initDb } = require("./db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -339,6 +340,212 @@ function safeJsonParse(value) {
 let pdfHelpersPromise;
 let pdfBrowserPromise;
 let cachedLogoDataUrl;
+const PDF_CACHE_ENABLED = String(process.env.PDF_CACHE_ENABLED || "true").toLowerCase() !== "false";
+const PDF_CACHE_ROOT = path.join(__dirname, ".cache", "pdfs");
+const pdfInFlight = {
+  tasks: new Map(),
+  budgets: new Map()
+};
+
+function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+function getPdfCacheDir(type) {
+  ensureDir(PDF_CACHE_ROOT);
+  const dir = path.join(PDF_CACHE_ROOT, type);
+  ensureDir(dir);
+  return dir;
+}
+
+function getPdfCachePath(type, id, hash) {
+  const dir = getPdfCacheDir(type);
+  return path.join(dir, `${id}-${hash}.pdf`);
+}
+
+function removeOldPdfCaches(type, id, keepHash) {
+  try {
+    const dir = getPdfCacheDir(type);
+    const prefix = `${id}-`;
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+      if (!file.startsWith(prefix) || !file.endsWith(".pdf")) continue;
+      if (keepHash && file.includes(keepHash)) continue;
+      fs.rmSync(path.join(dir, file), { force: true });
+    }
+  } catch (error) {
+    // Falhas de limpeza não devem interromper a geração.
+  }
+}
+
+function hashUpdate(hash, value) {
+  if (value === undefined) {
+    hash.update("undefined");
+    return;
+  }
+  if (value === null) {
+    hash.update("null");
+    return;
+  }
+  if (typeof value === "string") {
+    hash.update(value);
+    return;
+  }
+  try {
+    hash.update(JSON.stringify(value));
+  } catch (error) {
+    hash.update(String(value));
+  }
+}
+
+function sortById(list) {
+  return [...(list || [])].sort((a, b) => {
+    const aId = Number(a?.id || 0);
+    const bId = Number(b?.id || 0);
+    return aId - bId;
+  });
+}
+
+function computeTaskPdfHash(data, logoUrl) {
+  const hash = crypto.createHash("sha256");
+
+  hashUpdate(hash, "task");
+  hashUpdate(hash, data?.task);
+  hashUpdate(hash, "client");
+  hashUpdate(hash, data?.client);
+  hashUpdate(hash, "logo");
+  hashUpdate(hash, logoUrl || "");
+
+  for (const report of sortById(data?.reports)) {
+    hashUpdate(hash, "report");
+    hashUpdate(hash, {
+      id: report.id,
+      title: report.title,
+      status: report.status,
+      equipment_id: report.equipment_id,
+      equipment_name: report.equipment_name,
+      template_id: report.template_id,
+      client_id: report.client_id,
+      task_id: report.task_id,
+      created_at: report.created_at
+    });
+
+    const content = report.content || {};
+    hashUpdate(hash, content.layout);
+    hashUpdate(hash, content.sections);
+    hashUpdate(hash, content.answers);
+
+    const photos = sortById(content.photos || []);
+    hashUpdate(hash, photos.length);
+    for (const photo of photos) {
+      hashUpdate(hash, photo.id);
+      hashUpdate(hash, photo.name);
+      hashUpdate(hash, photo.dataUrl);
+    }
+  }
+
+  for (const budget of sortById(data?.budgets)) {
+    hashUpdate(hash, "budget");
+    hashUpdate(hash, {
+      id: budget.id,
+      client_id: budget.client_id,
+      task_id: budget.task_id,
+      report_id: budget.report_id,
+      notes: budget.notes,
+      internal_note: budget.internal_note,
+      proposal_validity: budget.proposal_validity,
+      payment_terms: budget.payment_terms,
+      service_deadline: budget.service_deadline,
+      product_validity: budget.product_validity,
+      status: budget.status,
+      subtotal: budget.subtotal,
+      discount: budget.discount,
+      tax: budget.tax,
+      total: budget.total,
+      created_at: budget.created_at
+    });
+
+    const items = sortById(budget.items || []);
+    hashUpdate(hash, items.length);
+    for (const item of items) {
+      hashUpdate(hash, {
+        id: item.id,
+        budget_id: item.budget_id,
+        product_id: item.product_id,
+        description: item.description,
+        qty: item.qty,
+        unit_price: item.unit_price,
+        total: item.total
+      });
+    }
+  }
+
+  return hash.digest("hex");
+}
+
+function computeBudgetPdfHash(data, logoUrl) {
+  const hash = crypto.createHash("sha256");
+
+  hashUpdate(hash, "budget");
+  hashUpdate(hash, data?.budget);
+  hashUpdate(hash, "client");
+  hashUpdate(hash, data?.client);
+  hashUpdate(hash, "logo");
+  hashUpdate(hash, logoUrl || "");
+
+  const items = sortById(data?.budget?.items || []);
+  hashUpdate(hash, items.length);
+  for (const item of items) {
+    hashUpdate(hash, {
+      id: item.id,
+      budget_id: item.budget_id,
+      product_id: item.product_id,
+      description: item.description,
+      qty: item.qty,
+      unit_price: item.unit_price,
+      total: item.total
+    });
+  }
+
+  return hash.digest("hex");
+}
+
+async function getCachedPdf({ type, id, hash, forceRefresh, render }) {
+  if (!PDF_CACHE_ENABLED) {
+    return render();
+  }
+
+  const cachePath = getPdfCachePath(type, id, hash);
+  if (!forceRefresh && fs.existsSync(cachePath)) {
+    return fs.readFileSync(cachePath);
+  }
+
+  const inFlightKey = `${id}:${hash}`;
+  const inFlightMap = pdfInFlight[type];
+  if (inFlightMap.has(inFlightKey)) {
+    return inFlightMap.get(inFlightKey);
+  }
+
+  const promise = (async () => {
+    const pdfBuffer = await render();
+    try {
+      removeOldPdfCaches(type, id, hash);
+      fs.writeFileSync(cachePath, pdfBuffer);
+    } catch (error) {
+      // Falhas de cache não devem impedir a resposta.
+    }
+    return pdfBuffer;
+  })();
+
+  inFlightMap.set(inFlightKey, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightMap.delete(inFlightKey);
+  }
+}
 
 function resolveLogoPath() {
   const candidates = [
@@ -1377,20 +1584,31 @@ async function main() {
       if (!data) {
         return res.status(404).json({ error: "Tarefa não encontrada" });
       }
+      const logoUrl = getLogoDataUrl();
+      const forceRefresh = req.query.nocache === "1" || req.query.refresh === "1";
+      const cacheHash = computeTaskPdfHash(data, logoUrl);
       const { buildTaskPdfHtml } = await loadPdfHelpers();
-      const html = buildTaskPdfHtml({
-        task: data.task,
-        client: data.client,
-        reports: data.reports,
-        budgets: data.budgets,
-        signatureMode: data.task.signature_mode,
-        signatureScope: data.task.signature_scope,
-        signatureClient: data.task.signature_client,
-        signatureTech: data.task.signature_tech,
-        signaturePages: data.task.signature_pages || {},
-        logoUrl: getLogoDataUrl()
+      const pdf = await getCachedPdf({
+        type: "tasks",
+        id: req.params.id,
+        hash: cacheHash,
+        forceRefresh,
+        render: async () => {
+          const html = buildTaskPdfHtml({
+            task: data.task,
+            client: data.client,
+            reports: data.reports,
+            budgets: data.budgets,
+            signatureMode: data.task.signature_mode,
+            signatureScope: data.task.signature_scope,
+            signatureClient: data.task.signature_client,
+            signatureTech: data.task.signature_tech,
+            signaturePages: data.task.signature_pages || {},
+            logoUrl
+          });
+          return renderPdfFromHtml(html);
+        }
       });
-      const pdf = await renderPdfFromHtml(html);
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename=\"tarefa_${req.params.id}.pdf\"`);
       res.send(pdf);
@@ -1646,13 +1864,24 @@ async function main() {
       if (!data) {
         return res.status(404).json({ error: "Orçamento não encontrado" });
       }
+      const logoUrl = getLogoDataUrl();
+      const forceRefresh = req.query.nocache === "1" || req.query.refresh === "1";
+      const cacheHash = computeBudgetPdfHash(data, logoUrl);
       const { buildBudgetPdfHtml } = await loadPdfHelpers();
-      const html = buildBudgetPdfHtml({
-        budget: data.budget,
-        client: data.client,
-        logoUrl: getLogoDataUrl()
+      const pdf = await getCachedPdf({
+        type: "budgets",
+        id: req.params.id,
+        hash: cacheHash,
+        forceRefresh,
+        render: async () => {
+          const html = buildBudgetPdfHtml({
+            budget: data.budget,
+            client: data.client,
+            logoUrl
+          });
+          return renderPdfFromHtml(html);
+        }
       });
-      const pdf = await renderPdfFromHtml(html);
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename=\"orcamento_${req.params.id}.pdf\"`);
       res.send(pdf);

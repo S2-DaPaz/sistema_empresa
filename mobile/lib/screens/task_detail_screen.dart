@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
@@ -22,6 +23,9 @@ import '../widgets/signature_pad.dart';
 import 'pdf_viewer_screen.dart';
 
 enum _PhotoSourceOption { camera, gallery }
+
+const int _maxPhotoDimension = 1024;
+const int _photoJpegQuality = 60;
 
 class TaskDetailScreen extends StatefulWidget {
   const TaskDetailScreen({super.key, this.taskId});
@@ -488,11 +492,17 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     if (option == _PhotoSourceOption.camera) {
       final file = await _picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 85,
+        imageQuality: _photoJpegQuality,
+        maxWidth: _maxPhotoDimension.toDouble(),
+        maxHeight: _maxPhotoDimension.toDouble(),
       );
       if (file != null) files.add(file);
     } else {
-      final galleryFiles = await _picker.pickMultiImage(imageQuality: 85);
+      final galleryFiles = await _picker.pickMultiImage(
+        imageQuality: _photoJpegQuality,
+        maxWidth: _maxPhotoDimension.toDouble(),
+        maxHeight: _maxPhotoDimension.toDouble(),
+      );
       files.addAll(galleryFiles);
     }
 
@@ -504,11 +514,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     final newPhotos = <Map<String, dynamic>>[];
     for (final file in files) {
       final bytes = await File(file.path).readAsBytes();
-      final mime = _inferMime(file.path);
-      final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+      final optimizedBytes = _optimizeImageBytes(bytes);
+      final dataUrl = 'data:image/jpeg;base64,${base64Encode(optimizedBytes)}';
       newPhotos.add({
         'id': DateTime.now().microsecondsSinceEpoch.toString(),
-        'name': path.basename(file.path),
+        'name': _asJpegName(path.basename(file.path)),
         'dataUrl': dataUrl,
       });
     }
@@ -516,11 +526,97 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     setState(() => _reportPhotos = [..._reportPhotos, ...newPhotos]);
   }
 
-  String _inferMime(String filePath) {
-    final ext = path.extension(filePath).toLowerCase();
-    if (ext == '.png') return 'image/png';
-    if (ext == '.webp') return 'image/webp';
-    return 'image/jpeg';
+  String _asJpegName(String original) {
+    final ext = path.extension(original);
+    if (ext.isEmpty) return '$original.jpg';
+    return original.replaceRange(original.length - ext.length, original.length, '.jpg');
+  }
+
+  Uint8List _optimizeImageBytes(Uint8List bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+
+    final maxDimension = decoded.width > decoded.height ? decoded.width : decoded.height;
+    img.Image processed = decoded;
+
+    if (maxDimension > _maxPhotoDimension) {
+      final scale = _maxPhotoDimension / maxDimension;
+      final targetWidth = (decoded.width * scale).round();
+      final targetHeight = (decoded.height * scale).round();
+      processed = img.copyResize(
+        decoded,
+        width: targetWidth,
+        height: targetHeight,
+        interpolation: img.Interpolation.linear,
+      );
+    }
+
+    final encoded = img.encodeJpg(processed, quality: _photoJpegQuality);
+    return Uint8List.fromList(encoded);
+  }
+
+  Uint8List? _decodeDataUrl(String dataUrl) {
+    final parts = dataUrl.split(',');
+    if (parts.length < 2) return null;
+    try {
+      return Uint8List.fromList(base64Decode(parts.last));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int _estimatePhotoBytes(Map<String, dynamic> photo) {
+    final dataUrl = photo['dataUrl']?.toString() ?? '';
+    final bytes = _decodeDataUrl(dataUrl);
+    return bytes?.length ?? dataUrl.length;
+  }
+
+  Future<void> _optimizePhotosForPdf() async {
+    if (_activeReportId == null || _reportPhotos.isEmpty) return;
+
+    final hasLargePhoto = _reportPhotos.any((photo) => _estimatePhotoBytes(photo) > 200 * 1024);
+    final shouldOptimize = hasLargePhoto || _reportPhotos.length >= 4;
+    if (!shouldOptimize) return;
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Otimizando fotos para o PDF...')),
+      );
+    }
+
+    var changed = false;
+    final optimized = <Map<String, dynamic>>[];
+
+    for (final photo in _reportPhotos) {
+      final dataUrl = photo['dataUrl']?.toString() ?? '';
+      final bytes = _decodeDataUrl(dataUrl);
+      if (bytes == null) {
+        optimized.add(photo);
+        continue;
+      }
+
+      final optimizedBytes = _optimizeImageBytes(bytes);
+      if (optimizedBytes.length < bytes.length) {
+        changed = true;
+        optimized.add({
+          ...photo,
+          'name': _asJpegName(photo['name']?.toString() ?? 'foto.jpg'),
+          'dataUrl': 'data:image/jpeg;base64,${base64Encode(optimizedBytes)}',
+        });
+      } else {
+        optimized.add(photo);
+      }
+    }
+
+    if (!changed) return;
+    if (!mounted) return;
+
+    setState(() {
+      _reportPhotos = optimized;
+      _reportMessage = 'Fotos otimizadas. Salvando relatorio...';
+    });
+
+    await _saveReport();
   }
 
   void _removePhoto(String photoId) {
@@ -580,6 +676,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       );
       return;
     }
+    await _optimizePhotosForPdf();
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PdfViewerScreen(
@@ -599,6 +697,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       );
       return;
     }
+    await _optimizePhotosForPdf();
+    if (!mounted) return;
     try {
       final bytes = Uint8List.fromList(await _api.getBytes('/tasks/$_taskId/pdf'));
       final file = XFile.fromData(
