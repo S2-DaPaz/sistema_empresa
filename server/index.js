@@ -645,6 +645,38 @@ function scheduleWarmBudgetPdfCache(db, budgetId, forceRefresh = true) {
   budgetWarmTimers.set(numericBudgetId, timer);
 }
 
+function isCachedPdfReady(type, id, hash) {
+  if (!PDF_CACHE_ENABLED) return false;
+  try {
+    const cachePath = getPdfCachePath(type, id, hash);
+    return fs.existsSync(cachePath);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function getTaskPdfCacheStatus(db, taskId) {
+  const numericTaskId = Number(taskId);
+  if (!Number.isFinite(numericTaskId) || numericTaskId <= 0) return null;
+  const data = await fetchTaskPdfData(db, numericTaskId);
+  if (!data) return null;
+  const logoUrl = getLogoDataUrl();
+  const hash = computeTaskPdfHash(data, logoUrl);
+  const ready = isCachedPdfReady("tasks", numericTaskId, hash);
+  return { ready, hash };
+}
+
+async function getBudgetPdfCacheStatus(db, budgetId) {
+  const numericBudgetId = Number(budgetId);
+  if (!Number.isFinite(numericBudgetId) || numericBudgetId <= 0) return null;
+  const data = await fetchBudgetPdfData(db, numericBudgetId);
+  if (!data) return null;
+  const logoUrl = getLogoDataUrl();
+  const hash = computeBudgetPdfHash(data, logoUrl);
+  const ready = isCachedPdfReady("budgets", numericBudgetId, hash);
+  return { ready, hash, taskId: data.budget?.task_id };
+}
+
 function resolveLogoPath() {
   const candidates = [
     process.env.PDF_LOGO_PATH,
@@ -1678,6 +1710,33 @@ async function main() {
     }
   });
 
+  app.get("/api/tasks/:id/pdf/status", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
+    try {
+      const status = await getTaskPdfCacheStatus(db, req.params.id);
+      if (!status) {
+        return res.status(404).json({ error: "Tarefa nao encontrada" });
+      }
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao verificar status do PDF" });
+    }
+  });
+
+  app.post("/api/tasks/:id/pdf/warm", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
+    try {
+      const status = await getTaskPdfCacheStatus(db, req.params.id);
+      if (!status) {
+        return res.status(404).json({ error: "Tarefa nao encontrada" });
+      }
+      setImmediate(() => {
+        warmTaskPdfCache(db, req.params.id, true).catch(() => {});
+      });
+      res.json({ ...status, warming: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao iniciar aquecimento do PDF" });
+    }
+  });
+
   app.get("/api/tasks/:id/pdf", requirePermission(PERMISSIONS.VIEW_TASKS), async (req, res) => {
     try {
       const data = await fetchTaskPdfData(db, req.params.id);
@@ -1959,6 +2018,36 @@ async function main() {
       res.json(budget);
     } catch (error) {
       res.status(500).json({ error: "Falha ao carregar orçamento" });
+    }
+  });
+
+  app.get("/api/budgets/:id/pdf/status", requirePermission(PERMISSIONS.VIEW_BUDGETS), async (req, res) => {
+    try {
+      const status = await getBudgetPdfCacheStatus(db, req.params.id);
+      if (!status) {
+        return res.status(404).json({ error: "Orcamento nao encontrado" });
+      }
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao verificar status do PDF" });
+    }
+  });
+
+  app.post("/api/budgets/:id/pdf/warm", requirePermission(PERMISSIONS.VIEW_BUDGETS), async (req, res) => {
+    try {
+      const status = await getBudgetPdfCacheStatus(db, req.params.id);
+      if (!status) {
+        return res.status(404).json({ error: "Orcamento nao encontrado" });
+      }
+      setImmediate(() => {
+        warmBudgetPdfCache(db, req.params.id, true).catch(() => {});
+        if (status.taskId) {
+          warmTaskPdfCache(db, status.taskId, true).catch(() => {});
+        }
+      });
+      res.json({ ...status, warming: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao iniciar aquecimento do PDF" });
     }
   });
 

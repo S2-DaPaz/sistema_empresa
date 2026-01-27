@@ -10,11 +10,13 @@ class PdfViewerScreen extends StatefulWidget {
   const PdfViewerScreen({
     super.key,
     required this.title,
-    required this.pdfFetcher,
-  });
+    this.pdfFetcher,
+    this.initialBytes,
+  }) : assert(pdfFetcher != null || initialBytes != null, 'Informe pdfFetcher ou initialBytes');
 
   final String title;
-  final Future<List<int>> Function() pdfFetcher;
+  final Future<List<int>> Function()? pdfFetcher;
+  final Uint8List? initialBytes;
 
   @override
   State<PdfViewerScreen> createState() => _PdfViewerScreenState();
@@ -27,12 +29,18 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    if (widget.initialBytes != null) {
+      _bytes = widget.initialBytes;
+    } else {
+      _load();
+    }
   }
 
   Future<void> _load() async {
+    final fetcher = widget.pdfFetcher;
+    if (fetcher == null) return;
     try {
-      final data = await widget.pdfFetcher();
+      final data = await fetcher();
       setState(() => _bytes = Uint8List.fromList(data));
     } catch (error) {
       setState(() => _error = error.toString());

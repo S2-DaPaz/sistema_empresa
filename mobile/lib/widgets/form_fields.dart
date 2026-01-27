@@ -1,5 +1,33 @@
 import 'package:flutter/material.dart';
 
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final baseStyle = theme.textTheme.labelLarge;
+    final color = theme.colorScheme.primary.withValues(alpha: 0.9);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        text,
+        softWrap: true,
+        style: baseStyle?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: color,
+            ) ??
+            TextStyle(
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+      ),
+    );
+  }
+}
+
 class AppTextField extends StatelessWidget {
   const AppTextField({
     super.key,
@@ -20,13 +48,19 @@ class AppTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      initialValue: controller == null ? initialValue : null,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      decoration: InputDecoration(labelText: label),
-      onChanged: onChanged,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(text: label),
+        TextFormField(
+          controller: controller,
+          initialValue: controller == null ? initialValue : null,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          decoration: const InputDecoration(),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }
@@ -47,25 +81,31 @@ class AppDropdownField<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<T>(
-      key: ValueKey(value),
-      initialValue: value,
-      items: items,
-      onChanged: onChanged,
-      isExpanded: true,
-      selectedItemBuilder: (context) => items.map((item) {
-        final child = item.child;
-        if (child is Text) {
-          return Text(
-            child.data ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: child.style,
-          );
-        }
-        return child;
-      }).toList(),
-      decoration: InputDecoration(labelText: label),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(text: label),
+        DropdownButtonFormField<T>(
+          key: ValueKey(value),
+          initialValue: value,
+          items: items,
+          onChanged: onChanged,
+          isExpanded: true,
+          selectedItemBuilder: (context) => items.map((item) {
+            final child = item.child;
+            if (child is Text) {
+              return Text(
+                child.data ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: child.style,
+              );
+            }
+            return child;
+          }).toList(),
+          decoration: const InputDecoration(),
+        ),
+      ],
     );
   }
 }
@@ -108,11 +148,17 @@ class AppDateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      readOnly: true,
-      decoration: InputDecoration(labelText: label),
-      initialValue: value,
-      onTap: onTap,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(text: label),
+        TextFormField(
+          readOnly: true,
+          decoration: const InputDecoration(),
+          initialValue: value,
+          onTap: onTap,
+        ),
+      ],
     );
   }
 }

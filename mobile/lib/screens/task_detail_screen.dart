@@ -27,6 +27,9 @@ enum _PhotoSourceOption { camera, gallery }
 
 const int _maxPhotoDimension = 1024;
 const int _photoJpegQuality = 60;
+const Duration _pdfWarmThrottle = Duration(seconds: 8);
+const int _pdfWarmPollAttempts = 10;
+const Duration _pdfWarmPollDelay = Duration(milliseconds: 700);
 
 class TaskDetailScreen extends StatefulWidget {
   const TaskDetailScreen({super.key, this.taskId});
@@ -75,6 +78,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   bool _reportAutosaving = false;
   bool _reportDirty = false;
   int _reportAutosaveSeq = 0;
+  DateTime? _lastPdfWarmRequestedAt;
+  bool _pdfWarmInProgress = false;
 
   List<Map<String, dynamic>> _budgets = [];
 
@@ -438,6 +443,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       if (seq == _reportAutosaveSeq) {
         _reportDirty = false;
       }
+      if (ApiConfig.pdfEnabled) {
+        unawaited(_warmTaskPdfCache(waitForReady: false));
+      }
     } catch (_) {
       // Auto-save não deve bloquear o usuário.
     } finally {
@@ -463,6 +471,90 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       _activeReportId = value;
       _applyReportData(report, _taskTypeId);
     });
+  }
+
+  bool _allowPdfWarmNow({bool force = false}) {
+    if (_taskId == null || !ApiConfig.pdfEnabled) return false;
+    final now = DateTime.now();
+    if (force) {
+      _lastPdfWarmRequestedAt = now;
+      return true;
+    }
+    final last = _lastPdfWarmRequestedAt;
+    if (last != null && now.difference(last) < _pdfWarmThrottle) {
+      return false;
+    }
+    _lastPdfWarmRequestedAt = now;
+    return true;
+  }
+
+  Future<bool> _isTaskPdfReady() async {
+    if (_taskId == null) return false;
+    final response = await _api.get('/tasks/$_taskId/pdf/status');
+    if (response is Map<String, dynamic>) {
+      final ready = response['ready'];
+      return ready == true || ready?.toString().toLowerCase() == 'true';
+    }
+    return false;
+  }
+
+  Future<void> _waitForTaskPdfReady() async {
+    for (var attempt = 0; attempt < _pdfWarmPollAttempts; attempt++) {
+      try {
+        if (await _isTaskPdfReady()) return;
+      } catch (_) {
+        // Se a rota de status nao existir, seguimos sem bloquear.
+        return;
+      }
+      await Future.delayed(_pdfWarmPollDelay);
+    }
+  }
+
+  Future<void> _warmTaskPdfCache({bool waitForReady = false, bool force = false}) async {
+    if (_taskId == null || !ApiConfig.pdfEnabled) return;
+    if (!force && !waitForReady && !_allowPdfWarmNow()) return;
+    if (force || waitForReady) {
+      _lastPdfWarmRequestedAt = DateTime.now();
+    }
+
+    if (_pdfWarmInProgress) {
+      if (waitForReady) {
+        await _waitForTaskPdfReady();
+      }
+      return;
+    }
+
+    _pdfWarmInProgress = true;
+    try {
+      try {
+        await _api.post('/tasks/$_taskId/pdf/warm', {});
+      } catch (_) {
+        // Warm-up falhou, seguimos para o fluxo normal.
+      }
+      if (waitForReady) {
+        await _waitForTaskPdfReady();
+      }
+    } finally {
+      _pdfWarmInProgress = false;
+    }
+  }
+
+  Future<Uint8List> _fetchTaskPdfBytes({bool refresh = false}) async {
+    if (_taskId == null) {
+      throw Exception('Tarefa sem ID para gerar PDF');
+    }
+    final suffix = refresh ? '?refresh=1' : '';
+    final bytes = await _api.getBytes('/tasks/$_taskId/pdf$suffix');
+    return Uint8List.fromList(bytes);
+  }
+
+  Future<Uint8List> _fetchTaskPdfWithRetry() async {
+    try {
+      return await _fetchTaskPdfBytes();
+    } catch (_) {
+      await _warmTaskPdfCache(waitForReady: true, force: true);
+      return _fetchTaskPdfBytes(refresh: true);
+    }
   }
 
   Future<void> _createReport() async {
@@ -743,15 +835,26 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     }
     await _flushReportAutosave();
     await _optimizePhotosForPdf();
+    await _warmTaskPdfCache(waitForReady: true, force: true);
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PdfViewerScreen(
-          title: 'PDF da tarefa',
-          pdfFetcher: () => _api.getBytes('/tasks/$_taskId/pdf'),
+    try {
+      final bytes = await _fetchTaskPdfWithRetry();
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PdfViewerScreen(
+            title: 'PDF da tarefa',
+            initialBytes: bytes,
+            pdfFetcher: () async => bytes,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 
   Future<void> _shareTaskPdf() async {
@@ -765,9 +868,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     }
     await _flushReportAutosave();
     await _optimizePhotosForPdf();
+    await _warmTaskPdfCache(waitForReady: true, force: true);
     if (!mounted) return;
     try {
-      final bytes = Uint8List.fromList(await _api.getBytes('/tasks/$_taskId/pdf'));
+      final bytes = await _fetchTaskPdfWithRetry();
       final file = XFile.fromData(
         bytes,
         mimeType: 'application/pdf',
