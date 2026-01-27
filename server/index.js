@@ -342,10 +342,13 @@ let pdfBrowserPromise;
 let cachedLogoDataUrl;
 const PDF_CACHE_ENABLED = String(process.env.PDF_CACHE_ENABLED || "true").toLowerCase() !== "false";
 const PDF_CACHE_ROOT = path.join(__dirname, ".cache", "pdfs");
+const PDF_WARM_DEBOUNCE_MS = Math.max(0, Number(process.env.PDF_WARM_DEBOUNCE_MS || 1500));
 const pdfInFlight = {
   tasks: new Map(),
   budgets: new Map()
 };
+const taskWarmTimers = new Map();
+const budgetWarmTimers = new Map();
 
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -545,6 +548,101 @@ async function getCachedPdf({ type, id, hash, forceRefresh, render }) {
   } finally {
     inFlightMap.delete(inFlightKey);
   }
+}
+
+async function warmTaskPdfCache(db, taskId, forceRefresh = true) {
+  if (!PDF_CACHE_ENABLED) return;
+  const numericTaskId = Number(taskId);
+  if (!Number.isFinite(numericTaskId) || numericTaskId <= 0) return;
+
+  const data = await fetchTaskPdfData(db, numericTaskId);
+  if (!data) return;
+
+  const logoUrl = getLogoDataUrl();
+  const cacheHash = computeTaskPdfHash(data, logoUrl);
+  const { buildTaskPdfHtml } = await loadPdfHelpers();
+
+  await getCachedPdf({
+    type: "tasks",
+    id: numericTaskId,
+    hash: cacheHash,
+    forceRefresh,
+    render: async () => {
+      const html = buildTaskPdfHtml({
+        task: data.task,
+        client: data.client,
+        reports: data.reports,
+        budgets: data.budgets,
+        signatureMode: data.task.signature_mode,
+        signatureScope: data.task.signature_scope,
+        signatureClient: data.task.signature_client,
+        signatureTech: data.task.signature_tech,
+        signaturePages: data.task.signature_pages || {},
+        logoUrl
+      });
+      return renderPdfFromHtml(html);
+    }
+  });
+}
+
+async function warmBudgetPdfCache(db, budgetId, forceRefresh = true) {
+  if (!PDF_CACHE_ENABLED) return;
+  const numericBudgetId = Number(budgetId);
+  if (!Number.isFinite(numericBudgetId) || numericBudgetId <= 0) return;
+
+  const data = await fetchBudgetPdfData(db, numericBudgetId);
+  if (!data) return;
+
+  const logoUrl = getLogoDataUrl();
+  const cacheHash = computeBudgetPdfHash(data, logoUrl);
+  const { buildBudgetPdfHtml } = await loadPdfHelpers();
+
+  await getCachedPdf({
+    type: "budgets",
+    id: numericBudgetId,
+    hash: cacheHash,
+    forceRefresh,
+    render: async () => {
+      const html = buildBudgetPdfHtml({
+        budget: data.budget,
+        client: data.client,
+        logoUrl
+      });
+      return renderPdfFromHtml(html);
+    }
+  });
+}
+
+function scheduleWarmTaskPdfCache(db, taskId, forceRefresh = true) {
+  if (!PDF_CACHE_ENABLED) return;
+  const numericTaskId = Number(taskId);
+  if (!Number.isFinite(numericTaskId) || numericTaskId <= 0) return;
+
+  const existing = taskWarmTimers.get(numericTaskId);
+  if (existing) clearTimeout(existing);
+
+  const timer = setTimeout(() => {
+    taskWarmTimers.delete(numericTaskId);
+    warmTaskPdfCache(db, numericTaskId, forceRefresh).catch(() => {});
+  }, PDF_WARM_DEBOUNCE_MS);
+
+  taskWarmTimers.set(numericTaskId, timer);
+}
+
+function scheduleWarmBudgetPdfCache(db, budgetId, forceRefresh = true) {
+  if (!PDF_CACHE_ENABLED) return;
+  const numericBudgetId = Number(budgetId);
+  if (!Number.isFinite(numericBudgetId) || numericBudgetId <= 0) return;
+
+  const existing = budgetWarmTimers.get(numericBudgetId);
+  if (existing) clearTimeout(existing);
+
+  const timer = setTimeout(() => {
+    budgetWarmTimers.delete(numericBudgetId);
+    warmBudgetPdfCache(db, numericBudgetId, forceRefresh).catch(() => {});
+  }, PDF_WARM_DEBOUNCE_MS);
+
+  budgetWarmTimers.set(numericBudgetId, timer);
 }
 
 function resolveLogoPath() {
@@ -1530,6 +1628,7 @@ async function main() {
       const task = await db.get("SELECT * FROM tasks WHERE id = ?", [result.lastID]);
 
       await createReportForTask(db, task);
+      scheduleWarmTaskPdfCache(db, task.id);
 
       res.status(201).json(task);
     } catch (error) {
@@ -1563,6 +1662,7 @@ async function main() {
       await db.run(sql, values);
       const task = await db.get("SELECT * FROM tasks WHERE id = ?", [req.params.id]);
       await syncReportForTask(db, task);
+      scheduleWarmTaskPdfCache(db, req.params.id);
       res.json(task);
     } catch (error) {
       res.status(500).json({ error: "Falha ao atualizar tarefa" });
@@ -1722,6 +1822,7 @@ async function main() {
       const sql = `INSERT INTO reports (${fields.join(", ")}) VALUES (${placeholders})`;
       const result = await db.run(sql, fields.map((field) => data[field]));
       const report = await db.get("SELECT * FROM reports WHERE id = ?", [result.lastID]);
+      scheduleWarmTaskPdfCache(db, report?.task_id);
       res.status(201).json(parseJsonFields(report, ["content"]));
     } catch (error) {
       res.status(500).json({ error: "Falha ao criar relatório" });
@@ -1751,6 +1852,7 @@ async function main() {
       values.push(req.params.id);
       await db.run(sql, values);
       const report = await db.get("SELECT * FROM reports WHERE id = ?", [req.params.id]);
+      scheduleWarmTaskPdfCache(db, report?.task_id);
       res.json(parseJsonFields(report, ["content"]));
     } catch (error) {
       res.status(500).json({ error: "Falha ao atualizar relatório" });
@@ -1759,7 +1861,9 @@ async function main() {
 
   app.delete("/api/reports/:id", requirePermission(PERMISSIONS.MANAGE_TASKS), async (req, res) => {
     try {
+      const existing = await db.get("SELECT task_id FROM reports WHERE id = ?", [req.params.id]);
       await db.run("DELETE FROM reports WHERE id = ?", [req.params.id]);
+      scheduleWarmTaskPdfCache(db, existing?.task_id);
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao remover relatório" });
@@ -1965,6 +2069,8 @@ async function main() {
         "SELECT * FROM budget_items WHERE budget_id = ? ORDER BY id ASC",
         [result.lastID]
       );
+      scheduleWarmBudgetPdfCache(db, budget?.id);
+      scheduleWarmTaskPdfCache(db, budget?.task_id);
       res.status(201).json(budget);
     } catch (error) {
       res.status(500).json({ error: "Falha ao criar orçamento" });
@@ -2039,6 +2145,8 @@ async function main() {
         "SELECT * FROM budget_items WHERE budget_id = ? ORDER BY id ASC",
         [req.params.id]
       );
+      scheduleWarmBudgetPdfCache(db, budget?.id);
+      scheduleWarmTaskPdfCache(db, budget?.task_id);
       res.json(budget);
     } catch (error) {
       res.status(500).json({ error: "Falha ao atualizar orçamento" });
@@ -2047,7 +2155,9 @@ async function main() {
 
   app.delete("/api/budgets/:id", requirePermission(PERMISSIONS.MANAGE_BUDGETS), async (req, res) => {
     try {
+      const existing = await db.get("SELECT task_id FROM budgets WHERE id = ?", [req.params.id]);
       await db.run("DELETE FROM budgets WHERE id = ?", [req.params.id]);
+      scheduleWarmTaskPdfCache(db, existing?.task_id);
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao remover orçamento" });

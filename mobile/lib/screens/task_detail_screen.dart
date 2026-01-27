@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -70,6 +71,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   List<Map<String, dynamic>> _reportPhotos = [];
   String _reportStatus = 'rascunho';
   String? _reportMessage;
+  Timer? _reportAutosaveTimer;
+  bool _reportAutosaving = false;
+  bool _reportDirty = false;
+  int _reportAutosaveSeq = 0;
 
   List<Map<String, dynamic>> _budgets = [];
 
@@ -94,6 +99,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
 
   @override
   void dispose() {
+    _reportAutosaveTimer?.cancel();
     _title.dispose();
     _description.dispose();
     _startDate.dispose();
@@ -317,6 +323,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     _reportAnswers = content['answers'] as Map<String, dynamic>? ?? {};
     _reportPhotos = (content['photos'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
     _reportStatus = report['status']?.toString() ?? 'rascunho';
+    _reportDirty = false;
+    _reportAutosaveTimer?.cancel();
+    _reportAutosaveTimer = null;
   }
 
   Map<String, dynamic>? get _activeReport {
@@ -371,7 +380,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     }
   }
 
-  Future<void> _saveReport() async {
+  Future<void> _saveReport({bool silent = false, bool skipReload = false}) async {
     if (_activeReportId == null) {
       setState(() => _reportMessage = 'Salve a tarefa para gerar o relatório.');
       return;
@@ -395,11 +404,65 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
 
     try {
       await _api.put('/reports/$_activeReportId', payload);
+      _reportDirty = false;
+      if (silent && skipReload) {
+        return;
+      }
       setState(() => _reportMessage = 'Relatório salvo com sucesso.');
       await _loadReports(_taskTypeId);
     } catch (error) {
+      if (silent) return;
       setState(() => _reportMessage = error.toString());
     }
+  }
+
+  void _markReportDirty({Duration delay = const Duration(milliseconds: 1500)}) {
+    _reportDirty = true;
+    _reportAutosaveTimer?.cancel();
+    if (_activeReportId == null) return;
+    final seq = ++_reportAutosaveSeq;
+    _reportAutosaveTimer = Timer(delay, () {
+      _runReportAutosave(seq);
+    });
+  }
+
+  Future<void> _runReportAutosave(int seq) async {
+    if (_activeReportId == null || !_reportDirty) return;
+    if (_reportAutosaving) {
+      _markReportDirty(delay: const Duration(milliseconds: 800));
+      return;
+    }
+    _reportAutosaving = true;
+    try {
+      await _saveReport(silent: true, skipReload: true);
+      if (seq == _reportAutosaveSeq) {
+        _reportDirty = false;
+      }
+    } catch (_) {
+      // Auto-save não deve bloquear o usuário.
+    } finally {
+      _reportAutosaving = false;
+    }
+  }
+
+  Future<void> _flushReportAutosave() async {
+    if (_activeReportId == null || !_reportDirty) return;
+    _reportAutosaveTimer?.cancel();
+    await _runReportAutosave(_reportAutosaveSeq);
+  }
+
+  Future<void> _handleActiveReportChange(int? value) async {
+    // Antes de trocar de relatório, tentamos salvar o atual em segundo plano.
+    await _flushReportAutosave();
+    final report = _reports.firstWhere(
+      (item) => item['id'] == value,
+      orElse: () => <String, dynamic>{},
+    );
+    if (!mounted) return;
+    setState(() {
+      _activeReportId = value;
+      _applyReportData(report, _taskTypeId);
+    });
   }
 
   Future<void> _createReport() async {
@@ -524,6 +587,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     }
     if (!mounted) return;
     setState(() => _reportPhotos = [..._reportPhotos, ...newPhotos]);
+    _markReportDirty();
   }
 
   String _asJpegName(String original) {
@@ -616,11 +680,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       _reportMessage = 'Fotos otimizadas. Salvando relatorio...';
     });
 
-    await _saveReport();
+    await _saveReport(silent: true, skipReload: true);
   }
 
   void _removePhoto(String photoId) {
     setState(() => _reportPhotos.removeWhere((photo) => photo['id'] == photoId));
+    _markReportDirty();
   }
 
   Future<void> _attachEquipment() async {
@@ -676,6 +741,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       );
       return;
     }
+    await _flushReportAutosave();
     await _optimizePhotosForPdf();
     if (!mounted) return;
     await Navigator.of(context).push(
@@ -697,6 +763,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       );
       return;
     }
+    await _flushReportAutosave();
     await _optimizePhotosForPdf();
     if (!mounted) return;
     try {
@@ -916,16 +983,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                     label: 'Relatório',
                     value: _activeReportId,
                     items: reportOptions,
-                    onChanged: (value) {
-                      final report = _reports.firstWhere(
-                        (item) => item['id'] == value,
-                        orElse: () => <String, dynamic>{},
-                      );
-                      setState(() {
-                        _activeReportId = value;
-                        _applyReportData(report, _taskTypeId);
-                      });
-                    },
+                    onChanged: (value) => _handleActiveReportChange(value),
                   ),
                   const SizedBox(height: 8),
                   AppDropdownField<String>(
@@ -936,7 +994,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                       DropdownMenuItem(value: 'enviado', child: Text('Enviado')),
                       DropdownMenuItem(value: 'finalizado', child: Text('Finalizado')),
                     ],
-                    onChanged: (value) => setState(() => _reportStatus = value ?? 'rascunho'),
+                    onChanged: (value) {
+                      setState(() => _reportStatus = value ?? 'rascunho');
+                      _markReportDirty();
+                    },
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -1030,7 +1091,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
             label: label,
             initialValue: value?.toString() ?? '',
             maxLines: 3,
-            onChanged: (val) => setState(() => _reportAnswers[fieldId] = val),
+            onChanged: (val) {
+              setState(() => _reportAnswers[fieldId] = val);
+              _markReportDirty();
+            },
           ),
         );
       }
@@ -1051,7 +1115,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
             label: label,
             value: value?.toString(),
             items: options,
-            onChanged: (val) => setState(() => _reportAnswers[fieldId] = val),
+            onChanged: (val) {
+              setState(() => _reportAnswers[fieldId] = val);
+              _markReportDirty();
+            },
           ),
         );
       }
@@ -1065,7 +1132,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
               DropdownMenuItem(value: 'sim', child: Text('Sim')),
               DropdownMenuItem(value: 'nao', child: Text('Não')),
             ],
-            onChanged: (val) => setState(() => _reportAnswers[fieldId] = val),
+            onChanged: (val) {
+              setState(() => _reportAnswers[fieldId] = val);
+              _markReportDirty();
+            },
           ),
         );
       }
@@ -1074,7 +1144,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
           contentPadding: EdgeInsets.zero,
           title: Text(label),
           value: value == true,
-          onChanged: (val) => setState(() => _reportAnswers[fieldId] = val),
+          onChanged: (val) {
+            setState(() => _reportAnswers[fieldId] = val);
+            _markReportDirty();
+          },
         );
       }
       if (type == 'date') {
@@ -1096,6 +1169,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
               final formatted =
                   '${selected.year.toString().padLeft(4, '0')}-${selected.month.toString().padLeft(2, '0')}-${selected.day.toString().padLeft(2, '0')}';
               setState(() => _reportAnswers[fieldId] = formatted);
+              _markReportDirty();
             },
           ),
         );
@@ -1107,7 +1181,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
           key: ValueKey('field-${_activeReportId ?? "new"}-$fieldId'),
           label: label,
           initialValue: value?.toString() ?? '',
-          onChanged: (val) => setState(() => _reportAnswers[fieldId] = val),
+          onChanged: (val) {
+            setState(() => _reportAnswers[fieldId] = val);
+            _markReportDirty();
+          },
         ),
       );
     }).toList();
