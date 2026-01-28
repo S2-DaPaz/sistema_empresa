@@ -611,6 +611,11 @@ async function warmBudgetPdfCache(db, budgetId, forceRefresh = true) {
       const html = buildBudgetPdfHtml({
         budget: data.budget,
         client: data.client,
+        signatureMode: data.budget?.signature_mode,
+        signatureScope: data.budget?.signature_scope,
+        signatureClient: data.budget?.signature_client,
+        signatureTech: data.budget?.signature_tech,
+        signaturePages: data.budget?.signature_pages || {},
         logoUrl
       });
       return renderPdfFromHtml(html);
@@ -806,10 +811,15 @@ function injectPublicToolbar(html, { taskId, token, pdfUrl, refreshUrl }) {
     box-shadow: 0 6px 18px rgba(12, 27, 42, 0.18);
   }
   .public-toolbar .title {
-    font-weight: 700;
-    margin-right: 8px;
-    letter-spacing: 0.02em;
-  }
+      font-weight: 700;
+      margin-right: 8px;
+      letter-spacing: 0.02em;
+    }
+  .public-toolbar .warning {
+      font-size: 12px;
+      opacity: 0.85;
+      margin-left: 6px;
+    }
   .public-toolbar button,
   .public-toolbar a {
     border: 1px solid rgba(255, 255, 255, 0.24);
@@ -854,11 +864,11 @@ function injectPublicToolbar(html, { taskId, token, pdfUrl, refreshUrl }) {
 
   const toolbarHtml = `
 <div class="public-toolbar">
-  <div class="title">Relatorio da tarefa #${taskId}</div>
-  <button type="button" onclick="publicPrint()">Imprimir</button>
-  <a href="${pdfUrl}" target="_blank" rel="noopener">Baixar PDF</a>
-  <a href="${refreshUrl}">Atualizar</a>
-</div>`;
+    <div class="title">Relatorio da tarefa #${taskId}</div>
+    <button type="button" onclick="publicPrint()">Imprimir/Salvar PDF</button>
+    <a href="${refreshUrl}">Atualizar</a>
+    <span class="warning">Recomendamos baixar o PDF: o link expira em 30 dias.</span>
+  </div>`;
 
   let updated = html.replace("</head>", `${headExtra}</head>`);
   updated = updated.replace(
@@ -1019,20 +1029,23 @@ async function fetchTaskPdfData(db, taskId) {
 }
 
 async function fetchBudgetPdfData(db, budgetId) {
-  const budget = await db.get(
-    `
-    SELECT
-      budgets.*,
-      clients.name AS client_name,
-      reports.title AS report_title,
-      tasks.title AS task_title
-    FROM budgets
-    LEFT JOIN clients ON clients.id = budgets.client_id
-    LEFT JOIN reports ON reports.id = budgets.report_id
-    LEFT JOIN tasks ON tasks.id = budgets.task_id
-    WHERE budgets.id = ?
-  `,
-    [budgetId]
+  const budget = parseJsonFields(
+    await db.get(
+      `
+      SELECT
+        budgets.*,
+        clients.name AS client_name,
+        reports.title AS report_title,
+        tasks.title AS task_title
+      FROM budgets
+      LEFT JOIN clients ON clients.id = budgets.client_id
+      LEFT JOIN reports ON reports.id = budgets.report_id
+      LEFT JOIN tasks ON tasks.id = budgets.task_id
+      WHERE budgets.id = ?
+    `,
+      [budgetId]
+    ),
+    ["signature_pages"]
   );
   if (!budget) return null;
   budget.items = await db.all(
@@ -2210,9 +2223,10 @@ async function main() {
 
       const includeItems = req.query.includeItems === "1";
       if (!includeItems || rows.length === 0) {
-        return res.json(rows);
+        return res.json(parseJsonList(rows, ["signature_pages"]));
       }
 
+      parseJsonList(rows, ["signature_pages"]);
       const ids = rows.map((row) => row.id);
       const placeholders = ids.map(() => "?").join(", ");
       const items = await db.all(
@@ -2237,8 +2251,9 @@ async function main() {
 
   app.get("/api/budgets/:id", requirePermission(PERMISSIONS.VIEW_BUDGETS), async (req, res) => {
     try {
-      const budget = await db.get(
-        `
+      const budget = parseJsonFields(
+        await db.get(
+          `
         SELECT
           budgets.*,
           clients.name AS client_name,
@@ -2250,7 +2265,9 @@ async function main() {
         LEFT JOIN tasks ON tasks.id = budgets.task_id
         WHERE budgets.id = ?
       `,
-        [req.params.id]
+          [req.params.id]
+        ),
+        ["signature_pages"]
       );
       if (!budget) {
         return res.status(404).json({ error: "Orçamento não encontrado" });
@@ -2315,6 +2332,11 @@ async function main() {
           const html = buildBudgetPdfHtml({
             budget: data.budget,
             client: data.client,
+            signatureMode: data.budget?.signature_mode,
+            signatureScope: data.budget?.signature_scope,
+            signatureClient: data.budget?.signature_client,
+            signatureTech: data.budget?.signature_tech,
+            signaturePages: data.budget?.signature_pages || {},
             logoUrl
           });
           return renderPdfFromHtml(html);
@@ -2360,6 +2382,11 @@ async function main() {
         "service_deadline",
         "product_validity",
         "status",
+        "signature_mode",
+        "signature_scope",
+        "signature_client",
+        "signature_tech",
+        "signature_pages",
         "subtotal",
         "discount",
         "tax",
@@ -2376,7 +2403,7 @@ async function main() {
         ...totals,
         created_at: createdAt
       };
-      const data = buildPayload(payload, fields, []);
+      const data = buildPayload(payload, fields, ["signature_pages"]);
       const placeholders = fields.map(() => "?").join(", ");
       const sql = `INSERT INTO budgets (${fields.join(", ")}) VALUES (${placeholders})`;
       const result = await db.run(sql, fields.map((field) => data[field]));
@@ -2405,7 +2432,7 @@ async function main() {
       );
       scheduleWarmBudgetPdfCache(db, budget?.id);
       scheduleWarmTaskPdfCache(db, budget?.task_id);
-      res.status(201).json(budget);
+      res.status(201).json(parseJsonFields(budget, ["signature_pages"]));
     } catch (error) {
       res.status(500).json({ error: "Falha ao criar orçamento" });
     }
@@ -2438,6 +2465,11 @@ async function main() {
         "service_deadline",
         "product_validity",
         "status",
+        "signature_mode",
+        "signature_scope",
+        "signature_client",
+        "signature_tech",
+        "signature_pages",
         "subtotal",
         "discount",
         "tax",
@@ -2449,7 +2481,7 @@ async function main() {
         ...totals,
         created_at: req.body.created_at || new Date().toISOString()
       };
-      const data = buildPayload(payload, fields, []);
+      const data = buildPayload(payload, fields, ["signature_pages"]);
       const setClause = fields.map((field) => `${field} = ?`).join(", ");
       const sql = `UPDATE budgets SET ${setClause} WHERE id = ?`;
       const values = fields.map((field) => data[field]);
@@ -2481,7 +2513,7 @@ async function main() {
       );
       scheduleWarmBudgetPdfCache(db, budget?.id);
       scheduleWarmTaskPdfCache(db, budget?.task_id);
-      res.json(budget);
+      res.json(parseJsonFields(budget, ["signature_pages"]));
     } catch (error) {
       res.status(500).json({ error: "Falha ao atualizar orçamento" });
     }

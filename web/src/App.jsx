@@ -11,6 +11,7 @@ import Budgets from "./pages/Budgets";
 import Users from "./pages/Users";
 import Products from "./pages/Products";
 import TaskTypes from "./pages/TaskTypes";
+import Equipments from "./pages/Equipments";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/tarefas/:id" element={<TaskDetail />} />
           <Route path="/modelos" element={<Templates />} />
           <Route path="/orcamentos" element={<Budgets />} />
+          <Route path="/equipamentos" element={<Equipments />} />
           <Route
             path="/usuarios"
             element={

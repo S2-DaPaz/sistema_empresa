@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiGet } from "../api";
+import { apiGet, apiPost } from "../api";
 import BudgetForm from "../components/BudgetForm";
 import { buildBudgetEmailText, buildBudgetPdfHtml, openPrintWindow } from "../utils/pdf";
 import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
@@ -36,7 +36,16 @@ export default function Budgets() {
 
   function handleExport(budget) {
     const client = clients.find((item) => item.id === Number(budget.client_id));
-    const html = buildBudgetPdfHtml({ budget, client, logoUrl: logo });
+    const html = buildBudgetPdfHtml({
+      budget,
+      client,
+      signatureMode: budget.signature_mode,
+      signatureScope: budget.signature_scope,
+      signatureClient: budget.signature_client,
+      signatureTech: budget.signature_tech,
+      signaturePages: budget.signature_pages || {},
+      logoUrl: logo
+    });
     openPrintWindow(html);
   }
 
@@ -50,6 +59,40 @@ export default function Budgets() {
     const body = buildBudgetEmailText(budget, client);
     const mailto = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailto;
+  }
+
+  async function ensurePublicLink(taskId) {
+    if (!taskId) {
+      alert("Este orçamento não está vinculado a uma tarefa.");
+      return null;
+    }
+    const response = await apiPost(`/tasks/${taskId}/public-link`, {});
+    return response?.url;
+  }
+
+  async function handleShareLink(budget) {
+    try {
+      const url = await ensurePublicLink(budget.task_id);
+      if (!url) return;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        alert("Link copiado para a área de transferência.");
+      } else {
+        window.prompt("Copie o link abaixo:", url);
+      }
+    } catch (error) {
+      alert(error.message || "Falha ao gerar link.");
+    }
+  }
+
+  async function handleOpenReport(budget) {
+    try {
+      const url = await ensurePublicLink(budget.task_id);
+      if (!url) return;
+      window.open(url, "_blank", "noopener");
+    } catch (error) {
+      alert(error.message || "Falha ao abrir link.");
+    }
   }
 
   async function handleReload() {
@@ -123,6 +166,12 @@ export default function Budgets() {
               </button>
               <button className="btn ghost" type="button" onClick={() => handleExport(budget)}>
                 Exportar PDF
+              </button>
+              <button className="btn ghost" type="button" onClick={() => handleShareLink(budget)}>
+                Compartilhar link
+              </button>
+              <button className="btn secondary" type="button" onClick={() => handleOpenReport(budget)}>
+                Abrir relatório
               </button>
             </div>
           </div>

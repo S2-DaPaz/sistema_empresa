@@ -131,6 +131,11 @@ const SQLITE_SCHEMA = `
     service_deadline TEXT,
     product_validity TEXT,
     status TEXT,
+    signature_mode TEXT,
+    signature_scope TEXT,
+    signature_client TEXT,
+    signature_tech TEXT,
+    signature_pages TEXT,
     subtotal REAL DEFAULT 0,
     discount REAL DEFAULT 0,
     tax REAL DEFAULT 0,
@@ -288,6 +293,11 @@ const POSTGRES_SCHEMA = `
     service_deadline TEXT,
     product_validity TEXT,
     status TEXT,
+    signature_mode TEXT,
+    signature_scope TEXT,
+    signature_client TEXT,
+    signature_tech TEXT,
+    signature_pages TEXT,
     subtotal DOUBLE PRECISION DEFAULT 0,
     discount DOUBLE PRECISION DEFAULT 0,
     tax DOUBLE PRECISION DEFAULT 0,
@@ -381,6 +391,11 @@ async function initSqlite() {
   await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "payment_terms", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "service_deadline", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "product_validity", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_mode", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_scope", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_client", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_tech", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_pages", "TEXT");
 
   return database;
 }
@@ -410,6 +425,11 @@ async function initPostgres() {
   await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "payment_terms", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "service_deadline", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "product_validity", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_mode", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_scope", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_client", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_tech", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_pages", "TEXT");
 
   return database;
 }

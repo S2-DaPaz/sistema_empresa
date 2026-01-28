@@ -627,10 +627,26 @@ export function buildTaskPdfHtml({
 </html>`;
 }
 
-export function buildBudgetPdfHtml({ budget, client, logoUrl }) {
+export function buildBudgetPdfHtml({
+  budget,
+  client,
+  signatureMode = "none",
+  signatureScope = "last_page",
+  signatureClient = "",
+  signatureTech = "",
+  signaturePages = {},
+  logoUrl
+}) {
+  const baseSignatureHtml = buildSignatureHtml(signatureMode, signatureClient, signatureTech);
+  const pageKey = `budget_${budget?.id ?? "new"}`;
+  const pageSignature = signaturePages?.[pageKey] || {};
+  const scopedSignatureHtml =
+    signatureScope === "all_pages"
+      ? buildSignatureHtml(signatureMode, pageSignature.client, pageSignature.tech) || baseSignatureHtml
+      : baseSignatureHtml;
   return `<!doctype html>
-<html lang="pt-BR">
-<head>
+  <html lang="pt-BR">
+  <head>
 <meta charset="utf-8" />
 <title>Orçamento #${budget.id}</title>
 <style>
@@ -683,9 +699,9 @@ export function buildBudgetPdfHtml({ budget, client, logoUrl }) {
 </style>
 </head>
 <body>
-  ${buildBudgetPageHtml({ budget, client, signatureHtml: "", logoUrl })}
-</body>
-</html>`;
+    ${buildBudgetPageHtml({ budget, client, signatureHtml: scopedSignatureHtml, logoUrl })}
+  </body>
+  </html>`;
 }
 
 export function buildBudgetEmailText(budget, client) {

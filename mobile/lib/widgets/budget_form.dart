@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../utils/formatters.dart';
 import 'form_fields.dart';
+import 'signature_pad.dart';
 
 class BudgetForm extends StatefulWidget {
   const BudgetForm({
@@ -43,6 +44,11 @@ class _BudgetFormState extends State<BudgetForm> {
   final TextEditingController _productValidity = TextEditingController(text: '03 meses');
   final TextEditingController _discount = TextEditingController(text: '0');
   final TextEditingController _tax = TextEditingController(text: '0');
+  String _signatureMode = 'none';
+  String _signatureScope = 'last_page';
+  String _signatureClient = '';
+  String _signatureTech = '';
+  Map<String, dynamic> _signaturePages = {};
 
   String? _error;
   bool _saving = false;
@@ -112,6 +118,16 @@ class _BudgetFormState extends State<BudgetForm> {
     _productValidity.text = budget['product_validity']?.toString() ?? '03 meses';
     _discount.text = (budget['discount'] ?? 0).toString();
     _tax.text = (budget['tax'] ?? 0).toString();
+    _signatureMode = budget['signature_mode']?.toString() ?? 'none';
+    _signatureScope = budget['signature_scope']?.toString() ?? 'last_page';
+    _signatureClient = budget['signature_client']?.toString() ?? '';
+    _signatureTech = budget['signature_tech']?.toString() ?? '';
+    final pages = budget['signature_pages'];
+    if (pages is Map) {
+      _signaturePages = Map<String, dynamic>.from(pages);
+    } else {
+      _signaturePages = {};
+    }
     _createdAt = budget['created_at']?.toString();
 
     final items = (budget['items'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
@@ -189,6 +205,11 @@ class _BudgetFormState extends State<BudgetForm> {
       'payment_terms': _paymentTerms.text,
       'service_deadline': _serviceDeadline.text,
       'product_validity': _productValidity.text,
+      'signature_mode': _signatureMode,
+      'signature_scope': _signatureScope,
+      'signature_client': _signatureClient,
+      'signature_tech': _signatureTech,
+      'signature_pages': _signaturePages,
       'discount': _toDouble(_discount.text),
       'tax': _toDouble(_tax.text),
       'items': _items.map((item) {
@@ -311,6 +332,50 @@ class _BudgetFormState extends State<BudgetForm> {
             AppTextField(label: 'Observação', controller: _notes, maxLines: 3),
             const SizedBox(height: 8),
             AppTextField(label: 'Nota interna', controller: _internalNote, maxLines: 3),
+            const SizedBox(height: 16),
+            Text('Assinaturas', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            AppDropdownField<String>(
+              label: 'Assinatura',
+              value: _signatureMode,
+              items: const [
+                DropdownMenuItem(value: 'none', child: Text('Sem assinatura')),
+                DropdownMenuItem(value: 'client', child: Text('Cliente')),
+                DropdownMenuItem(value: 'tech', child: Text('Técnico')),
+                DropdownMenuItem(value: 'both', child: Text('Cliente e técnico')),
+              ],
+              onChanged: (value) => setState(() => _signatureMode = value ?? 'none'),
+            ),
+            const SizedBox(height: 8),
+            AppDropdownField<String>(
+              label: 'Escopo',
+              value: _signatureScope,
+              items: const [
+                DropdownMenuItem(value: 'last_page', child: Text('Assinar apenas no final')),
+                DropdownMenuItem(value: 'all_pages', child: Text('Assinar todas as páginas')),
+              ],
+              onChanged: (value) {
+                if (_signatureMode == 'none') return;
+                setState(() => _signatureScope = value ?? 'last_page');
+              },
+            ),
+            if (_signatureMode != 'none') ...[
+              const SizedBox(height: 12),
+              if (_signatureMode == 'client' || _signatureMode == 'both')
+                SignaturePadField(
+                  label: 'Assinatura do cliente',
+                  value: _signatureClient,
+                  onChanged: (value) => setState(() => _signatureClient = value),
+                ),
+              if (_signatureMode == 'tech' || _signatureMode == 'both') ...[
+                const SizedBox(height: 12),
+                SignaturePadField(
+                  label: 'Assinatura do técnico',
+                  value: _signatureTech,
+                  onChanged: (value) => setState(() => _signatureTech = value),
+                ),
+              ],
+            ],
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,

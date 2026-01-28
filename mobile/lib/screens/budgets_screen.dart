@@ -1,10 +1,7 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../services/api_config.dart';
 import '../services/api_service.dart';
 import '../utils/budget_email.dart';
 import '../utils/formatters.dart';
@@ -12,7 +9,6 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/budget_form.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
-import 'pdf_viewer_screen.dart';
 
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
@@ -89,50 +85,40 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     await launchUrl(uri);
   }
 
-  Future<void> _exportPdf(Map<String, dynamic> budget) async {
-    final id = budget['id'];
-    if (id == null) return;
-    if (!ApiConfig.pdfEnabled) {
-      if (!mounted) return;
+  Future<String?> _getPublicLink(Map<String, dynamic> budget) async {
+    final taskId = budget['task_id'];
+    if (taskId == null) {
+      if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exportação de PDF indisponível na API atual.')),
+        const SnackBar(content: Text('Este orçamento não está vinculado a uma tarefa.')),
       );
-      return;
-    }
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PdfViewerScreen(
-        title: 'Orçamento #$id',
-          pdfFetcher: () => _api.getBytes('/budgets/$id/pdf'),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _shareBudget(Map<String, dynamic> budget) async {
-    final id = budget['id'];
-    if (id == null) return;
-    if (!ApiConfig.pdfEnabled) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exportação de PDF indisponível na API atual.')),
-      );
-      return;
+      return null;
     }
     try {
-      final bytes = Uint8List.fromList(await _api.getBytes('/budgets/$id/pdf'));
-      final file = XFile.fromData(
-        bytes,
-        mimeType: 'application/pdf',
-        name: 'orçamento_$id.pdf',
-      );
-      await Share.shareXFiles([file], text: 'Orçamento #$id');
+      final response = await _api.post('/tasks/$taskId/public-link', {});
+      return response['url']?.toString();
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.toString())),
       );
+      return null;
     }
+  }
+
+  Future<void> _shareReportLink(Map<String, dynamic> budget) async {
+    final url = await _getPublicLink(budget);
+    if (url == null || url.isEmpty) return;
+    await Share.share(
+      url,
+      subject: 'Relatório da tarefa #${budget['task_id']}',
+    );
+  }
+
+  Future<void> _openReportLink(Map<String, dynamic> budget) async {
+    final url = await _getPublicLink(budget);
+    if (url == null || url.isEmpty) return;
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
   String _buildSearchText(Map<String, dynamic> budget) {
@@ -416,16 +402,14 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                           onPressed: () => _sendEmail(budget),
                           child: const Text('Enviar e-mail'),
                         ),
-                        if (ApiConfig.pdfEnabled)
-                          OutlinedButton(
-                            onPressed: () => _exportPdf(budget),
-                            child: const Text('Exportar PDF'),
-                          ),
-                        if (ApiConfig.pdfEnabled)
-                          OutlinedButton(
-                            onPressed: () => _shareBudget(budget),
-                            child: const Text('Compartilhar'),
-                          ),
+                        OutlinedButton(
+                          onPressed: () => _shareReportLink(budget),
+                          child: const Text('Compartilhar link'),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => _openReportLink(budget),
+                          child: const Text('Abrir relatório'),
+                        ),
                       ],
                     ),
                   ],

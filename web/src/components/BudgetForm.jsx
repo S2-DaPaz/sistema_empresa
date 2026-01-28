@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiPost } from "../api";
 import FormField from "./FormField";
+import SignaturePad from "./SignaturePad";
 
 function uid() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -28,6 +29,10 @@ export default function BudgetForm({
   const [productValidity, setProductValidity] = useState("03 meses");
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
+  const [signatureMode, setSignatureMode] = useState("none");
+  const [signatureScope, setSignatureScope] = useState("last_page");
+  const [signatureClient, setSignatureClient] = useState("");
+  const [signatureTech, setSignatureTech] = useState("");
   const [items, setItems] = useState([
     {
       id: uid(),
@@ -108,6 +113,11 @@ export default function BudgetForm({
       payment_terms: paymentTerms,
       service_deadline: serviceDeadline,
       product_validity: productValidity,
+      signature_mode: signatureMode,
+      signature_scope: signatureScope,
+      signature_client: signatureClient,
+      signature_tech: signatureTech,
+      signature_pages: {},
       discount: Number(discount || 0),
       tax: Number(tax || 0),
       items: items.map((item) => ({
@@ -127,6 +137,10 @@ export default function BudgetForm({
       setPaymentTerms("À vista");
       setServiceDeadline("03 a 04 horas");
       setProductValidity("03 meses");
+      setSignatureMode("none");
+      setSignatureScope("last_page");
+      setSignatureClient("");
+      setSignatureTech("");
       setDiscount(0);
       setTax(0);
       setItems([
@@ -228,6 +242,61 @@ export default function BudgetForm({
           className="full"
           disabled={!canManage}
         />
+      </div>
+
+      <div className="card" style={{ marginTop: "16px" }}>
+        <h4>Assinaturas</h4>
+        <div className="form-grid">
+          <FormField
+            label="Assinatura"
+            type="select"
+            value={signatureMode}
+            options={[
+              { value: "none", label: "Sem assinatura" },
+              { value: "client", label: "Cliente" },
+              { value: "tech", label: "Técnico" },
+              { value: "both", label: "Cliente e técnico" }
+            ]}
+            onChange={setSignatureMode}
+            disabled={!canManage}
+          />
+          <FormField
+            label="Escopo"
+            type="select"
+            value={signatureScope}
+            options={[
+              { value: "last_page", label: "Assinar apenas no final" },
+              { value: "all_pages", label: "Assinar todas as páginas" }
+            ]}
+            onChange={setSignatureScope}
+            disabled={!canManage || signatureMode === "none"}
+          />
+        </div>
+
+        {signatureMode !== "none" && (
+          <div className="grid-2" style={{ marginTop: "12px" }}>
+            {(signatureMode === "client" || signatureMode === "both") && (
+              <div className="card">
+                <strong>Assinatura do cliente</strong>
+                <SignaturePad
+                  value={signatureClient}
+                  onChange={setSignatureClient}
+                  disabled={!canManage}
+                />
+              </div>
+            )}
+            {(signatureMode === "tech" || signatureMode === "both") && (
+              <div className="card">
+                <strong>Assinatura do técnico</strong>
+                <SignaturePad
+                  value={signatureTech}
+                  onChange={setSignatureTech}
+                  disabled={!canManage}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="list" style={{ marginTop: "16px" }}>

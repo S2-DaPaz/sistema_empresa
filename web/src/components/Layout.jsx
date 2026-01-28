@@ -6,6 +6,7 @@ const navItems = [
   { to: "/", label: "Painel", permission: PERMISSIONS.VIEW_DASHBOARD },
   { to: "/clientes", label: "Clientes", permission: PERMISSIONS.VIEW_CLIENTS },
   { to: "/tarefas", label: "Tarefas", permission: PERMISSIONS.VIEW_TASKS },
+  { to: "/equipamentos", label: "Equipamentos", permission: PERMISSIONS.VIEW_TASKS },
   { to: "/modelos", label: "Modelos", permission: PERMISSIONS.VIEW_TEMPLATES },
   { to: "/orcamentos", label: "Orçamentos", permission: PERMISSIONS.VIEW_BUDGETS },
   { to: "/produtos", label: "Produtos", permission: PERMISSIONS.VIEW_PRODUCTS },
