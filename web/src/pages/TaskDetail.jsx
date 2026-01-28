@@ -538,7 +538,7 @@ export default function TaskDetail() {
     window.location.href = mailto;
   }
 
-  async function ensurePublicLink() {
+  async function ensureTaskPublicLink() {
     if (!taskId) {
       alert("Salve a tarefa para gerar o link.");
       return null;
@@ -549,7 +549,7 @@ export default function TaskDetail() {
 
   async function handleSharePublicLink() {
     try {
-      const url = await ensurePublicLink();
+      const url = await ensureTaskPublicLink();
       if (!url) return;
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
@@ -564,7 +564,38 @@ export default function TaskDetail() {
 
   async function handleOpenPublicPage() {
     try {
-      const url = await ensurePublicLink();
+      const url = await ensureTaskPublicLink();
+      if (!url) return;
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      alert(err.message || "Falha ao abrir link.");
+    }
+  }
+
+  async function ensureBudgetPublicLink(budgetId) {
+    if (!budgetId) return null;
+    const response = await apiPost(`/budgets/${budgetId}/public-link`, {});
+    return response?.url;
+  }
+
+  async function handleShareBudgetLink(budgetId) {
+    try {
+      const url = await ensureBudgetPublicLink(budgetId);
+      if (!url) return;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        alert("Link copiado para a área de transferência.");
+      } else {
+        window.prompt("Copie o link abaixo:", url);
+      }
+    } catch (err) {
+      alert(err.message || "Falha ao gerar link.");
+    }
+  }
+
+  async function handleOpenBudgetPage(budgetId) {
+    try {
+      const url = await ensureBudgetPublicLink(budgetId);
       if (!url) return;
       window.open(url, "_blank", "noopener");
     } catch (err) {
@@ -1123,7 +1154,7 @@ export default function TaskDetail() {
                             <button
                               className="btn ghost"
                               type="button"
-                              onClick={handleSharePublicLink}
+                              onClick={() => handleShareBudgetLink(budget.id)}
                               disabled={!taskId}
                             >
                               Compartilhar link
@@ -1131,7 +1162,7 @@ export default function TaskDetail() {
                             <button
                               className="btn secondary"
                               type="button"
-                              onClick={handleOpenPublicPage}
+                              onClick={() => handleOpenBudgetPage(budget.id)}
                               disabled={!taskId}
                             >
                               Abrir PDF

@@ -86,16 +86,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<String?> _getPublicLink(Map<String, dynamic> budget) async {
-    final taskId = budget['task_id'];
-    if (taskId == null) {
-      if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Este orçamento não está vinculado a uma tarefa.')),
-      );
-      return null;
-    }
+    final budgetId = budget['id'];
+    if (budgetId == null) return null;
     try {
-      final response = await _api.post('/tasks/$taskId/public-link', {});
+      final response = await _api.post('/budgets/$budgetId/public-link', {});
       return response['url']?.toString();
     } catch (error) {
       if (!mounted) return null;

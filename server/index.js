@@ -726,6 +726,12 @@ function buildPublicTaskUrl(req, taskId, token) {
   return `${base}/public/tasks/${taskId}?token=${encodedToken}`;
 }
 
+function buildPublicBudgetUrl(req, budgetId, token) {
+  const base = getPublicBaseUrl(req);
+  const encodedToken = encodeURIComponent(token);
+  return `${base}/public/budgets/${budgetId}?token=${encodedToken}`;
+}
+
 async function getActivePublicLink(db, taskId) {
   const current = nowIso();
   return db.get(
@@ -769,6 +775,49 @@ async function createPublicLink(db, taskId, userId, expiresAt) {
   throw new Error("Falha ao gerar token publico");
 }
 
+async function getActiveBudgetPublicLink(db, budgetId) {
+  const current = nowIso();
+  return db.get(
+    `
+    SELECT *
+    FROM budget_public_links
+    WHERE budget_id = ?
+      AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > ?)
+    ORDER BY id DESC
+    LIMIT 1
+  `,
+    [budgetId, current]
+  );
+}
+
+async function createBudgetPublicLink(db, budgetId, userId, expiresAt) {
+  const createdAt = nowIso();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const token = generatePublicToken();
+    try {
+      const result = await db.run(
+        `
+        INSERT INTO budget_public_links (budget_id, token, created_at, created_by_user_id, expires_at)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+        [budgetId, token, createdAt, userId || null, expiresAt]
+      );
+      const row = await db.get("SELECT * FROM budget_public_links WHERE id = ?", [
+        result.lastID
+      ]);
+      return row;
+    } catch (error) {
+      const message = String(error?.message || "").toLowerCase();
+      const isUniqueError = message.includes("unique") || message.includes("duplicate");
+      if (!isUniqueError) {
+        throw error;
+      }
+    }
+  }
+  throw new Error("Falha ao gerar token publico");
+}
+
 async function findValidPublicLink(db, taskId, token) {
   if (!token) return null;
   const current = nowIso();
@@ -792,7 +841,30 @@ async function findValidPublicLink(db, taskId, token) {
   return link;
 }
 
-function injectPublicToolbar(html, { taskId, token, pdfUrl, refreshUrl }) {
+async function findValidBudgetPublicLink(db, budgetId, token) {
+  if (!token) return null;
+  const current = nowIso();
+  const link = await db.get(
+    `
+    SELECT *
+    FROM budget_public_links
+    WHERE budget_id = ?
+      AND token = ?
+      AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > ?)
+    LIMIT 1
+  `,
+    [budgetId, token, current]
+  );
+  if (!link) return null;
+  await db.run("UPDATE budget_public_links SET last_used_at = ? WHERE id = ?", [
+    current,
+    link.id
+  ]);
+  return link;
+}
+
+function injectPublicToolbar(html, { taskId, title, token, pdfUrl, refreshUrl }) {
   const headExtra = `
 <style>
   body { margin: 0; background: #f2f6fb; }
@@ -862,9 +934,10 @@ function injectPublicToolbar(html, { taskId, token, pdfUrl, refreshUrl }) {
   }
 </script>`;
 
+  const displayTitle = title || `Relatorio da tarefa #${taskId}`;
   const toolbarHtml = `
 <div class="public-toolbar">
-    <div class="title">Relatorio da tarefa #${taskId}</div>
+    <div class="title">${displayTitle}</div>
     <button type="button" onclick="publicPrint()">Imprimir/Salvar PDF</button>
     <a href="${refreshUrl}">Atualizar</a>
     <span class="warning">Recomendamos baixar o PDF: o link expira em 30 dias.</span>
@@ -1945,6 +2018,36 @@ async function main() {
     }
   });
 
+  app.post("/api/budgets/:id/public-link", requirePermission(PERMISSIONS.VIEW_BUDGETS), async (req, res) => {
+    try {
+      const budget = await db.get("SELECT id FROM budgets WHERE id = ?", [req.params.id]);
+      if (!budget) {
+        return res.status(404).json({ error: "Orcamento nao encontrado" });
+      }
+
+      const forceNew = req.body?.force_new === true || req.body?.forceNew === true;
+      let link = forceNew ? null : await getActiveBudgetPublicLink(db, budget.id);
+      if (!link) {
+        const requestedDays = req.body?.expires_in_days ?? req.body?.expiresInDays;
+        const expiresAt = addDaysIso(requestedDays ?? PUBLIC_LINK_DEFAULT_DAYS);
+        link = await createBudgetPublicLink(db, budget.id, req.user?.id, expiresAt);
+      }
+
+      const url = buildPublicBudgetUrl(req, budget.id, link.token);
+      scheduleWarmBudgetPdfCache(db, budget.id);
+      res.json({
+        id: link.id,
+        token: link.token,
+        url,
+        created_at: link.created_at,
+        expires_at: link.expires_at,
+        reused: !forceNew
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao criar link publico" });
+    }
+  });
+
   app.delete(
     "/api/tasks/:id/public-link/:linkId",
     requirePermission(PERMISSIONS.MANAGE_TASKS),
@@ -2565,6 +2668,7 @@ async function main() {
       const pdfUrl = `${baseUrl}/public/tasks/${req.params.id}/pdf?token=${encodedToken}`;
       const html = injectPublicToolbar(baseHtml, {
         taskId: req.params.id,
+        title: `Relatorio da tarefa #${req.params.id}`,
         token,
         pdfUrl,
         refreshUrl
@@ -2575,6 +2679,52 @@ async function main() {
       res.send(html);
     } catch (error) {
       res.status(500).send("Falha ao carregar relatorio publico.");
+    }
+  });
+
+  app.get("/public/budgets/:id", async (req, res) => {
+    try {
+      const token = String(req.query.token || "");
+      if (!token) {
+        return res.status(401).send("Token publico ausente.");
+      }
+      const link = await findValidBudgetPublicLink(db, req.params.id, token);
+      if (!link) {
+        return res.status(403).send("Link publico invalido ou expirado.");
+      }
+      const data = await fetchBudgetPdfData(db, req.params.id);
+      if (!data) {
+        return res.status(404).send("Orcamento nao encontrado.");
+      }
+      const logoUrl = getLogoDataUrl();
+      const { buildBudgetPdfHtml } = await loadPdfHelpers();
+      const baseHtml = buildBudgetPdfHtml({
+        budget: data.budget,
+        client: data.client,
+        signatureMode: data.budget?.signature_mode,
+        signatureScope: data.budget?.signature_scope,
+        signatureClient: data.budget?.signature_client,
+        signatureTech: data.budget?.signature_tech,
+        signaturePages: data.budget?.signature_pages || {},
+        logoUrl
+      });
+
+      const baseUrl = getPublicBaseUrl(req);
+      const encodedToken = encodeURIComponent(token);
+      const refreshUrl = `${baseUrl}/public/budgets/${req.params.id}?token=${encodedToken}`;
+      const html = injectPublicToolbar(baseHtml, {
+        taskId: `orcamento-${req.params.id}`,
+        title: `Orcamento #${req.params.id}`,
+        token,
+        pdfUrl: "",
+        refreshUrl
+      });
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.send(html);
+    } catch (error) {
+      res.status(500).send("Falha ao carregar orcamento publico.");
     }
   });
 

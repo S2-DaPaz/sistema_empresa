@@ -61,18 +61,15 @@ export default function Budgets() {
     window.location.href = mailto;
   }
 
-  async function ensurePublicLink(taskId) {
-    if (!taskId) {
-      alert("Este orçamento não está vinculado a uma tarefa.");
-      return null;
-    }
-    const response = await apiPost(`/tasks/${taskId}/public-link`, {});
+  async function ensurePublicLink(budgetId) {
+    if (!budgetId) return null;
+    const response = await apiPost(`/budgets/${budgetId}/public-link`, {});
     return response?.url;
   }
 
   async function handleShareLink(budget) {
     try {
-      const url = await ensurePublicLink(budget.task_id);
+      const url = await ensurePublicLink(budget.id);
       if (!url) return;
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
@@ -87,7 +84,7 @@ export default function Budgets() {
 
   async function handleOpenReport(budget) {
     try {
-      const url = await ensurePublicLink(budget.task_id);
+      const url = await ensurePublicLink(budget.id);
       if (!url) return;
       window.open(url, "_blank", "noopener");
     } catch (error) {

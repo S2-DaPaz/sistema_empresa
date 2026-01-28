@@ -173,6 +173,22 @@ const SQLITE_SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_task_public_links_task_id
     ON task_public_links (task_id);
+
+  CREATE TABLE IF NOT EXISTS budget_public_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    budget_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    created_by_user_id INTEGER,
+    expires_at TEXT,
+    revoked_at TEXT,
+    last_used_at TEXT,
+    FOREIGN KEY (budget_id) REFERENCES budgets (id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_budget_public_links_budget_id
+    ON budget_public_links (budget_id);
 `;
 
 const POSTGRES_SCHEMA = `
@@ -335,6 +351,22 @@ const POSTGRES_SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_task_public_links_task_id
     ON task_public_links (task_id);
+
+  CREATE TABLE IF NOT EXISTS budget_public_links (
+    id SERIAL PRIMARY KEY,
+    budget_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    created_by_user_id INTEGER,
+    expires_at TEXT,
+    revoked_at TEXT,
+    last_used_at TEXT,
+    FOREIGN KEY (budget_id) REFERENCES budgets (id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_budget_public_links_budget_id
+    ON budget_public_links (budget_id);
 `;
 
 function shouldUsePostgres() {
