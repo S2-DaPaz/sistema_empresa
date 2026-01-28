@@ -930,15 +930,35 @@ function injectPublicToolbar(html, { taskId, title, token, pdfUrl, refreshUrl })
 </style>
 <script>
   function publicPrint() {
-    window.print();
-  }
-</script>`;
+      window.print();
+    }
+  function publicSharePdf(url) {
+      if (!url) return;
+      if (navigator.share) {
+        navigator.share({ title: document.title, url }).catch(() => {});
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          alert("Link do PDF copiado.");
+        }).catch(() => {
+          window.prompt("Copie o link do PDF:", url);
+        });
+        return;
+      }
+      window.prompt("Copie o link do PDF:", url);
+    }
+  </script>`;
 
   const displayTitle = title || `Relatorio da tarefa #${taskId}`;
+  const shareButton = pdfUrl
+    ? `<button type="button" onclick="publicSharePdf('${pdfUrl}')">Compartilhar PDF</button>`
+    : "";
   const toolbarHtml = `
 <div class="public-toolbar">
     <div class="title">${displayTitle}</div>
     <button type="button" onclick="publicPrint()">Imprimir/Salvar PDF</button>
+    ${shareButton}
     <a href="${refreshUrl}">Atualizar</a>
     <span class="warning">Recomendamos baixar o PDF: o link expira em 30 dias.</span>
   </div>`;
