@@ -666,16 +666,23 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     });
   }
 
+  Future<String?> _getTaskPublicLink() async {
+    if (_taskId == null) return null;
+    await _flushReportAutosave();
+    if (!mounted) return null;
+    final response = await _api.post('/tasks/$_taskId/public-link', {});
+    final url = response is Map<String, dynamic> ? response['url']?.toString() ?? '' : '';
+    if (url.isEmpty) {
+      throw Exception('Link publico nao retornado pela API');
+    }
+    return url;
+  }
+
   Future<void> _shareTaskPublicLink() async {
     if (_taskId == null) return;
-    await _flushReportAutosave();
-    if (!mounted) return;
     try {
-      final response = await _api.post('/tasks/$_taskId/public-link', {});
-      final url = response is Map<String, dynamic> ? response['url']?.toString() ?? '' : '';
-      if (url.isEmpty) {
-        throw Exception('Link publico nao retornado pela API');
-      }
+      final url = await _getTaskPublicLink();
+      if (url == null) return;
       await Share.share('Relatorio da tarefa #$_taskId: $url');
     } catch (error) {
       if (!mounted) return;
@@ -683,7 +690,20 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
         SnackBar(content: Text(error.toString())),
       );
     }
-    return;
+  }
+
+  Future<void> _openTaskPublicPage() async {
+    if (_taskId == null) return;
+    try {
+      final url = await _getTaskPublicLink();
+      if (url == null) return;
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 
   Future<void> _sendReportEmail() async {
@@ -968,6 +988,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                       OutlinedButton(
                         onPressed: _shareTaskPublicLink,
                         child: const Text('Compartilhar link'),
+                      ),
+                      OutlinedButton(
+                        onPressed: _openTaskPublicPage,
+                        child: const Text('Abrir PDF'),
                       ),
                     ],
                   ),

@@ -171,7 +171,7 @@ export default function Budgets() {
                 Compartilhar link
               </button>
               <button className="btn secondary" type="button" onClick={() => handleOpenReport(budget)}>
-                Abrir relatório
+                Abrir PDF
               </button>
             </div>
           </div>

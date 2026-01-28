@@ -408,7 +408,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         ),
                         OutlinedButton(
                           onPressed: () => _openReportLink(budget),
-                          child: const Text('Abrir relatório'),
+                          child: const Text('Abrir PDF'),
                         ),
                       ],
                     ),

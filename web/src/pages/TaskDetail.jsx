@@ -538,6 +538,40 @@ export default function TaskDetail() {
     window.location.href = mailto;
   }
 
+  async function ensurePublicLink() {
+    if (!taskId) {
+      alert("Salve a tarefa para gerar o link.");
+      return null;
+    }
+    const response = await apiPost(`/tasks/${taskId}/public-link`, {});
+    return response?.url;
+  }
+
+  async function handleSharePublicLink() {
+    try {
+      const url = await ensurePublicLink();
+      if (!url) return;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        alert("Link copiado para a área de transferência.");
+      } else {
+        window.prompt("Copie o link abaixo:", url);
+      }
+    } catch (err) {
+      alert(err.message || "Falha ao gerar link.");
+    }
+  }
+
+  async function handleOpenPublicPage() {
+    try {
+      const url = await ensurePublicLink();
+      if (!url) return;
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      alert(err.message || "Falha ao abrir link.");
+    }
+  }
+
   function handleReportSelect(value) {
     const reportItem = reports.find((item) => item.id === Number(value));
     if (!reportItem) return;
@@ -754,14 +788,30 @@ export default function TaskDetail() {
               >
                 Enviar e-mail
               </button>
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={handleExportTaskPdf}
-                disabled={!taskId}
-              >
-                Exportar PDF
-              </button>
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={handleExportTaskPdf}
+                  disabled={!taskId}
+                >
+                  Exportar PDF
+                </button>
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={handleSharePublicLink}
+                  disabled={!taskId}
+                >
+                  Compartilhar link
+                </button>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={handleOpenPublicPage}
+                  disabled={!taskId}
+                >
+                  Abrir PDF
+                </button>
             </>
           )}
           <button className="btn ghost" type="button" onClick={() => navigate("/tarefas")}>
@@ -1055,23 +1105,41 @@ export default function TaskDetail() {
                           <strong>Orçamento #{budget.id}</strong>
                           <span className="badge">{budget.status || "rascunho"}</span>
                         </div>
-                        <small>Total: {formatter.format(budget.total || 0)}</small>
-                        <div className="list" style={{ marginTop: "8px" }}>
-                          {(budget.items || []).map((item) => (
-                            <div key={item.id} className="card">
+                          <small>Total: {formatter.format(budget.total || 0)}</small>
+                          <div className="list" style={{ marginTop: "8px" }}>
+                            {(budget.items || []).map((item) => (
+                              <div key={item.id} className="card">
                               <div className="inline" style={{ justifyContent: "space-between" }}>
                                 <span>{item.description}</span>
                                 <span>{formatter.format(item.total || 0)}</span>
                               </div>
                               <small>
                                 {item.qty} x {formatter.format(item.unit_price || 0)}
-                              </small>
-                            </div>
-                          ))}
+                                </small>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="inline" style={{ marginTop: "12px" }}>
+                            <button
+                              className="btn ghost"
+                              type="button"
+                              onClick={handleSharePublicLink}
+                              disabled={!taskId}
+                            >
+                              Compartilhar link
+                            </button>
+                            <button
+                              className="btn secondary"
+                              type="button"
+                              onClick={handleOpenPublicPage}
+                              disabled={!taskId}
+                            >
+                              Abrir PDF
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
 
                   <BudgetForm
                     clientId={form.client_id}
