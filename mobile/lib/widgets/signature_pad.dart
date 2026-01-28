@@ -102,7 +102,7 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
           borderRadius: BorderRadius.circular(12),
           child: Container(
             width: double.infinity,
-            height: 140,
+            height: 180,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -160,7 +160,7 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
     _controller = SignatureController(
       penStrokeWidth: 2,
       penColor: const Color(0xFF0C1B2A),
-      exportBackgroundColor: Colors.white,
+      exportBackgroundColor: Colors.transparent,
     );
     SystemChrome.setPreferredOrientations(
       [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
@@ -251,7 +251,7 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
                       Expanded(
                         child: Signature(
                           controller: _controller,
-                          backgroundColor: Colors.white,
+                          backgroundColor: Colors.transparent,
                         ),
                       ),
                       const SizedBox(height: 8),

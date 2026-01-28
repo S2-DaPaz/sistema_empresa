@@ -81,7 +81,7 @@ export default function SignaturePad({ value, onChange, disabled = false }) {
       <canvas
         ref={canvasRef}
         width={520}
-        height={160}
+        height={200}
         className={disabled ? "is-disabled" : ""}
         onPointerDown={startDrawing}
         onPointerMove={draw}
