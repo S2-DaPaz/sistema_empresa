@@ -932,21 +932,26 @@ function injectPublicToolbar(html, { taskId, title, token, pdfUrl, refreshUrl })
   function publicPrint() {
       window.print();
     }
-  function publicSharePdf(url) {
+  async function publicSharePdf(url) {
       if (!url) return;
-      if (navigator.share) {
-        navigator.share({ title: document.title, url }).catch(() => {});
-        return;
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const fileName = (document.title || "relatorio").replace(/[^a-z0-9-_]+/gi, "_") + ".pdf";
+        const file = new File([blob], fileName, { type: "application/pdf" });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: document.title, files: [file] });
+          return;
+        }
+      } catch (error) {
+        // fallback below
       }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(() => {
-          alert("Link do PDF copiado.");
-        }).catch(() => {
-          window.prompt("Copie o link do PDF:", url);
-        });
-        return;
-      }
-      window.prompt("Copie o link do PDF:", url);
+      const link = document.createElement("a");
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.click();
     }
   </script>`;
 
