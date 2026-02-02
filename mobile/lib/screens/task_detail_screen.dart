@@ -393,7 +393,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     }
     return normalized;
   }
-<void> _saveReport({bool silent = false, bool skipReload = false}) async {
+  Future<void> _saveReport({bool silent = false, bool skipReload = false}) async {
     if (_activeReportId == null) {
       setState(() => _reportMessage = 'Salve a tarefa para gerar o relatório.');
       return;
@@ -1475,6 +1475,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     );
   }
 }
+
 
 
 

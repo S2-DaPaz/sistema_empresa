@@ -1,4 +1,4 @@
-function escapeHtml(value = "") {
+﻿function escapeHtml(value = "") {
   return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -90,7 +90,11 @@ function formatDate(value) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleDateString("pt-BR");
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
 }
 
 function formatCityDate(value) {
@@ -131,7 +135,7 @@ function buildSignatureHtml(signatureMode, signatureClient, signatureTech, optio
           <div class="signature-item">
             ${signatureTech ? `<img src="${signatureTech}" alt="Assinatura técnico" />` : ""}
             <div class="signature-line"></div>
-            <div class="signature-label">Técnico</div>
+            <div class="signature-label">técnico</div>
           </div>
         `
         : ""
@@ -260,7 +264,7 @@ function buildReportPageHtml({ report, task, client, signatureHtml, logoUrl }) {
       <div class="section-card declaration-card">
         <h3>Declaração de compromisso</h3>
         <p class="declaration-text">
-          Ao assinar esse relatório, declaro estar ciente dos serviços realizados pelo técnico e
+          Ao assinar esse Relatório, declaro estar ciente dos serviços realizados pelo técnico e
           que o equipamento encontra-se em perfeito estado de funcionamento e autorizamos a
           emissão de notas fiscais e faturas correspondentes a peças, mão de obra e outras
           despesas consignadas neste atendimento.
@@ -311,7 +315,7 @@ function buildReportPageHtml({ report, task, client, signatureHtml, logoUrl }) {
       </div>
 
       <div class="section-intro">
-        <div class="intro-title">Detalhes do relatório</div>
+        <div class="intro-title">Detalhes do Relatório</div>
         <div class="intro-line"></div>
       </div>
 
@@ -532,7 +536,7 @@ export function buildTaskPdfHtml({
   .page-header h1 { margin: 0 0 6px; font-size: 20px; }
   .page-header p { margin: 2px 0; font-size: 12px; color: #50607b; }
   .logo { width: 120px; height: auto; object-fit: contain; }
-  .report-header { display: grid; grid-template-columns: 96px 1fr 220px; gap: 12px; align-items: center; padding: 12px; border-radius: 16px; border: 1px solid #d9e2ee; background: #f7fafe; }
+  .report-header { display: grid; grid-template-columns: 96px 1fr 220px; gap: 12px; align-items: center; padding: 12px; border-radius: 16px; border: 1px solid #d9e2ee; background: #f7fafe; page-break-inside: avoid; }
   .brand-mark { width: 96px; height: 96px; background: #ffffff; border-radius: 16px; border: 1px solid #d9e2ee; display: flex; align-items: center; justify-content: center; }
   .brand-mark img { width: 92px; height: 92px; object-fit: contain; }
   .brand-body h1 { margin: 4px 0; font-size: 20px; }
@@ -545,7 +549,7 @@ export function buildTaskPdfHtml({
   .company-card { background: #ffffff; border-radius: 12px; border: 1px solid #d9e2ee; padding: 8px 10px; font-size: 10px; color: #50607b; line-height: 1.4; }
   .company-name { font-weight: 700; font-size: 11px; color: #0c1b2a; margin-bottom: 4px; }
   .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .info-card { background: #fbfdff; border: 1px solid #e1e6ef; border-radius: 12px; padding: 10px 12px; }
+  .info-card { background: #fbfdff; border: 1px solid #e1e6ef; border-radius: 12px; padding: 10px 12px; page-break-inside: avoid; }
   .info-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #2a67f1; margin-bottom: 6px; }
   .info-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; font-size: 11px; padding: 3px 0; border-bottom: 1px dashed #e1e6ef; }
   .info-row:last-child { border-bottom: none; }
@@ -553,7 +557,7 @@ export function buildTaskPdfHtml({
   .section-intro { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
   .intro-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #17304f; }
   .intro-line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(26, 167, 214, 0.6), rgba(20, 194, 163, 0.2)); }
-  .section-card { background: #ffffff; border: 1px solid #d7e0ec; border-left: 4px solid #1aa7d6; border-radius: 12px; padding: 12px 14px; }
+  .section-card { background: #ffffff; border: 1px solid #d7e0ec; border-left: 4px solid #1aa7d6; border-radius: 12px; padding: 12px 14px; page-break-inside: avoid; }
   .section-card h3 { margin: -12px -14px 10px; padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #17304f; background: #eef4fb; border-bottom: 1px solid #d7e0ec; border-top-left-radius: 10px; border-top-right-radius: 10px; }
   .report-sections { display: grid; grid-template-columns: repeat(var(--section-cols, 1), minmax(0, 1fr)); gap: 12px; }
   .fields-grid { display: grid; grid-template-columns: repeat(var(--field-cols, 1), minmax(0, 1fr)); gap: 10px; }
@@ -561,7 +565,7 @@ export function buildTaskPdfHtml({
   .field-row { display: grid; grid-template-columns: 170px 1fr; gap: 10px; font-size: 11px; padding: 4px 0; border-bottom: 1px dashed #e1e6ef; }
   .field-row:last-child { border-bottom: none; }
   .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .photo { border: 1px solid #e3e8f0; border-radius: 8px; background: #fff; padding: 4px; }
+  .photo { border: 1px solid #e3e8f0; border-radius: 8px; background: #fff; padding: 4px; page-break-inside: avoid; }
   .photo img { width: 100%; height: auto; max-height: 180px; object-fit: contain; border-radius: 6px; display: block; }
   .empty { color: #6b7a92; font-size: 12px; }
   .declaration-card { border-left-color: #14c2a3; }
@@ -572,7 +576,7 @@ export function buildTaskPdfHtml({
   .totals { display: grid; gap: 6px; justify-content: flex-end; font-size: 12px; }
   .totals div { display: flex; gap: 16px; justify-content: space-between; min-width: 200px; }
   .totals .total { font-weight: bold; font-size: 14px; }
-  .report-footer { margin-top: auto; display: grid; gap: 12px; }
+  .report-footer { margin-top: 12px; display: grid; gap: 12px; page-break-inside: avoid; }
   .signature-block { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end; }
   .signature-item { display: flex; flex-direction: column; justify-content: flex-end; min-height: 120px; }
   .signature-item img { width: 100%; height: 60px; object-fit: contain; }
@@ -728,3 +732,5 @@ export function openPrintWindow(html) {
   printWindow.focus();
   printWindow.print();
 }
+
+
