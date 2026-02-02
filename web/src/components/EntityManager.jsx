@@ -37,6 +37,15 @@ export default function EntityManager({
     }, {});
   }, [fields]);
 
+  const fieldFormatters = useMemo(() => {
+    return fields.reduce((acc, field) => {
+      if (typeof field.format === "function") {
+        acc[field.name] = field.format;
+      }
+      return acc;
+    }, {});
+  }, [fields]);
+
   async function loadItems() {
     try {
       const data = await apiGet(endpoint);
@@ -137,8 +146,15 @@ export default function EntityManager({
                   .map((field) => {
                     const value = item[field.name];
                     const map = optionLabels[field.name];
-                    if (!map) return value;
-                    return map.get(String(value)) || value;
+                    const formatter = fieldFormatters[field.name];
+                    let displayValue = value;
+                    if (map) {
+                      displayValue = map.get(String(value)) || value;
+                    }
+                    if (formatter) {
+                      displayValue = formatter(displayValue, item);
+                    }
+                    return displayValue;
                   })
                   .filter(Boolean)
                   .join(" | ")}

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
+import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/form_fields.dart';
 
@@ -38,9 +39,10 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
         case FieldType.text:
         case FieldType.textarea:
         case FieldType.number:
-        case FieldType.date:
-          _controllers[field.name] = TextEditingController(text: rawValue?.toString() ?? '');
-          break;
+          case FieldType.date:
+            _controllers[field.name] =
+                TextEditingController(text: formatDateInput(rawValue?.toString()));
+            break;
         case FieldType.select:
           _values[field.name] = rawValue;
           break;
@@ -70,9 +72,9 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
       switch (field.type) {
         case FieldType.text:
         case FieldType.textarea:
-        case FieldType.date:
-          payload[field.name] = _controllers[field.name]?.text.trim();
-          break;
+          case FieldType.date:
+            payload[field.name] = parseDateBrToIso(_controllers[field.name]?.text.trim());
+            break;
         case FieldType.number:
           final raw = _controllers[field.name]?.text.trim();
           payload[field.name] = raw == null || raw.isEmpty ? 0 : num.tryParse(raw) ?? 0;
@@ -112,8 +114,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
       initialDate: now,
     );
     if (selected == null) return;
-    final formatted =
-        '${selected.year.toString().padLeft(4, '0')}-${selected.month.toString().padLeft(2, '0')}-${selected.day.toString().padLeft(2, '0')}';
+    final formatted = formatDateFromDate(selected);
     _controllers[field.name]?.text = formatted;
     setState(() {});
   }
@@ -167,7 +168,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
                 return AppDateField(
                   key: ValueKey(_controllers[field.name]?.text ?? ''),
                   label: field.label,
-                  value: _controllers[field.name]?.text ?? '',
+                  value: formatDateInput(_controllers[field.name]?.text ?? ''),
                   onTap: () => _pickDate(field),
                 );
             }
@@ -187,3 +188,4 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
     );
   }
 }
+

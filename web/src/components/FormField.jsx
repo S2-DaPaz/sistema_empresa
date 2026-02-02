@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import AddressAutocomplete from "./AddressAutocomplete";
 
 function formatCpfCnpj(value) {
@@ -27,6 +28,45 @@ function formatCpfCnpj(value) {
   return formatted;
 }
 
+function formatDateBrFromIso(value) {
+  if (!value) return "";
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear());
+  return `${day}/${month}/${year}`;
+}
+
+function formatDateMask(value) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  const part1 = digits.slice(0, 2);
+  const part2 = digits.slice(2, 4);
+  const part3 = digits.slice(4, 8);
+  let formatted = part1;
+  if (part2) formatted += `/${part2}`;
+  if (part3) formatted += `/${part3}`;
+  return formatted;
+}
+
+function isValidDateBr(value) {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return false;
+  const [day, month, year] = value.split("/").map(Number);
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+function parseDateBrToIso(value) {
+  if (!isValidDateBr(value)) return "";
+  const [day, month, year] = value.split("/").map(Number);
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export default function FormField({
   label,
   type = "text",
@@ -39,6 +79,15 @@ export default function FormField({
 }) {
   const fieldId = label ? label.toLowerCase().replace(/\s+/g, "-") : undefined;
   const fieldValue = value ?? "";
+
+  const isDateBr = type === "date-br" || type === "date";
+  const initialDate = useMemo(() => formatDateBrFromIso(fieldValue), [fieldValue]);
+  const [dateInput, setDateInput] = useState(initialDate);
+
+  useEffect(() => {
+    if (!isDateBr) return;
+    setDateInput(formatDateBrFromIso(fieldValue));
+  }, [fieldValue, isDateBr]);
 
   if (type === "textarea") {
     return (
@@ -118,6 +167,33 @@ export default function FormField({
           inputMode="numeric"
           disabled={disabled}
           onChange={(event) => onChange(formatCpfCnpj(event.target.value))}
+        />
+      </div>
+    );
+  }
+
+  if (isDateBr) {
+    return (
+      <div className={`form-field ${className}`.trim()}>
+        {label && <label htmlFor={fieldId}>{label}</label>}
+        <input
+          id={fieldId}
+          type="text"
+          value={dateInput}
+          placeholder={placeholder || "dd/mm/aaaa"}
+          inputMode="numeric"
+          disabled={disabled}
+          onChange={(event) => {
+            const masked = formatDateMask(event.target.value);
+            setDateInput(masked);
+            if (!masked) {
+              onChange("");
+              return;
+            }
+            if (isValidDateBr(masked)) {
+              onChange(parseDateBrToIso(masked));
+            }
+          }}
         />
       </div>
     );

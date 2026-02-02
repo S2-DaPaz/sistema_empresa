@@ -91,9 +91,11 @@ class _EntityListScreenState extends State<EntityListScreen> {
           (option) => option.value.toString() == value.toString(),
           orElse: () => FieldOption(value: value, label: value.toString()),
         );
-        parts.add(match.label);
+        final formatted = field.formatter?.call(match.label) ?? match.label;
+        parts.add(formatted.toString());
       } else {
-        parts.add(value.toString());
+        final formatted = field.formatter?.call(value) ?? value;
+        parts.add(formatted.toString());
       }
     }
     return parts.join(' | ');

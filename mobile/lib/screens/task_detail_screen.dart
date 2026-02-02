@@ -149,8 +149,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
         _taskTypeId = task['task_type_id'] as int?;
         _status = task['status']?.toString() ?? 'aberta';
         _priority = task['priority']?.toString() ?? 'media';
-        _startDate.text = task['start_date']?.toString() ?? '';
-        _dueDate.text = task['due_date']?.toString() ?? '';
+        _startDate.text = formatDateInput(task['start_date']?.toString());
+        _dueDate.text = formatDateInput(task['due_date']?.toString());
         _signatureMode = task['signature_mode']?.toString() ?? 'none';
         _signatureScope = task['signature_scope']?.toString() ?? 'last_page';
         _signatureClient = task['signature_client']?.toString() ?? '';
@@ -355,8 +355,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       'task_type_id': _taskTypeId,
       'status': _status,
       'priority': _priority,
-      'start_date': _startDate.text,
-      'due_date': _dueDate.text,
+      'start_date': parseDateBrToIso(_startDate.text),
+      'due_date': parseDateBrToIso(_dueDate.text),
       'signature_mode': _signatureMode,
       'signature_scope': _signatureScope,
       'signature_client': _signatureClient.isEmpty ? null : _signatureClient,
@@ -376,9 +376,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     } catch (error) {
       setState(() => _error = error.toString());
     }
+  }  Map<String, dynamic> _normalizeReportAnswers() {
+    final normalized = Map<String, dynamic>.from(_reportAnswers);
+    for (final section in _reportSections) {
+      final fields = section['fields'] as List<dynamic>? ?? [];
+      for (final field in fields) {
+        if (field is! Map<String, dynamic>) continue;
+        final type = field['type']?.toString();
+        if (type != 'date') continue;
+        final fieldId = field['id']?.toString();
+        if (fieldId == null || fieldId.isEmpty) continue;
+        final raw = normalized[fieldId];
+        if (raw == null || raw.toString().isEmpty) continue;
+        normalized[fieldId] = parseDateBrToIso(raw.toString());
+      }
+    }
+    return normalized;
   }
-
-  Future<void> _saveReport({bool silent = false, bool skipReload = false}) async {
+<void> _saveReport({bool silent = false, bool skipReload = false}) async {
     if (_activeReportId == null) {
       setState(() => _reportMessage = 'Salve a tarefa para gerar o relatório.');
       return;
@@ -395,7 +410,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       'content': {
         'sections': _reportSections,
         'layout': _activeReport?['content']?['layout'] ?? _selectedTemplate?['structure']?['layout'],
-        'answers': _reportAnswers,
+        'answers': _normalizeReportAnswers(),
         'photos': _reportPhotos,
       },
     };
@@ -750,10 +765,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       initialDate: now,
     );
     if (selected == null) return;
-    controller.text =
-        '${selected.year.toString().padLeft(4, '0')}-${selected.month.toString().padLeft(2, '0')}-${selected.day.toString().padLeft(2, '0')}';
-    setState(() {});
-  }
+      controller.text = formatDateFromDate(selected);
+      setState(() {});
+    }
   Widget _buildDetailsTab() {
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -826,14 +840,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
         AppDateField(
           key: ValueKey(_startDate.text),
           label: 'Inicio',
-          value: _startDate.text,
+          value: formatDateInput(_startDate.text),
           onTap: () => _pickDate(_startDate),
         ),
         const SizedBox(height: 8),
         AppDateField(
           key: ValueKey(_dueDate.text),
           label: 'Fim',
-          value: _dueDate.text,
+          value: formatDateInput(_dueDate.text),
           onTap: () => _pickDate(_dueDate),
         ),
         const SizedBox(height: 8),
@@ -1084,7 +1098,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
           child: AppDateField(
             key: ValueKey('date-${_activeReportId ?? "new"}-$fieldId-${value ?? ""}'),
             label: label,
-            value: value?.toString() ?? '',
+            value: formatDateInput(value?.toString()),
             onTap: () async {
               final now = DateTime.now();
               final selected = await showDatePicker(
@@ -1094,8 +1108,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                 initialDate: now,
               );
               if (selected == null) return;
-              final formatted =
-                  '${selected.year.toString().padLeft(4, '0')}-${selected.month.toString().padLeft(2, '0')}-${selected.day.toString().padLeft(2, '0')}';
+              final formatted = formatDateFromDate(selected);
               setState(() => _reportAnswers[fieldId] = formatted);
               _markReportDirty();
             },
@@ -1462,3 +1475,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     );
   }
 }
+
+
+

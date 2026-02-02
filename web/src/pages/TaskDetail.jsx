@@ -925,14 +925,12 @@ export default function TaskDetail() {
                     onChange={(value) => setForm((prev) => ({ ...prev, task_type_id: value }))}
                   />
                   <FormField
-                    label="InÃ­cio"
-                    type="date"
+                    label="Início"\n                    type="date-br"
                     value={form.start_date}
                     onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))}
                   />
                   <FormField
-                    label="Fim"
-                    type="date"
+                    label="Fim"\n                    type="date-br"
                     value={form.due_date}
                     onChange={(value) => setForm((prev) => ({ ...prev, due_date: value }))}
                   />
@@ -1422,3 +1420,4 @@ export default function TaskDetail() {
     </section>
   );
 }
+
