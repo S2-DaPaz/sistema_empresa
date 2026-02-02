@@ -362,9 +362,9 @@ class _UsersScreenState extends State<UsersScreen> {
       );
     }
     if (!_canView) {
-      return AppScaffold(
+      return const AppScaffold(
         title: 'Usuários',
-        body: const Card(
+        body: Card(
           child: Padding(
             padding: EdgeInsets.all(16),
             child: Text('Você não possui permissão para visualizar usuários.'),
@@ -637,7 +637,7 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Ao ativar \"Permissões de ADM\", o cargo passa a ter acesso total.',
+            'Ao ativar "Permissões de ADM", o cargo passa a ter acesso total.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),

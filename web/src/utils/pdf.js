@@ -561,7 +561,8 @@ export function buildTaskPdfHtml({
   .field-row { display: grid; grid-template-columns: 170px 1fr; gap: 10px; font-size: 11px; padding: 4px 0; border-bottom: 1px dashed #e1e6ef; }
   .field-row:last-child { border-bottom: none; }
   .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .photo img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #e3e8f0; }
+  .photo { border: 1px solid #e3e8f0; border-radius: 8px; background: #fff; padding: 4px; }
+  .photo img { width: 100%; height: auto; max-height: 180px; object-fit: contain; border-radius: 6px; display: block; }
   .empty { color: #6b7a92; font-size: 12px; }
   .declaration-card { border-left-color: #14c2a3; }
   .declaration-text { margin: 0; font-size: 11px; line-height: 1.5; color: #1f2f44; }

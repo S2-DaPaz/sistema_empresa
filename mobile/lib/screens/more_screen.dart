@@ -4,7 +4,6 @@ import 'products_screen.dart';
 import 'task_types_screen.dart';
 import 'templates_screen.dart';
 import 'users_screen.dart';
-import 'equipments_screen.dart';
 import '../services/auth_service.dart';
 import '../services/permissions.dart';
 import '../widgets/app_scaffold.dart';
@@ -29,7 +28,6 @@ class MoreScreen extends StatelessWidget {
               session?.user['role']?.toString() ??
               'visitante';
           final canViewUsers = AuthService.instance.hasPermission(Permissions.viewUsers);
-          final canViewEquipments = AuthService.instance.hasPermission(Permissions.viewTasks);
           return ListView(
             children: [
               const SizedBox(height: 8),
@@ -69,7 +67,7 @@ class MoreScreen extends StatelessWidget {
                     leading: const Icon(Icons.people_outline),
                     title: const Text('Usuários'),
                   subtitle: const Text('Gestão de usuários do sistema'),
-                    onTap: () => _open(context, UsersScreen()),
+                    onTap: () => _open(context, const UsersScreen()),
                   ),
                 ),
               Card(
@@ -80,15 +78,6 @@ class MoreScreen extends StatelessWidget {
                   onTap: () => _open(context, ProductsScreen()),
                 ),
               ),
-              if (canViewEquipments)
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.devices_other_outlined),
-                    title: const Text('Equipamentos'),
-                    subtitle: const Text('Cadastro e vínculo com clientes'),
-                    onTap: () => _open(context, const EquipmentsScreen()),
-                  ),
-                ),
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.category_outlined),
