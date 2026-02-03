@@ -1063,7 +1063,7 @@ function injectPublicToolbar(
       const token = document.body.dataset.publicToken;
       try {
         const response = await fetch(
-          `/public/budgets/${budgetId}/approve?token=${encodeURIComponent(token)}`,
+          `/public/budgets/\${budgetId}/approve?token=\${encodeURIComponent(token)}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -3042,4 +3042,6 @@ if (require.main === module) {
 }
 
 module.exports = { main };
+
+
 
