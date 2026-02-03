@@ -118,6 +118,17 @@ function formatMultiline(value) {
 function buildSignatureHtml(signatureMode, signatureClient, signatureTech, options = {}) {
   if (!signatureMode || signatureMode === "none") return "";
   const order = options.order || ["client", "tech"];
+  const clientMeta = [];
+  if (options.clientName) {
+    clientMeta.push(
+      `<div class="signature-meta">Nome: ${escapeHtml(options.clientName)}</div>`
+    );
+  }
+  if (options.clientDocument) {
+    clientMeta.push(
+      `<div class="signature-meta">CPF: ${escapeHtml(options.clientDocument)}</div>`
+    );
+  }
   const blocksByRole = {
     client:
       signatureMode === "client" || signatureMode === "both"
@@ -126,6 +137,7 @@ function buildSignatureHtml(signatureMode, signatureClient, signatureTech, optio
             ${signatureClient ? `<img src="${signatureClient}" alt="Assinatura cliente" />` : ""}
             <div class="signature-line"></div>
             <div class="signature-label">Cliente</div>
+            ${clientMeta.join("")}
           </div>
         `
         : "",
@@ -582,6 +594,7 @@ export function buildTaskPdfHtml({
   .signature-item img { width: 100%; height: 60px; object-fit: contain; }
   .signature-line { border-top: 1px solid #3e4b63; margin-top: 8px; }
   .signature-label { font-size: 11px; color: #50607b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .signature-meta { font-size: 10px; color: #50607b; margin-top: 2px; }
   .report-footer .signature-item { min-height: 180px; }
   .report-footer .signature-item img { height: 90px; }
   .report-footer .signature-line { margin-top: 16px; }
@@ -642,12 +655,27 @@ export function buildBudgetPdfHtml({
   signaturePages = {},
   logoUrl
 }) {
-  const baseSignatureHtml = buildSignatureHtml(signatureMode, signatureClient, signatureTech);
+  const signatureOptions = {
+    order: ["tech", "client"],
+    clientName: budget?.signature_client_name,
+    clientDocument: budget?.signature_client_document
+  };
+  const baseSignatureHtml = buildSignatureHtml(
+    signatureMode,
+    signatureClient,
+    signatureTech,
+    signatureOptions
+  );
   const pageKey = `budget_${budget?.id ?? "new"}`;
   const pageSignature = signaturePages?.[pageKey] || {};
   const scopedSignatureHtml =
     signatureScope === "all_pages"
-      ? buildSignatureHtml(signatureMode, pageSignature.client, pageSignature.tech) || baseSignatureHtml
+      ? buildSignatureHtml(
+          signatureMode,
+          pageSignature.client,
+          pageSignature.tech,
+          signatureOptions
+        ) || baseSignatureHtml
       : baseSignatureHtml;
   return `<!doctype html>
   <html lang="pt-BR">

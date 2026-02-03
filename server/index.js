@@ -864,7 +864,10 @@ async function findValidBudgetPublicLink(db, budgetId, token) {
   return link;
 }
 
-function injectPublicToolbar(html, { taskId, title, token, pdfUrl, refreshUrl }) {
+function injectPublicToolbar(
+  html,
+  { taskId, title, token, pdfUrl, refreshUrl, approveBudget = null }
+) {
   const headExtra = `
 <style>
   body { margin: 0; background: #f2f6fb; }
@@ -920,6 +923,52 @@ function injectPublicToolbar(html, { taskId, title, token, pdfUrl, refreshUrl })
     border-radius: 18px;
     background: #ffffff;
   }
+  .public-approve-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 21, 35, 0.68);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 80;
+    padding: 20px;
+  }
+  .public-approve-overlay.active { display: flex; }
+  .public-approve-card {
+    width: min(640px, 96vw);
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 24px 60px rgba(10, 30, 60, 0.25);
+    display: grid;
+    gap: 16px;
+  }
+  .public-approve-card h3 { margin: 0; }
+  .public-approve-fields { display: grid; gap: 10px; }
+  .public-approve-fields input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #d7e0ec;
+    font-size: 14px;
+  }
+  .public-approve-signature {
+    border: 1px dashed #b8c6d8;
+    border-radius: 12px;
+    padding: 10px;
+  }
+  .public-approve-signature canvas {
+    width: 100%;
+    height: 200px;
+    background: #f8fbff;
+    border-radius: 10px;
+    touch-action: none;
+  }
+  .public-approve-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
   @media print {
     body { background: #ffffff !important; }
     .public-toolbar { display: none !important; }
@@ -953,17 +1002,121 @@ function injectPublicToolbar(html, { taskId, title, token, pdfUrl, refreshUrl })
       link.rel = "noopener";
       link.click();
     }
+  let approveCanvas;
+  let approveCtx;
+  let approveDrawing = false;
+  function openBudgetApproval() {
+      const overlay = document.getElementById("budget-approve-overlay");
+      if (!overlay) return;
+      overlay.classList.add("active");
+      setupApproveCanvas();
+    }
+  function closeBudgetApproval() {
+      const overlay = document.getElementById("budget-approve-overlay");
+      if (!overlay) return;
+      overlay.classList.remove("active");
+    }
+  function setupApproveCanvas() {
+      approveCanvas = document.getElementById("budget-approve-canvas");
+      if (!approveCanvas) return;
+      const ratio = window.devicePixelRatio || 1;
+      const rect = approveCanvas.getBoundingClientRect();
+      approveCanvas.width = rect.width * ratio;
+      approveCanvas.height = rect.height * ratio;
+      approveCtx = approveCanvas.getContext("2d");
+      approveCtx.scale(ratio, ratio);
+      approveCtx.lineWidth = 2;
+      approveCtx.lineCap = "round";
+      approveCtx.strokeStyle = "#0f172a";
+      approveCanvas.onpointerdown = (event) => {
+        approveDrawing = true;
+        const pos = getApprovePoint(event);
+        approveCtx.beginPath();
+        approveCtx.moveTo(pos.x, pos.y);
+      };
+      approveCanvas.onpointermove = (event) => {
+        if (!approveDrawing) return;
+        const pos = getApprovePoint(event);
+        approveCtx.lineTo(pos.x, pos.y);
+        approveCtx.stroke();
+      };
+      approveCanvas.onpointerup = () => (approveDrawing = false);
+      approveCanvas.onpointerleave = () => (approveDrawing = false);
+    }
+  function getApprovePoint(event) {
+      const rect = approveCanvas.getBoundingClientRect();
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+    }
+  function clearApproveCanvas() {
+      if (!approveCtx || !approveCanvas) return;
+      approveCtx.clearRect(0, 0, approveCanvas.width, approveCanvas.height);
+    }
+  async function submitBudgetApproval() {
+      if (!approveCanvas) return;
+      const name = document.getElementById("budget-approve-name").value.trim();
+      const documentValue = document.getElementById("budget-approve-document").value.trim();
+      const signature = approveCanvas.toDataURL("image/png");
+      const budgetId = document.body.dataset.publicBudgetId;
+      const token = document.body.dataset.publicToken;
+      try {
+        const response = await fetch(
+          `/public/budgets/${budgetId}/approve?token=${encodeURIComponent(token)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ signature, name, document: documentValue })
+          }
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        window.location.reload();
+      } catch (error) {
+        alert("Falha ao enviar assinatura. Tente novamente.");
+      }
+    }
   </script>`;
 
   const displayTitle = title || `Relatorio da tarefa #${taskId}`;
   const shareButton = pdfUrl
     ? `<button type="button" onclick="publicSharePdf('${pdfUrl}')">Compartilhar PDF</button>`
     : "";
+  const approveButton = approveBudget
+    ? `<button type="button" onclick="openBudgetApproval()">Aprovar orçamento</button>`
+    : "";
+  const approveModal = approveBudget
+    ? `
+    <div class="public-approve-overlay" id="budget-approve-overlay">
+      <div class="public-approve-card">
+        <div>
+          <h3>Aprovar orçamento</h3>
+          <small>Assine para confirmar o orçamento. Nome e CPF são opcionais.</small>
+        </div>
+        <div class="public-approve-fields">
+          <input id="budget-approve-name" type="text" placeholder="Nome (opcional)" />
+          <input id="budget-approve-document" type="text" placeholder="CPF (opcional)" />
+        </div>
+        <div class="public-approve-signature">
+          <canvas id="budget-approve-canvas"></canvas>
+        </div>
+        <div class="public-approve-actions">
+          <button type="button" onclick="clearApproveCanvas()">Limpar</button>
+          <button type="button" onclick="closeBudgetApproval()">Cancelar</button>
+          <button type="button" onclick="submitBudgetApproval()">Salvar assinatura</button>
+        </div>
+      </div>
+    </div>
+  `
+    : "";
   const toolbarHtml = `
 <div class="public-toolbar">
     <div class="title">${displayTitle}</div>
     <button type="button" onclick="publicPrint()">Imprimir/Salvar PDF</button>
     ${shareButton}
+    ${approveButton}
     <a href="${refreshUrl}">Atualizar</a>
     <span class="warning">Recomendamos baixar o PDF: o link expira em 30 dias.</span>
   </div>`;
@@ -971,7 +1124,9 @@ function injectPublicToolbar(html, { taskId, title, token, pdfUrl, refreshUrl })
   let updated = html.replace("</head>", `${headExtra}</head>`);
   updated = updated.replace(
     "<body>",
-    `<body data-public-token="${token}"><div class="public-shell">${toolbarHtml}<main class="public-content">`
+    `<body data-public-token="${token}" ${
+      approveBudget ? `data-public-budget-id="${approveBudget.budgetId}"` : ""
+    }><div class="public-shell">${toolbarHtml}${approveModal}<main class="public-content">`
   );
   updated = updated.replace("</body>", "</main></div></body>");
   return updated;
@@ -2513,6 +2668,8 @@ async function main() {
         "signature_mode",
         "signature_scope",
         "signature_client",
+        "signature_client_name",
+        "signature_client_document",
         "signature_tech",
         "signature_pages",
         "subtotal",
@@ -2596,6 +2753,8 @@ async function main() {
         "signature_mode",
         "signature_scope",
         "signature_client",
+        "signature_client_name",
+        "signature_client_document",
         "signature_tech",
         "signature_pages",
         "subtotal",
@@ -2742,7 +2901,8 @@ async function main() {
         title: `Orcamento #${req.params.id}`,
         token,
         pdfUrl: "",
-        refreshUrl
+        refreshUrl,
+        approveBudget: { budgetId: req.params.id }
       });
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -2750,6 +2910,54 @@ async function main() {
       res.send(html);
     } catch (error) {
       res.status(500).send("Falha ao carregar orcamento publico.");
+    }
+  });
+
+  app.post("/public/budgets/:id/approve", async (req, res) => {
+    try {
+      const token = String(req.query.token || req.body?.token || "");
+      if (!token) {
+        return res.status(401).send("Token publico ausente.");
+      }
+      const link = await findValidBudgetPublicLink(db, req.params.id, token);
+      if (!link) {
+        return res.status(403).send("Link publico invalido ou expirado.");
+      }
+      const signature = req.body?.signature || "";
+      if (!signature || !String(signature).startsWith("data:image")) {
+        return res.status(400).send("Assinatura invalida.");
+      }
+      const name = req.body?.name ? String(req.body.name).trim() : "";
+      const documentValue = req.body?.document ? String(req.body.document).trim() : "";
+      const budget = await db.get("SELECT signature_mode, signature_scope FROM budgets WHERE id = ?", [
+        req.params.id
+      ]);
+      let nextMode = budget?.signature_mode || "client";
+      if (nextMode === "none") nextMode = "client";
+      if (nextMode === "tech") nextMode = "both";
+      const nextScope = budget?.signature_scope || "last_page";
+      await db.run(
+        `
+        UPDATE budgets
+        SET signature_client = ?,
+            signature_client_name = ?,
+            signature_client_document = ?,
+            signature_mode = ?,
+            signature_scope = ?
+        WHERE id = ?
+      `,
+        [
+          signature,
+          name || null,
+          documentValue || null,
+          nextMode,
+          nextScope,
+          req.params.id
+        ]
+      );
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).send("Falha ao aprovar o orcamento.");
     }
   });
 

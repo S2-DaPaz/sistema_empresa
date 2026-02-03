@@ -87,6 +87,8 @@ const SQLITE_SCHEMA = `
     signature_mode TEXT,
     signature_scope TEXT,
     signature_client TEXT,
+    signature_client_name TEXT,
+    signature_client_document TEXT,
     signature_tech TEXT,
     signature_pages TEXT,
     FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE SET NULL,
@@ -134,6 +136,8 @@ const SQLITE_SCHEMA = `
     signature_mode TEXT,
     signature_scope TEXT,
     signature_client TEXT,
+    signature_client_name TEXT,
+    signature_client_document TEXT,
     signature_tech TEXT,
     signature_pages TEXT,
     subtotal REAL DEFAULT 0,
@@ -426,6 +430,14 @@ async function initSqlite() {
   await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_mode", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_scope", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_client", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_client_name", "TEXT");
+  await ensureColumn(
+    database,
+    DB_TYPES.SQLITE,
+    "budgets",
+    "signature_client_document",
+    "TEXT"
+  );
   await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_tech", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "budgets", "signature_pages", "TEXT");
 
@@ -460,6 +472,14 @@ async function initPostgres() {
   await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_mode", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_scope", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_client", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_client_name", "TEXT");
+  await ensureColumn(
+    database,
+    DB_TYPES.POSTGRES,
+    "budgets",
+    "signature_client_document",
+    "TEXT"
+  );
   await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_tech", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "budgets", "signature_pages", "TEXT");
 
