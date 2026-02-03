@@ -10,14 +10,14 @@ class ProductsScreen extends EntityListScreen {
             title: 'Produtos',
             endpoint: '/products',
             primaryField: 'name',
-            hint: 'Produtos usados nos orçamentos.',
+            hint: 'Produtos usados nos orÃ§amentos.',
             fields: [
               FieldConfig(name: 'name', label: 'Nome', type: FieldType.text),
               FieldConfig(name: 'sku', label: 'SKU', type: FieldType.text),
               FieldConfig(name: 'unit', label: 'Unidade', type: FieldType.text),
               FieldConfig(
                 name: 'price',
-                label: 'Preço',
+                label: 'PreÃ§o',
                 type: FieldType.number,
                 formatter: (value) => formatCurrency(num.tryParse(value.toString()) ?? 0),
               ),
