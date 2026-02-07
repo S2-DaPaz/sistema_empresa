@@ -38,6 +38,7 @@ class TaskDetailScreen extends StatefulWidget {
 class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProviderStateMixin {
   final ApiService _api = ApiService();
   final ImagePicker _picker = ImagePicker();
+  late final TabController _tabController;
 
   bool _loading = true;
   String? _error;
@@ -88,12 +89,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   void initState() {
     super.initState();
     _taskId = widget.taskId;
+    _tabController = TabController(length: 4, vsync: this);
     _loadAll();
   }
 
   @override
   void dispose() {
     _reportAutosaveTimer?.cancel();
+    _tabController.dispose();
     _title.dispose();
     _description.dispose();
     _startDate.dispose();
@@ -303,6 +306,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     try {
       await _api.delete('/budgets/$id');
       await _loadBudgets(_reports);
+      if (!mounted) return;
+      DefaultTabController.of(context)?.animateTo(1);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -386,10 +391,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       }
       await _loadReports(_taskTypeId);
       await _loadBudgets(_reports);
+      if (!mounted) return;
+      _tabController.animateTo(1);
     } catch (error) {
       setState(() => _error = error.toString());
     }
-  }  Map<String, dynamic> _normalizeReportAnswers() {
+  }
+  Map<String, dynamic> _normalizeReportAnswers() {
     final normalized = Map<String, dynamic>.from(_reportAnswers);
     for (final section in _reportSections) {
       final fields = section['fields'] as List<dynamic>? ?? [];
@@ -1428,51 +1436,50 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       return AppScaffold(title: 'Tarefa', body: Center(child: Text(_error!)));
     }
 
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Row(
-            children: [
-              const BrandLogo(height: 22),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _taskId == null ? 'Nova tarefa' : 'Tarefa #$_taskId',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            const BrandLogo(height: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _taskId == null ? 'Nova tarefa' : 'Tarefa #$_taskId',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
-          ),
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(text: 'Detalhes'),
-              Tab(text: 'Relatório'),
-              Tab(text: 'Orçamentos'),
-              Tab(text: 'Assinaturas'),
-            ],
+            ),
+          ],
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Detalhes'),
+            Tab(text: 'Relatório'),
+            Tab(text: 'Orçamentos'),
+            Tab(text: 'Assinaturas'),
+          ],
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: Theme.of(context).brightness == Brightness.dark
+                ? const [Color(0xFF0F1B2A), Color(0xFF0B1320)]
+                : const [Color(0xFFF6FAFD), Color(0xFFEAF2F8)],
           ),
         ),
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: Theme.of(context).brightness == Brightness.dark
-                  ? const [Color(0xFF0F1B2A), Color(0xFF0B1320)]
-                  : const [Color(0xFFF6FAFD), Color(0xFFEAF2F8)],
-            ),
-          ),
-          child: TabBarView(
-            children: [
-              _buildDetailsTab(),
-              _buildReportTab(),
-              _buildBudgetsTab(),
-              _buildSignatureTab(),
-            ],
-          ),
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildDetailsTab(),
+            _buildReportTab(),
+            _buildBudgetsTab(),
+            _buildSignatureTab(),
+          ],
         ),
       ),
     );
