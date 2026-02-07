@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 final _currencyFormatter = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
@@ -24,6 +25,37 @@ String formatDateInput(String? value) {
 
 String formatDateFromDate(DateTime date) {
   return _dateFormatter.format(date);
+}
+
+double parseCurrency(String value) {
+  if (value.isEmpty) return 0;
+  final digits = value.replaceAll(RegExp(r'[^\d]'), '');
+  if (digits.isEmpty) return 0;
+  return (int.parse(digits) / 100);
+}
+
+class CurrencyInputFormatter extends TextInputFormatter {
+  CurrencyInputFormatter({NumberFormat? formatter})
+      : _formatter = formatter ?? _currencyFormatter;
+
+  final NumberFormat _formatter;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(text: '');
+    }
+    final value = int.parse(digits) / 100;
+    final newText = _formatter.format(value);
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
+    );
+  }
 }
 
 String parseDateBrToIso(String? value) {

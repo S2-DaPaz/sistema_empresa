@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/budget_item.dart';
+import '../screens/budget_item_form_page.dart';
 import '../services/api_service.dart';
 import '../utils/formatters.dart';
 import 'form_fields.dart';
@@ -31,12 +33,12 @@ class BudgetForm extends StatefulWidget {
 
 class _BudgetFormState extends State<BudgetForm> {
   final ApiService _api = ApiService();
-  final List<_BudgetItem> _items = [];
-  final ScrollController _scrollController = ScrollController();
+  final List<BudgetItemData> _items = [];
 
   int? _localClientId;
   String _status = 'em_andamento';
   String? _createdAt;
+  int? _selectedItemIndex;
   final TextEditingController _notes = TextEditingController();
   final TextEditingController _internalNote = TextEditingController();
   final TextEditingController _proposalValidity = TextEditingController(text: '30 dias');
@@ -74,10 +76,6 @@ class _BudgetFormState extends State<BudgetForm> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
-    for (final item in _items) {
-      item.dispose();
-    }
     _notes.dispose();
     _internalNote.dispose();
     _proposalValidity.dispose();
@@ -89,30 +87,28 @@ class _BudgetFormState extends State<BudgetForm> {
     super.dispose();
   }
 
-  void _addItem({bool notify = true}) {
-    if (notify) {
-      setState(() => _items.add(_BudgetItem.create()));
-    } else {
-      _items.add(_BudgetItem.create());
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+  Future<void> _addItem() async {
+    final result = await Navigator.of(context).push<BudgetItemData>(
+      MaterialPageRoute(
+        builder: (context) => BudgetItemFormPage(products: widget.products),
+      ),
+    );
+    if (result == null) return;
+    setState(() {
+      _items.add(result);
+      _selectedItemIndex = _items.length - 1;
     });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Item adicionado')),
+    );
   }
 
   void _applyBudget(Map<String, dynamic>? budget) {
-    for (final item in _items) {
-      item.dispose();
-    }
     _items.clear();
 
     if (budget == null) {
-      _addItem(notify: false);
+      _selectedItemIndex = null;
       return;
     }
 
@@ -142,42 +138,83 @@ class _BudgetFormState extends State<BudgetForm> {
 
     final items = (budget['items'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
     for (final item in items) {
-      _items.add(_BudgetItem.fromMap(item));
+      _items.add(BudgetItemData.fromMap(item));
     }
-    if (_items.isEmpty) {
-      _addItem(notify: false);
-    }
+    _selectedItemIndex = _items.isEmpty ? null : 0;
   }
 
-  void _removeItem(_BudgetItem item) {
-    setState(() {
-      item.dispose();
-      _items.remove(item);
-    });
-  }
-
-  void _handleProductChange(_BudgetItem item, int? productId) {
-    item.productId = productId;
-    final product = widget.products.firstWhere(
-      (product) => product['id'] == productId,
-      orElse: () => {},
+  Future<void> _editSelectedItem() async {
+    final index = _selectedItemIndex;
+    if (index == null || index < 0 || index >= _items.length) return;
+    final current = _items[index];
+    final result = await Navigator.of(context).push<BudgetItemData>(
+      MaterialPageRoute(
+        builder: (context) => BudgetItemFormPage(
+          products: widget.products,
+          initialItem: current,
+        ),
+      ),
     );
-    if (product.isNotEmpty) {
-      item.description.text = product['name']?.toString() ?? '';
-      item.unitPrice.text = (product['price'] ?? 0).toString();
-    }
-    setState(() {});
+    if (result == null) return;
+    setState(() {
+      _items[index] = result;
+      _selectedItemIndex = index;
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Item atualizado')),
+    );
+  }
+
+  Future<void> _removeSelectedItem() async {
+    final index = _selectedItemIndex;
+    if (index == null || index < 0 || index >= _items.length) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir item'),
+        content: const Text('Deseja excluir este item?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _items.removeAt(index);
+      if (_items.isEmpty) {
+        _selectedItemIndex = null;
+      } else if (index == 0) {
+        _selectedItemIndex = 0;
+      } else {
+        _selectedItemIndex = index - 1;
+      }
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Item removido')),
+    );
   }
 
   double _toDouble(String value) {
+    if (value.contains('R\$')) {
+      return parseCurrency(value);
+    }
     return double.tryParse(value.replaceAll(',', '.')) ?? 0;
   }
 
   double get _subtotal {
     double sum = 0;
     for (final item in _items) {
-      final qty = _toDouble(item.qty.text);
-      final price = _toDouble(item.unitPrice.text);
+      final qty = item.qty;
+      final price = item.unitPrice;
       sum += qty * price;
     }
     return sum;
@@ -225,9 +262,9 @@ class _BudgetFormState extends State<BudgetForm> {
       'items': _items.map((item) {
         return {
           'product_id': item.productId,
-          'description': item.description.text.isEmpty ? 'Item' : item.description.text,
-          'qty': _toDouble(item.qty.text),
-          'unit_price': _toDouble(item.unitPrice.text),
+          'description': item.description.isEmpty ? 'Item' : item.description,
+          'qty': item.qty,
+          'unit_price': item.unitPrice,
         };
       }).toList(),
     };
@@ -274,17 +311,6 @@ class _BudgetFormState extends State<BudgetForm> {
             ))
         .toList();
 
-    final productOptions = widget.products
-        .map((product) => DropdownMenuItem<int>(
-              value: product['id'] as int?,
-              child: Text(
-                product['name']?.toString() ?? 'Produto',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ))
-        .toList();
-
     final isEditing = widget.initialBudget != null;
 
     return Card(
@@ -322,13 +348,9 @@ class _BudgetFormState extends State<BudgetForm> {
               controller: _discount,
               keyboardType: TextInputType.number,
               onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 8),
-            AppTextField(
-              label: 'Taxa',
-              controller: _tax,
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
+              inputFormatters: [
+                CurrencyInputFormatter(),
+              ],
             ),
             const SizedBox(height: 8),
             AppTextField(label: 'Validade da proposta', controller: _proposalValidity),
@@ -405,45 +427,52 @@ class _BudgetFormState extends State<BudgetForm> {
               ],
             ),
             const SizedBox(height: 8),
-            ..._items.map((item) => Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        AppDropdownField<int>(
-                          label: 'Produto',
-                          value: item.productId,
-                          items: productOptions,
-                          onChanged: (value) => _handleProductChange(item, value),
-                        ),
-                        const SizedBox(height: 8),
-                        AppTextField(label: 'Descrição', controller: item.description),
-                        const SizedBox(height: 8),
-                        AppTextField(
-                          label: 'Qtd.',
-                          controller: item.qty,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        const SizedBox(height: 8),
-                        AppTextField(
-                          label: 'Valor',
-                          controller: item.unitPrice,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: OutlinedButton(
-                            onPressed: () => _removeItem(item),
-                            child: const Text('Remover item'),
-                          ),
-                        ),
-                      ],
-                    ),
+            if (_items.isEmpty)
+              const Text('Nenhum item adicionado.')
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppDropdownField<int>(
+                    label: 'Item selecionado',
+                    value: _selectedItemIndex,
+                    items: _items
+                        .asMap()
+                        .entries
+                        .map((entry) {
+                          final item = entry.value;
+                          final label =
+                              '${entry.key + 1} - ${item.description} (Qtd: ${item.qty}, Unit: ${formatCurrency(item.unitPrice)})';
+                          return DropdownMenuItem<int>(
+                            value: entry.key,
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        })
+                        .toList(),
+                    onChanged: (value) => setState(() => _selectedItemIndex = value),
                   ),
-                )),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      OutlinedButton(
+                        onPressed:
+                            _selectedItemIndex == null ? null : _editSelectedItem,
+                        child: const Text('Editar'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed:
+                            _selectedItemIndex == null ? null : _removeSelectedItem,
+                        child: const Text('Excluir'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -470,46 +499,5 @@ class _BudgetFormState extends State<BudgetForm> {
         ),
       ),
     );
-  }
-}
-
-class _BudgetItem {
-  _BudgetItem({
-    required this.id,
-    required this.description,
-    required this.qty,
-    required this.unitPrice,
-  });
-
-  final String id;
-  final TextEditingController description;
-  final TextEditingController qty;
-  final TextEditingController unitPrice;
-  int? productId;
-
-  factory _BudgetItem.create() {
-    return _BudgetItem(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      description: TextEditingController(),
-      qty: TextEditingController(text: '1'),
-      unitPrice: TextEditingController(text: '0'),
-    );
-  }
-
-  factory _BudgetItem.fromMap(Map<String, dynamic> item) {
-    final qty = item['qty'] ?? item['quantity'] ?? 1;
-    final unitPrice = item['unit_price'] ?? item['unitPrice'] ?? 0;
-    return _BudgetItem(
-      id: item['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      description: TextEditingController(text: item['description']?.toString() ?? ''),
-      qty: TextEditingController(text: qty.toString()),
-      unitPrice: TextEditingController(text: unitPrice.toString()),
-    )..productId = item['product_id'] as int?;
-  }
-
-  void dispose() {
-    description.dispose();
-    qty.dispose();
-    unitPrice.dispose();
   }
 }

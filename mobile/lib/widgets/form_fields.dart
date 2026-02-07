@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.text});
@@ -37,6 +38,7 @@ class AppTextField extends StatelessWidget {
     this.keyboardType,
     this.maxLines = 1,
     this.onChanged,
+    this.inputFormatters,
   });
 
   final String label;
@@ -45,6 +47,7 @@ class AppTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final int maxLines;
   final ValueChanged<String>? onChanged;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +62,7 @@ class AppTextField extends StatelessWidget {
           maxLines: maxLines,
           decoration: const InputDecoration(),
           onChanged: onChanged,
+          inputFormatters: inputFormatters,
         ),
       ],
     );
