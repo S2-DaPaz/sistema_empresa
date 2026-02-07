@@ -1031,6 +1031,26 @@ function injectPublicToolbar(
     width: min(880px, 96vw);
     height: min(560px, 92vh);
   }
+  body.public-signing { overflow: hidden; }
+  body.public-signing .public-signature-screen {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+  body.public-signing .public-approve-signature {
+    height: calc(100vh - 210px);
+  }
+  .public-signature-hint {
+    font-size: 12px;
+    color: #64748b;
+    text-align: center;
+    margin-top: 6px;
+  }
+  @media (orientation: landscape) {
+    body.public-signing .public-approve-signature {
+      height: calc(100vh - 180px);
+    }
+  }
   .public-signature-header {
     display: flex;
     align-items: center;
@@ -1126,10 +1146,12 @@ function injectPublicToolbar(
       const overlay = document.getElementById("budget-approve-overlay");
       if (!overlay) return;
       overlay.classList.remove("active");
+      document.body.classList.remove("public-signing");
     }
   function showApproveInfo() {
       const info = document.getElementById("budget-approve-info");
       const signature = document.getElementById("budget-approve-signature");
+      document.body.classList.remove("public-signing");
       if (info) info.style.display = "grid";
       if (signature) signature.style.display = "none";
     }
@@ -1138,6 +1160,7 @@ function injectPublicToolbar(
       const signature = document.getElementById("budget-approve-signature");
       if (info) info.style.display = "none";
       if (signature) signature.style.display = "flex";
+      document.body.classList.add("public-signing");
       const name = document.getElementById("budget-approve-name").value.trim();
       const documentValue = document.getElementById("budget-approve-document").value.trim();
       const nameTarget = document.getElementById("budget-approve-signer-name");
@@ -1255,6 +1278,7 @@ function injectPublicToolbar(
           <div id="budget-approve-signer-name"></div>
           <div id="budget-approve-signer-document"></div>
         </div>
+        <div class="public-signature-hint">Gire o celular para assinar na horizontal.</div>
         <div class="public-approve-signature">
           <canvas id="budget-approve-canvas"></canvas>
         </div>
