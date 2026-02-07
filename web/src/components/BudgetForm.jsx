@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiPost } from "../api";
 import FormField from "./FormField";
 import SignaturePad from "./SignaturePad";
@@ -20,11 +20,11 @@ export default function BudgetForm({
   canManage = true
 }) {
   const [localClientId, setLocalClientId] = useState(clientId || "");
-  const [status, setStatus] = useState("rascunho");
+  const [status, setStatus] = useState("em_andamento");
   const [notes, setNotes] = useState("");
   const [internalNote, setInternalNote] = useState("");
   const [proposalValidity, setProposalValidity] = useState("30 dias");
-  const [paymentTerms, setPaymentTerms] = useState("À vista");
+  const [paymentTerms, setPaymentTerms] = useState("A vista");
   const [serviceDeadline, setServiceDeadline] = useState("03 a 04 horas");
   const [productValidity, setProductValidity] = useState("03 meses");
   const [discount, setDiscount] = useState(0);
@@ -33,6 +33,7 @@ export default function BudgetForm({
   const [signatureScope, setSignatureScope] = useState("last_page");
   const [signatureClient, setSignatureClient] = useState("");
   const [signatureTech, setSignatureTech] = useState("");
+  const itemsEndRef = useRef(null);
   const [items, setItems] = useState([
     {
       id: uid(),
@@ -65,6 +66,9 @@ export default function BudgetForm({
       ...prev,
       { id: uid(), product_id: "", description: "", qty: 1, unit_price: 0 }
     ]);
+    requestAnimationFrame(() => {
+      itemsEndRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function removeItem(id) {
@@ -77,7 +81,7 @@ export default function BudgetForm({
     updateItem(id, {
       product_id: value,
       description: selected?.name || "",
-      unit_price: selected?.price ?? 0
+      unit_price: selected?.price ? 0
     });
   }
 
@@ -130,11 +134,11 @@ export default function BudgetForm({
 
     try {
       await apiPost("/budgets", payload);
-      setStatus("rascunho");
+      setStatus("em_andamento");
       setNotes("");
       setInternalNote("");
       setProposalValidity("30 dias");
-      setPaymentTerms("À vista");
+      setPaymentTerms("A vista");
       setServiceDeadline("03 a 04 horas");
       setProductValidity("03 meses");
       setSignatureMode("none");
@@ -177,9 +181,9 @@ export default function BudgetForm({
           type="select"
           value={status}
           options={[
-            { value: "rascunho", label: "Rascunho" },
-            { value: "enviado", label: "Enviado" },
-            { value: "aprovado", label: "Aprovado" }
+            { value: "aprovado", label: "Aprovado" },
+            { value: "em_andamento", label: "Em andamento" },
+            { value: "recusado", label: "Recusado" }
           ]}
           onChange={setStatus}
           disabled={!canManage}
@@ -208,7 +212,12 @@ export default function BudgetForm({
         />
         <FormField
           label="Condição de pagamento"
+          type="select"
           value={paymentTerms}
+          options={[
+            { value: "A vista", label: "A vista" },
+            { value: "Parcelado", label: "Parcelado" }
+          ]}
           onChange={setPaymentTerms}
           disabled={!canManage}
         />
@@ -342,6 +351,7 @@ export default function BudgetForm({
             </div>
           </div>
         ))}
+        <div ref={itemsEndRef} />
       </div>
 
       <div className="inline" style={{ marginTop: "12px" }}>

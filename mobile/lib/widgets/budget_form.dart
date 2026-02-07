@@ -32,9 +32,10 @@ class BudgetForm extends StatefulWidget {
 class _BudgetFormState extends State<BudgetForm> {
   final ApiService _api = ApiService();
   final List<_BudgetItem> _items = [];
+  final ScrollController _scrollController = ScrollController();
 
   int? _localClientId;
-  String _status = 'rascunho';
+  String _status = 'em_andamento';
   String? _createdAt;
   final TextEditingController _notes = TextEditingController();
   final TextEditingController _internalNote = TextEditingController();
@@ -73,6 +74,7 @@ class _BudgetFormState extends State<BudgetForm> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     for (final item in _items) {
       item.dispose();
     }
@@ -93,6 +95,14 @@ class _BudgetFormState extends State<BudgetForm> {
     } else {
       _items.add(_BudgetItem.create());
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   void _applyBudget(Map<String, dynamic>? budget) {
@@ -109,7 +119,7 @@ class _BudgetFormState extends State<BudgetForm> {
     if (widget.clientId == null) {
       _localClientId = budget['client_id'] as int?;
     }
-    _status = budget['status']?.toString() ?? 'rascunho';
+    _status = budget['status']?.toString() ?? 'em_andamento';
     _notes.text = budget['notes']?.toString() ?? '';
     _internalNote.text = budget['internal_note']?.toString() ?? '';
     _proposalValidity.text = budget['proposal_validity']?.toString() ?? '30 dias';
@@ -300,11 +310,11 @@ class _BudgetFormState extends State<BudgetForm> {
               label: 'Status',
               value: _status,
               items: const [
-                DropdownMenuItem(value: 'rascunho', child: Text('Rascunho')),
-                DropdownMenuItem(value: 'enviado', child: Text('Enviado')),
                 DropdownMenuItem(value: 'aprovado', child: Text('Aprovado')),
+                DropdownMenuItem(value: 'em_andamento', child: Text('Em andamento')),
+                DropdownMenuItem(value: 'recusado', child: Text('Recusado')),
               ],
-              onChanged: (value) => setState(() => _status = value ?? 'rascunho'),
+              onChanged: (value) => setState(() => _status = value ?? 'em_andamento'),
             ),
             const SizedBox(height: 8),
             AppTextField(
@@ -323,13 +333,21 @@ class _BudgetFormState extends State<BudgetForm> {
             const SizedBox(height: 8),
             AppTextField(label: 'Validade da proposta', controller: _proposalValidity),
             const SizedBox(height: 8),
-            AppTextField(label: 'Condição de pagamento', controller: _paymentTerms),
+            AppDropdownField<String>(
+              label: 'Condição de pagamento',
+              value: _paymentTerms.text,
+              items: const [
+                DropdownMenuItem(value: 'A vista', child: Text('A vista')),
+                DropdownMenuItem(value: 'Parcelado', child: Text('Parcelado')),
+              ],
+              onChanged: (value) => setState(() => _paymentTerms.text = value ?? 'A vista'),
+            ),
             const SizedBox(height: 8),
-            AppTextField(label: 'Prazo de servico', controller: _serviceDeadline),
+            AppTextField(label: 'Prazo de serviço', controller: _serviceDeadline),
             const SizedBox(height: 8),
             AppTextField(label: 'Validade dos produtos', controller: _productValidity),
             const SizedBox(height: 8),
-            AppTextField(label: 'Observação', controller: _notes, maxLines: 3),
+            AppTextField(label: 'Observações', controller: _notes, maxLines: 3),
             const SizedBox(height: 8),
             AppTextField(label: 'Nota interna', controller: _internalNote, maxLines: 3),
             const SizedBox(height: 16),

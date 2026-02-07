@@ -358,11 +358,30 @@ function buildBudgetItemsHtml(items = []) {
     .join("");
 }
 
+function formatBudgetStatus(status) {
+  const value = String(status || "").toLowerCase();
+  switch (value) {
+    case "aprovado":
+      return "Aprovado";
+    case "recusado":
+      return "Recusado";
+    case "em_andamento":
+      return "Em andamento";
+    case "enviado":
+      return "Enviado";
+    case "rascunho":
+      return "Rascunho";
+    default:
+      return value ? value.charAt(0).toUpperCase() + value.slice(1) : "-";
+  }
+}
+
 function buildBudgetPageHtml({ budget, client, signatureHtml, logoUrl }) {
   const referenceSource =
     budget.report_title || budget.task_title || "Proposta comercial";
   const referenceText = referenceSource.toUpperCase();
   const notes = budget.notes ? formatMultiline(budget.notes) : "-";
+  const statusLabel = formatBudgetStatus(budget?.status);
   const signatureBlock = signatureHtml
     ? `<div class="budget-signatures">${signatureHtml}</div>`
     : `
@@ -399,7 +418,10 @@ function buildBudgetPageHtml({ budget, client, signatureHtml, logoUrl }) {
           </div>
         </div>
 
-        <div class="budget-date">${formatCityDate(budget.created_at)}</div>
+        <div class="budget-meta">
+          <div class="budget-date">${formatCityDate(budget.created_at)}</div>
+          <div class="budget-status"><span>Status:</span><strong>${escapeHtml(statusLabel)}</strong></div>
+        </div>
 
         <div class="budget-recipient">
           <div class="recipient-name">${escapeHtml(client?.name || "-")}</div>
@@ -608,7 +630,10 @@ export function buildTaskPdfHtml({
   .budget-title { display: flex; flex-direction: column; gap: 2px; }
   .budget-company { font-size: 18px; font-weight: 700; color: #0c1b2a; }
   .budget-tagline { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #607088; }
-  .budget-date { font-size: 11px; text-align: right; color: #50607b; }
+  .budget-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .budget-date { font-size: 11px; color: #50607b; }
+  .budget-status { font-size: 11px; padding: 4px 8px; border-radius: 8px; border: 1px solid #d9e2ee; background: #f4f8fd; color: #1c2b3a; }
+  .budget-status span { color: #607088; margin-right: 4px; }
   .budget-recipient { font-size: 11px; line-height: 1.5; }
   .recipient-name { font-weight: 700; font-size: 12px; }
   .budget-ref { font-size: 11px; font-weight: 700; padding-top: 4px; border-top: 1px solid #d9e2ee; }
@@ -698,7 +723,10 @@ export function buildBudgetPdfHtml({
   .budget-title { display: flex; flex-direction: column; gap: 2px; }
   .budget-company { font-size: 18px; font-weight: 700; color: #0c1b2a; }
   .budget-tagline { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #607088; }
-  .budget-date { font-size: 11px; text-align: right; color: #50607b; }
+  .budget-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .budget-date { font-size: 11px; color: #50607b; }
+  .budget-status { font-size: 11px; padding: 4px 8px; border-radius: 8px; border: 1px solid #d9e2ee; background: #f4f8fd; color: #1c2b3a; }
+  .budget-status span { color: #607088; margin-right: 4px; }
   .budget-recipient { font-size: 11px; line-height: 1.5; }
   .recipient-name { font-weight: 700; font-size: 12px; }
   .budget-ref { font-size: 11px; font-weight: 700; padding-top: 4px; border-top: 1px solid #d9e2ee; }

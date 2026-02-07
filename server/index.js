@@ -864,9 +864,38 @@ async function findValidBudgetPublicLink(db, budgetId, token) {
   return link;
 }
 
+
+function normalizePublicStatusLabel(status) {
+  if (!status) return null;
+  const value = String(status).toLowerCase();
+  switch (value) {
+    case "aprovado":
+      return { text: "Aprovado", variant: "success" };
+    case "em_andamento":
+      return { text: "Em andamento", variant: "warning" };
+    case "recusado":
+      return { text: "Recusado", variant: "danger" };
+    case "enviado":
+      return { text: "Enviado", variant: "info" };
+    case "rascunho":
+      return { text: "Rascunho", variant: "neutral" };
+    default:
+      return { text: value ? value.charAt(0).toUpperCase() + value.slice(1) : "-", variant: "neutral" };
+  }
+}
+
 function injectPublicToolbar(
   html,
-  { taskId, title, token, pdfUrl, refreshUrl, approveBudget = null }
+  {
+    taskId,
+    title,
+    token,
+    pdfUrl,
+    refreshUrl,
+    approveBudget = null,
+    approveReport = null,
+    statusLabel = null
+  }
 ) {
   const headExtra = `
 <style>
@@ -912,6 +941,20 @@ function injectPublicToolbar(
     background: rgba(255, 255, 255, 0.2);
     border-color: rgba(255, 255, 255, 0.4);
   }
+  .public-toolbar .status-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .public-toolbar .status-badge.success { background: rgba(34, 197, 94, 0.2); }
+  .public-toolbar .status-badge.warning { background: rgba(245, 158, 11, 0.2); }
+  .public-toolbar .status-badge.danger { background: rgba(239, 68, 68, 0.25); }
+  .public-toolbar .status-badge.info { background: rgba(56, 189, 248, 0.2); }
   .public-content {
     width: min(1100px, 96vw);
     margin: 16px auto 0;
@@ -1060,16 +1103,17 @@ function injectPublicToolbar(
       const documentValue = document.getElementById("budget-approve-document").value.trim();
       const signature = approveCanvas.toDataURL("image/png");
       const budgetId = document.body.dataset.publicBudgetId;
+      const taskId = document.body.dataset.publicTaskId;
       const token = document.body.dataset.publicToken;
       try {
-        const response = await fetch(
-          '/public/budgets/' + budgetId + '/approve?token=' + encodeURIComponent(token),
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ signature, name, document: documentValue })
-          }
-        );
+        const endpoint = budgetId
+          ? '/public/budgets/' + budgetId + '/approve?token=' + encodeURIComponent(token)
+          : '/public/tasks/' + taskId + '/approve?token=' + encodeURIComponent(token);
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signature, name, document: documentValue })
+        });
         if (!response.ok) {
           throw new Error(await response.text());
         }
@@ -1086,14 +1130,20 @@ function injectPublicToolbar(
     : "";
   const approveButton = approveBudget
     ? `<button type="button" onclick="openBudgetApproval()">Aprovar orçamento</button>`
+    : approveReport
+      ? `<button type="button" onclick="openBudgetApproval()">Assinar relatório</button>`
+      : "";
+  const normalizedStatus = normalizePublicStatusLabel(statusLabel);
+  const statusBadge = normalizedStatus
+    ? `<span class="status-badge ${normalizedStatus.variant}">${normalizedStatus.text}</span>`
     : "";
-  const approveModal = approveBudget
+  const approveModal = approveBudget || approveReport
     ? `
     <div class="public-approve-overlay" id="budget-approve-overlay">
       <div class="public-approve-card">
         <div>
-          <h3>Aprovar orçamento</h3>
-          <small>Assine para confirmar o orçamento. Nome e CPF são opcionais.</small>
+          <h3>${approveBudget ? "Aprovar orçamento" : "Assinar relatório"}</h3>
+          <small>Assine para confirmar. Nome e CPF são opcionais.</small>
         </div>
         <div class="public-approve-fields">
           <input id="budget-approve-name" type="text" placeholder="Nome (opcional)" />
@@ -1114,6 +1164,7 @@ function injectPublicToolbar(
   const toolbarHtml = `
 <div class="public-toolbar">
     <div class="title">${displayTitle}</div>
+    ${statusBadge}
     <button type="button" onclick="publicPrint()">Imprimir/Salvar PDF</button>
     ${shareButton}
     ${approveButton}
@@ -1126,6 +1177,8 @@ function injectPublicToolbar(
     "<body>",
     `<body data-public-token="${token}" ${
       approveBudget ? `data-public-budget-id="${approveBudget.budgetId}"` : ""
+    } ${
+      approveReport ? `data-public-task-id="${approveReport.taskId}"` : ""
     }><div class="public-shell">${toolbarHtml}${approveModal}<main class="public-content">`
   );
   updated = updated.replace("</body>", "</main></div></body>");
@@ -2855,7 +2908,8 @@ async function main() {
         title: `Relatorio da tarefa #${req.params.id}`,
         token,
         pdfUrl,
-        refreshUrl
+        refreshUrl,
+        approveReport: { taskId: req.params.id }
       });
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -2863,6 +2917,55 @@ async function main() {
       res.send(html);
     } catch (error) {
       res.status(500).send("Falha ao carregar relatorio publico.");
+    }
+  });
+
+  app.post("/public/tasks/:id/approve", async (req, res) => {
+    try {
+      const token = String(req.query.token || req.body?.token || "");
+      if (!token) {
+        return res.status(401).send("Token publico ausente.");
+      }
+      const link = await findValidPublicLink(db, req.params.id, token);
+      if (!link) {
+        return res.status(403).send("Link publico invalido ou expirado.");
+      }
+      const signature = req.body?.signature || "";
+      if (!signature || !String(signature).startsWith("data:image")) {
+        return res.status(400).send("Assinatura invalida.");
+      }
+      const name = req.body?.name ? String(req.body.name).trim() : "";
+      const documentValue = req.body?.document ? String(req.body.document).trim() : "";
+      const task = await db.get("SELECT signature_mode, signature_scope FROM tasks WHERE id = ?", [
+        req.params.id
+      ]);
+      let nextMode = task?.signature_mode || "client";
+      if (nextMode === "none") nextMode = "client";
+      if (nextMode === "tech") nextMode = "both";
+      const nextScope = task?.signature_scope || "last_page";
+      await db.run(
+        `
+        UPDATE tasks
+        SET signature_client = ?,
+            signature_client_name = ?,
+            signature_client_document = ?,
+            signature_mode = ?,
+            signature_scope = ?
+        WHERE id = ?
+      `,
+        [
+          signature,
+          name || null,
+          documentValue || null,
+          nextMode,
+          nextScope,
+          req.params.id
+        ]
+      );
+      scheduleWarmTaskPdfCache(db, req.params.id);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).send("Falha ao assinar o relatorio.");
     }
   });
 
@@ -2902,7 +3005,8 @@ async function main() {
         token,
         pdfUrl: "",
         refreshUrl,
-        approveBudget: { budgetId: req.params.id }
+        approveBudget: { budgetId: req.params.id },
+        statusLabel: data.budget?.status
       });
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -2929,9 +3033,10 @@ async function main() {
       }
       const name = req.body?.name ? String(req.body.name).trim() : "";
       const documentValue = req.body?.document ? String(req.body.document).trim() : "";
-      const budget = await db.get("SELECT signature_mode, signature_scope FROM budgets WHERE id = ?", [
-        req.params.id
-      ]);
+      const budget = await db.get(
+        "SELECT signature_mode, signature_scope, task_id FROM budgets WHERE id = ?",
+        [req.params.id]
+      );
       let nextMode = budget?.signature_mode || "client";
       if (nextMode === "none") nextMode = "client";
       if (nextMode === "tech") nextMode = "both";
@@ -2943,7 +3048,8 @@ async function main() {
             signature_client_name = ?,
             signature_client_document = ?,
             signature_mode = ?,
-            signature_scope = ?
+            signature_scope = ?,
+            status = 'aprovado'
         WHERE id = ?
       `,
         [
@@ -2955,6 +3061,8 @@ async function main() {
           req.params.id
         ]
       );
+      scheduleWarmBudgetPdfCache(db, req.params.id);
+      scheduleWarmTaskPdfCache(db, budget?.task_id);
       res.json({ ok: true });
     } catch (error) {
       res.status(500).send("Falha ao aprovar o orcamento.");
