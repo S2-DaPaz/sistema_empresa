@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/entity_config.dart';
@@ -6,6 +6,7 @@ import '../utils/field_config.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
+import '../widgets/section_header.dart';
 import 'entity_form_screen.dart';
 
 class EntityListScreen extends StatefulWidget {
@@ -98,7 +99,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
         parts.add(formatted.toString());
       }
     }
-    return parts.join(' | ');
+    return parts.join(' • ');
   }
 
   @override
@@ -123,10 +124,18 @@ class _EntityListScreenState extends State<EntityListScreen> {
       body: ListView(
         children: [
           if (widget.config.hint != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(widget.config.hint!),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(widget.config.hint!),
+              ),
             ),
+          const SizedBox(height: 12),
+          SectionHeader(
+            title: 'Registros',
+            subtitle: widget.config.emptyMessage ?? 'Nenhum registro.',
+          ),
+          const SizedBox(height: 12),
           if (_items.isEmpty)
             Card(
               child: Padding(
@@ -138,7 +147,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
             final map = item as Map<String, dynamic>;
             return Card(
               child: ListTile(
-                title: Text(map[widget.config.primaryField]?.toString() ?? 'Sem titulo'),
+                title: Text(map[widget.config.primaryField]?.toString() ?? 'Sem título'),
                 subtitle: Text(_buildSubtitle(map)),
                 onTap: () => _openForm(item: map),
                 trailing: PopupMenuButton<String>(

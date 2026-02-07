@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -60,7 +60,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   List<Map<String, dynamic>> _templates = [];
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _equipments = [];
-  List<Map<String, dynamic>> _taskEquipments = [];
+  bool _equipmentsLoading = false;
+  String? _equipmentsError;
+  int? _reportEquipmentId;
 
   List<Map<String, dynamic>> _reports = [];
   int? _activeReportId;
@@ -82,12 +84,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   String _signatureTech = '';
   Map<String, dynamic> _signaturePages = {};
 
-  int? _selectedEquipmentId;
-  final TextEditingController _equipmentName = TextEditingController();
-  final TextEditingController _equipmentModel = TextEditingController();
-  final TextEditingController _equipmentSerial = TextEditingController();
-  final TextEditingController _equipmentDescription = TextEditingController();
-
   @override
   void initState() {
     super.initState();
@@ -102,10 +98,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     _description.dispose();
     _startDate.dispose();
     _dueDate.dispose();
-    _equipmentName.dispose();
-    _equipmentModel.dispose();
-    _equipmentSerial.dispose();
-    _equipmentDescription.dispose();
     super.dispose();
   }
 
@@ -159,7 +151,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
 
         await _loadReports(_taskTypeId);
         await _loadBudgets(_reports);
-        await _loadTaskEquipments();
       }
 
       await _loadClientEquipments();
@@ -171,11 +162,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   }
   Future<void> _loadClientEquipments() async {
     if (_clientId == null) {
-      setState(() => _equipments = []);
+      setState(() {
+        _equipments = [];
+        _equipmentsError = null;
+        _equipmentsLoading = false;
+        _reportEquipmentId = null;
+      });
       return;
     }
-    final data = await _api.get('/equipments?clientId=$_clientId') as List<dynamic>;
-    setState(() => _equipments = data.cast<Map<String, dynamic>>());
+    setState(() {
+      _equipmentsLoading = true;
+      _equipmentsError = null;
+    });
+    try {
+      final data = await _api.get('/equipments?clientId=$_clientId') as List<dynamic>;
+      setState(() {
+        _equipments = data.cast<Map<String, dynamic>>();
+        if (_reportEquipmentId != null &&
+            !_equipments.any((item) => item['id'] == _reportEquipmentId)) {
+          _reportEquipmentId = null;
+        }
+      });
+    } catch (error) {
+      setState(() => _equipmentsError = error.toString());
+    } finally {
+      setState(() => _equipmentsLoading = false);
+    }
   }
 
   Future<void> _loadReports(int? taskTypeId) async {
@@ -192,6 +204,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       _activeReportId = nextActiveId;
       if (nextActiveId != null) {
         _applyReportData(defaultReport, taskTypeId);
+      } else {
+        _reportSections = [];
+        _reportAnswers = {};
+        _reportPhotos = [];
+        _reportStatus = 'rascunho';
+        _reportDirty = false;
       }
     });
   }
@@ -293,12 +311,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     }
   }
 
-  Future<void> _loadTaskEquipments() async {
-    if (_taskId == null) return;
-    final data = await _api.get('/tasks/$_taskId/equipments') as List<dynamic>;
-    setState(() => _taskEquipments = data.cast<Map<String, dynamic>>());
-  }
-
   void _applyReportData(Map<String, dynamic> report, int? taskTypeId) {
     final content = report['content'] as Map<String, dynamic>? ?? {};
     var sections = (content['sections'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
@@ -321,6 +333,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     _reportAnswers = content['answers'] as Map<String, dynamic>? ?? {};
     _reportPhotos = (content['photos'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
     _reportStatus = report['status']?.toString() ?? 'rascunho';
+    _reportEquipmentId = report['equipment_id'] as int?;
     _reportDirty = false;
     _reportAutosaveTimer?.cancel();
     _reportAutosaveTimer = null;
@@ -395,7 +408,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   }
   Future<void> _saveReport({bool silent = false, bool skipReload = false}) async {
     if (_activeReportId == null) {
-      setState(() => _reportMessage = 'Salve a tarefa para gerar o relatório.');
+      setState(() => _reportMessage = 'Salve a tarefa para gerar o Relatório.');
       return;
     }
 
@@ -465,7 +478,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   }
 
   Future<void> _handleActiveReportChange(int? value) async {
-    // Antes de trocar de relatório, tentamos salvar o atual em segundo plano.
+    // Antes de trocar de Relatório, tentamos salvar o atual em segundo plano.
     await _flushReportAutosave();
     final report = _reports.firstWhere(
       (item) => item['id'] == value,
@@ -478,15 +491,44 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     });
   }
 
+  Future<void> _updateReportEquipment(int? equipmentId) async {
+    if (_activeReportId == null) return;
+    try {
+      await _api.put('/reports/$_activeReportId', {'equipment_id': equipmentId});
+      final equipmentName = _equipments
+          .firstWhere(
+            (item) => item['id'] == equipmentId,
+            orElse: () => <String, dynamic>{},
+          )['name']
+          ?.toString();
+      setState(() {
+        _reportEquipmentId = equipmentId;
+        final reportIndex = _reports.indexWhere((item) => item['id'] == _activeReportId);
+        if (reportIndex != -1) {
+          _reports[reportIndex] = {
+            ..._reports[reportIndex],
+            'equipment_id': equipmentId,
+            'equipment_name': equipmentName,
+          };
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+  }
+
   Future<void> _createReport() async {
     if (_taskId == null) return;
     if (_clientId == null) {
-      setState(() => _reportMessage = 'Selecione um cliente antes de criar o relatório.');
+      setState(() => _reportMessage = 'Selecione um cliente antes de criar o Relatório.');
       return;
     }
     final template = _selectedTemplate;
     if (template == null) {
-      setState(() => _reportMessage = 'Este tipo de tarefa não possui modelo de relatório.');
+      setState(() => _reportMessage = 'Este tipo de tarefa não possui modelo de Relatório.');
       return;
     }
 
@@ -519,16 +561,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
 
   Future<void> _deleteReport() async {
     if (_activeReportId == null) return;
-    final report = _activeReport;
-    if (report == null || report['equipment_id'] != null) {
-      setState(() => _reportMessage = 'Remova o equipamento para excluir este relatório.');
-      return;
-    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Excluir relatório'),
-        content: const Text('Deseja excluir este relatório?'),
+        title: const Text('Excluir Relatório'),
+        content: const Text('Deseja excluir este Relatório?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Excluir')),
@@ -635,50 +672,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     void _removePhoto(String photoId) {
     setState(() => _reportPhotos.removeWhere((photo) => photo['id'] == photoId));
     _markReportDirty();
-  }
-
-  Future<void> _attachEquipment() async {
-    if (_taskId == null || _selectedEquipmentId == null) return;
-    await _api.post('/tasks/$_taskId/equipments', {'equipment_id': _selectedEquipmentId});
-    await _loadTaskEquipments();
-    await _loadReports(_taskTypeId);
-  }
-
-  Future<void> _createEquipment() async {
-    if (_clientId == null || _taskId == null) return;
-    final payload = {
-      'client_id': _clientId,
-      'name': _equipmentName.text,
-      'model': _equipmentModel.text,
-      'serial': _equipmentSerial.text,
-      'description': _equipmentDescription.text,
-    };
-    final created = await _api.post('/equipments', payload) as Map<String, dynamic>;
-    _selectedEquipmentId = created['id'] as int?;
-    await _attachEquipment();
-    _equipmentName.clear();
-    _equipmentModel.clear();
-    _equipmentSerial.clear();
-    _equipmentDescription.clear();
-  }
-
-  Future<void> _detachEquipment(int equipmentId) async {
-    if (_taskId == null) return;
-    await _api.delete('/tasks/$_taskId/equipments/$equipmentId');
-    await _loadTaskEquipments();
-    await _loadReports(_taskTypeId);
-  }
-
-  void _openEquipmentReport(int equipmentId) {
-    final report = _reports.firstWhere(
-      (item) => item['equipment_id'] == equipmentId,
-      orElse: () => <String, dynamic>{},
-    );
-    if (report['id'] == null) return;
-    setState(() {
-      _activeReportId = report['id'] as int?;
-      _applyReportData(report, _taskTypeId);
-    });
   }
 
   Future<String?> _getTaskPublicLink() async {
@@ -805,9 +798,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                     child: Text(client['name']?.toString() ?? 'Cliente'),
                   ))
               .toList(),
-          onChanged: (value) {
-            setState(() => _clientId = value);
-            _loadClientEquipments();
+          onChanged: (value) async {
+            setState(() {
+              _clientId = value;
+              _reportEquipmentId = null;
+            });
+            await _loadClientEquipments();
+            if (_taskId != null) {
+              await _loadReports(_taskTypeId);
+              await _loadBudgets(_reports);
+            }
           },
         ),
         const SizedBox(height: 8),
@@ -818,7 +818,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
             items: _users
                 .map((user) => DropdownMenuItem<int>(
                       value: user['id'] as int?,
-                      child: Text(user['name']?.toString() ?? 'Usuário'),
+                      child: Text(user['name']?.toString() ?? 'usuário'),
                     ))
                 .toList(),
             onChanged: (value) => setState(() => _userId = value),
@@ -886,14 +886,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
           const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para habilitar o relatório.'),
+              child: Text('Salve a tarefa para habilitar o Relatório.'),
             ),
           ),
         if (_taskId != null && _selectedTemplate == null)
           const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Este tipo de tarefa não possui modelo de relatório.'),
+              child: Text('Este tipo de tarefa não possui modelo de Relatório.'),
             ),
           ),
         if (_taskId != null && _selectedTemplate != null)
@@ -923,6 +923,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                     items: reportOptions,
                     onChanged: (value) => _handleActiveReportChange(value),
                   ),
+                  const SizedBox(height: 8),
+                  _buildEquipmentField(),
                   const SizedBox(height: 8),
                   AppDropdownField<String>(
                     label: 'Status',
@@ -997,7 +999,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                   Wrap(
                     spacing: 8,
                     children: [
-                      ElevatedButton(onPressed: _saveReport, child: const Text('Salvar relatório')),
+                      ElevatedButton(onPressed: _saveReport, child: const Text('Salvar Relatório')),
                       OutlinedButton(onPressed: _sendReportEmail, child: const Text('Enviar e-mail')),
                       OutlinedButton(
                         onPressed: _shareTaskPublicLink,
@@ -1012,6 +1014,73 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                 ],
               ),
             ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildEquipmentField() {
+    final shouldDisable = _clientId == null || _equipmentsLoading || _equipmentsError != null;
+    final items = <DropdownMenuItem<int?>>[
+      const DropdownMenuItem<int?>(value: null, child: Text('Sem equipamento')),
+      ..._equipments.map(
+        (equipment) => DropdownMenuItem<int?>(
+          value: equipment['id'] as int?,
+          child: Text(equipment['name']?.toString() ?? 'Equipamento'),
+        ),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Opacity(
+          opacity: shouldDisable ? 0.55 : 1,
+          child: AbsorbPointer(
+            absorbing: shouldDisable || _activeReportId == null,
+            child: AppDropdownField<int?>(
+              label: 'Equipamento',
+              value: _reportEquipmentId,
+              items: items,
+              onChanged: (value) => _updateReportEquipment(value),
+            ),
+          ),
+        ),
+        if (_clientId == null)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text('Selecione um cliente primeiro.'),
+          ),
+        if (_activeReportId == null && _clientId != null)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text('Selecione um relatório para vincular o equipamento.'),
+          ),
+        if (_equipmentsLoading)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: LinearProgressIndicator(),
+          ),
+        if (_clientId != null && !_equipmentsLoading && _equipmentsError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: [
+                const Expanded(child: Text('Erro ao carregar equipamentos.')),
+                TextButton(
+                  onPressed: _loadClientEquipments,
+                  child: const Text('Tentar novamente'),
+                ),
+              ],
+            ),
+          ),
+        if (_clientId != null &&
+            !_equipmentsLoading &&
+            _equipmentsError == null &&
+            _equipments.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text('Nenhum equipamento encontrado para este cliente.'),
           ),
       ],
     );
@@ -1072,7 +1141,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
             value: value?.toString(),
             items: const [
               DropdownMenuItem(value: 'sim', child: Text('Sim')),
-              DropdownMenuItem(value: 'nao', child: Text('Não')),
+              DropdownMenuItem(value: 'nao', child: Text('não')),
             ],
             onChanged: (val) {
               setState(() => _reportAnswers[fieldId] = val);
@@ -1144,7 +1213,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
           const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para liberar os orçamentos.'),
+              child: Text('Salve a tarefa para liberar os Orçamentos.'),
             ),
           ),
         if (_taskId != null) ...[
@@ -1166,7 +1235,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Orçamento #${budget['id']}', style: Theme.of(context).textTheme.titleSmall),
+                        Text('orçamento #${budget['id']}', style: Theme.of(context).textTheme.titleSmall),
                         Row(
                           children: [
                             Chip(label: Text(budget['status']?.toString() ?? 'rascunho')),
@@ -1209,113 +1278,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     );
   }
 
-  Widget _buildEquipmentTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_taskId == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para adicionar equipamentos.'),
-            ),
-          ),
-        if (_taskId != null) ...[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Equipamentos da tarefa', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  if (_taskEquipments.isEmpty) const Text('Nenhum equipamento vinculado.'),
-                  ..._taskEquipments.map((equipment) => Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(equipment['name']?.toString() ?? 'Equipamento'),
-                              Text('Modelo: ${equipment['model'] ?? 'Sem modelo'}'),
-                              Text('Serie: ${equipment['serial'] ?? '-'}'),
-                              if (equipment['description'] != null)
-                                Text(equipment['description'].toString()),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                children: [
-                                  OutlinedButton(
-                                    onPressed: () => _openEquipmentReport(equipment['id'] as int),
-                                    child: const Text('Abrir relatório'),
-                                  ),
-                                  OutlinedButton(
-                                    onPressed: () => _detachEquipment(equipment['id'] as int),
-                                    child: const Text('Remover'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      )),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Vincular equipamento existente', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  AppDropdownField<int>(
-                    label: 'Equipamento',
-                    value: _selectedEquipmentId,
-                    items: _equipments
-                        .map((item) => DropdownMenuItem<int>(
-                              value: item['id'] as int?,
-                              child: Text(item['name']?.toString() ?? 'Equipamento'),
-                            ))
-                        .toList(),
-                    onChanged: (value) => setState(() => _selectedEquipmentId = value),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(onPressed: _attachEquipment, child: const Text('Vincular')),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Cadastrar novo equipamento', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  AppTextField(label: 'Nome', controller: _equipmentName),
-                  const SizedBox(height: 8),
-                  AppTextField(label: 'Modelo', controller: _equipmentModel),
-                  const SizedBox(height: 8),
-                  AppTextField(label: 'Serie', controller: _equipmentSerial),
-                  const SizedBox(height: 8),
-                  AppTextField(label: 'Descrição', controller: _equipmentDescription, maxLines: 3),
-                  const SizedBox(height: 8),
-                  ElevatedButton(onPressed: _createEquipment, child: const Text('Cadastrar e vincular')),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
   Widget _buildSignatureTab() {
     final signaturePageItems = [
       ..._reports.map((report) => {
@@ -1327,7 +1289,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
           }),
       ..._budgets.map((budget) => {
             'key': 'budget:${budget['id']}',
-            'label': 'Orçamento #${budget['id']}',
+            'label': 'orçamento #${budget['id']}',
           }),
     ];
 
@@ -1338,7 +1300,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
           const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para configurar assinaturas.'),
+              child: Text('Salve a tarefa para configurar Assinaturas.'),
             ),
           ),
         if (_taskId != null) ...[
@@ -1349,7 +1311,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
               DropdownMenuItem(value: 'none', child: Text('Sem assinatura')),
               DropdownMenuItem(value: 'client', child: Text('Cliente')),
               DropdownMenuItem(value: 'tech', child: Text('Técnico')),
-              DropdownMenuItem(value: 'both', child: Text('Cliente e técnico')),
+              DropdownMenuItem(value: 'both', child: Text('Cliente e Técnico')),
             ],
             onChanged: (value) => setState(() => _signatureMode = value ?? 'none'),
           ),
@@ -1371,6 +1333,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                 value: _signatureClient,
                 onChanged: (value) => setState(() => _signatureClient = value),
               ),
+            if (_signatureMode == 'client' || _signatureMode == 'both')
+              if (_signatureClient.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => setState(() => _signatureClient = ''),
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Remover assinatura'),
+                  ),
+                ),
             const SizedBox(height: 12),
             if (_signatureMode == 'tech' || _signatureMode == 'both')
               SignaturePadField(
@@ -1378,11 +1350,22 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                 value: _signatureTech,
                 onChanged: (value) => setState(() => _signatureTech = value),
               ),
+            if (_signatureMode == 'tech' || _signatureMode == 'both')
+              if (_signatureTech.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => setState(() => _signatureTech = ''),
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Remover assinatura'),
+                  ),
+                ),
           ],
           if (_signatureScope == 'all_pages' && _signatureMode != 'none') ...[
             ...signaturePageItems.map((page) {
               final key = page['key'] as String;
               final label = page['label'] as String;
+              final pageSignatures = _signaturePages[key] as Map<String, dynamic>? ?? {};
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -1394,16 +1377,36 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
                       if (_signatureMode == 'client' || _signatureMode == 'both')
                         SignaturePadField(
                           label: 'Assinatura do cliente*',
-                          value: (_signaturePages[key] as Map<String, dynamic>? ?? {})['client']?.toString() ?? '',
+                          value: pageSignatures['client']?.toString() ?? '',
                           onChanged: (value) => _updateSignaturePage(key, 'client', value),
                         ),
+                      if (_signatureMode == 'client' || _signatureMode == 'both')
+                        if ((pageSignatures['client']?.toString() ?? '').isNotEmpty)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () => _updateSignaturePage(key, 'client', ''),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Remover assinatura'),
+                            ),
+                          ),
                       const SizedBox(height: 12),
                       if (_signatureMode == 'tech' || _signatureMode == 'both')
                         SignaturePadField(
                           label: 'Assinatura do técnico*',
-                          value: (_signaturePages[key] as Map<String, dynamic>? ?? {})['tech']?.toString() ?? '',
+                          value: pageSignatures['tech']?.toString() ?? '',
                           onChanged: (value) => _updateSignaturePage(key, 'tech', value),
                         ),
+                      if (_signatureMode == 'tech' || _signatureMode == 'both')
+                        if ((pageSignatures['tech']?.toString() ?? '').isNotEmpty)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () => _updateSignaturePage(key, 'tech', ''),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Remover assinatura'),
+                            ),
+                          ),
                     ],
                   ),
                 ),
@@ -1411,7 +1414,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
             }),
           ],
           const SizedBox(height: 12),
-          ElevatedButton(onPressed: _saveTask, child: const Text('Salvar assinaturas')),
+          ElevatedButton(onPressed: _saveTask, child: const Text('Salvar Assinaturas')),
         ],
       ],
     );
@@ -1426,7 +1429,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     }
 
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Row(
@@ -1448,17 +1451,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
               Tab(text: 'Detalhes'),
               Tab(text: 'Relatório'),
               Tab(text: 'Orçamentos'),
-              Tab(text: 'Equipamentos'),
               Tab(text: 'Assinaturas'),
             ],
           ),
         ),
         body: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFF6F9FC), Color(0xFFEEF3F7)],
+              colors: Theme.of(context).brightness == Brightness.dark
+                  ? const [Color(0xFF0F1B2A), Color(0xFF0B1320)]
+                  : const [Color(0xFFF6FAFD), Color(0xFFEAF2F8)],
             ),
           ),
           child: TabBarView(
@@ -1466,7 +1470,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
               _buildDetailsTab(),
               _buildReportTab(),
               _buildBudgetsTab(),
-              _buildEquipmentTab(),
               _buildSignatureTab(),
             ],
           ),
@@ -1475,6 +1478,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     );
   }
 }
+
+
 
 
 

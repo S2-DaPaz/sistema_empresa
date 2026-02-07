@@ -12,11 +12,18 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(message, textAlign: TextAlign.center),
+          Icon(Icons.error_outline, size: 36, color: theme.colorScheme.error),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium,
+          ),
           if (onRetry != null) ...[
             const SizedBox(height: 12),
             ElevatedButton(

@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import 'budgets_screen.dart';
 import 'clients_screen.dart';
 import 'dashboard_screen.dart';
+import 'equipments_screen.dart';
 import 'more_screen.dart';
 import 'tasks_screen.dart';
 
@@ -19,6 +20,7 @@ class _HomeShellState extends State<HomeShell> {
   late final List<Widget> _screens = [
     const DashboardScreen(),
     const TasksScreen(),
+    const EquipmentsScreen(),
     const BudgetsScreen(),
     ClientsScreen(),
     const MoreScreen(),
@@ -28,16 +30,17 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _screens),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (value) => setState(() => _index = value),
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Painel'),
-          BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tarefas'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Orçamentos'),
-          BottomNavigationBarItem(icon: Icon(Icons.people_alt), label: 'Clientes'),
-          BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'Mais'),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+        onDestinationSelected: (value) => setState(() => _index = value),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Painel'),
+          NavigationDestination(icon: Icon(Icons.task_alt), label: 'Tarefas'),
+          NavigationDestination(icon: Icon(Icons.handyman_outlined), label: 'Equipamentos'),
+          NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Orçamentos'),
+          NavigationDestination(icon: Icon(Icons.people_alt_outlined), label: 'Clientes'),
+          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Mais'),
         ],
       ),
     );

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/formatters.dart';
@@ -68,7 +68,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  const BrandLogo(height: 44),
+                  const BrandLogo(height: 46),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -86,25 +86,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                   ),
+                  IconButton(
+                    onPressed: _load,
+                    tooltip: 'Atualizar',
+                    icon: const Icon(Icons.refresh),
+                  ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          const SectionHeader(title: 'Visao geral'),
+          const SizedBox(height: 16),
+          const SectionHeader(
+            title: 'Visão geral',
+            subtitle: 'Números principais desta operação',
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              _SummaryCard(title: 'Clientes', value: _summary['clients']),
-              _SummaryCard(title: 'Tarefas', value: _summary['tasks']),
-              _SummaryCard(title: 'Relatórios', value: _summary['reports']),
-              _SummaryCard(title: 'Orçamentos', value: _summary['budgets']),
+              _SummaryCard(
+                title: 'Clientes',
+                value: _summary['clients'],
+                icon: Icons.people_alt_outlined,
+              ),
+              _SummaryCard(
+                title: 'Tarefas',
+                value: _summary['tasks'],
+                icon: Icons.task_alt,
+              ),
+              _SummaryCard(
+                title: 'Relatórios',
+                value: _summary['reports'],
+                icon: Icons.description_outlined,
+              ),
+              _SummaryCard(
+                title: 'Orçamentos',
+                value: _summary['budgets'],
+                icon: Icons.receipt_long,
+              ),
             ],
           ),
           const SizedBox(height: 20),
-          const SectionHeader(title: 'Últimos relatórios'),
+          const SectionHeader(
+            title: 'Últimos relatórios',
+            subtitle: 'Acompanhe as atividades mais recentes',
+          ),
           const SizedBox(height: 12),
           if (_reports.isEmpty)
             const Card(
@@ -119,9 +146,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final created = map['created_at']?.toString() ?? '';
             return Card(
               child: ListTile(
+                leading: const Icon(Icons.description_outlined),
                 title: Text(title.toString()),
                 subtitle: Text(
-                  '${map['client_name'] ?? 'Sem cliente'} | ${formatDate(created)}',
+                  '${map['client_name'] ?? 'Sem cliente'} • ${formatDate(created)}',
                 ),
               ),
             );
@@ -133,25 +161,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.title, required this.value});
+  const _SummaryCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
 
   final String title;
   final dynamic value;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return SizedBox(
-      width: 160,
+      width: 164,
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 6),
-              const Text('Total cadastrado'),
-              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(icon, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Total cadastrado',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
               Chip(label: Text('${value ?? 0}')),
             ],
           ),

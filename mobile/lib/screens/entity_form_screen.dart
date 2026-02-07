@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/entity_config.dart';
@@ -39,10 +39,10 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
         case FieldType.text:
         case FieldType.textarea:
         case FieldType.number:
-          case FieldType.date:
-            _controllers[field.name] =
-                TextEditingController(text: formatDateInput(rawValue?.toString()));
-            break;
+        case FieldType.date:
+          _controllers[field.name] =
+              TextEditingController(text: formatDateInput(rawValue?.toString()));
+          break;
         case FieldType.select:
           _values[field.name] = rawValue;
           break;
@@ -72,9 +72,9 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
       switch (field.type) {
         case FieldType.text:
         case FieldType.textarea:
-          case FieldType.date:
-            payload[field.name] = parseDateBrToIso(_controllers[field.name]?.text.trim());
-            break;
+        case FieldType.date:
+          payload[field.name] = parseDateBrToIso(_controllers[field.name]?.text.trim());
+          break;
         case FieldType.number:
           final raw = _controllers[field.name]?.text.trim();
           payload[field.name] = raw == null || raw.isEmpty ? 0 : num.tryParse(raw) ?? 0;
@@ -125,67 +125,91 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
       title: _isEdit ? 'Editar ${widget.config.title}' : 'Novo ${widget.config.title}',
       body: ListView(
         children: [
-          ...widget.config.fields.map((field) {
-            switch (field.type) {
-              case FieldType.text:
-                return AppTextField(
-                  label: field.label,
-                  controller: _controllers[field.name],
-                );
-              case FieldType.textarea:
-                return AppTextField(
-                  label: field.label,
-                  controller: _controllers[field.name],
-                  maxLines: 4,
-                );
-              case FieldType.number:
-                return AppTextField(
-                  label: field.label,
-                  controller: _controllers[field.name],
-                  keyboardType: TextInputType.number,
-                );
-              case FieldType.select:
-                return AppDropdownField<dynamic>(
-                  label: field.label,
-                  value: _values[field.name],
-                  items: field.options
-                      .map(
-                        (option) => DropdownMenuItem(
-                          value: option.value,
-                          child: Text(option.label),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() => _values[field.name] = value),
-                );
-              case FieldType.checkbox:
-                return AppCheckboxField(
-                  label: field.label,
-                  value: _values[field.name] == true,
-                  onChanged: (value) => setState(() => _values[field.name] = value ?? false),
-                );
-              case FieldType.date:
-                return AppDateField(
-                  key: ValueKey(_controllers[field.name]?.text ?? ''),
-                  label: field.label,
-                  value: formatDateInput(_controllers[field.name]?.text ?? ''),
-                  onTap: () => _pickDate(field),
-                );
-            }
-          }),
-          const SizedBox(height: 12),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  ...widget.config.fields.map((field) {
+                    Widget fieldWidget;
+                    switch (field.type) {
+                      case FieldType.text:
+                        fieldWidget = AppTextField(
+                          label: field.label,
+                          controller: _controllers[field.name],
+                        );
+                        break;
+                      case FieldType.textarea:
+                        fieldWidget = AppTextField(
+                          label: field.label,
+                          controller: _controllers[field.name],
+                          maxLines: 4,
+                        );
+                        break;
+                      case FieldType.number:
+                        fieldWidget = AppTextField(
+                          label: field.label,
+                          controller: _controllers[field.name],
+                          keyboardType: TextInputType.number,
+                        );
+                        break;
+                      case FieldType.select:
+                        fieldWidget = AppDropdownField<dynamic>(
+                          label: field.label,
+                          value: _values[field.name],
+                          items: field.options
+                              .map(
+                                (option) => DropdownMenuItem(
+                                  value: option.value,
+                                  child: Text(option.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) => setState(() => _values[field.name] = value),
+                        );
+                        break;
+                      case FieldType.checkbox:
+                        fieldWidget = AppCheckboxField(
+                          label: field.label,
+                          value: _values[field.name] == true,
+                          onChanged: (value) => setState(() => _values[field.name] = value ?? false),
+                        );
+                        break;
+                      case FieldType.date:
+                        fieldWidget = AppDateField(
+                          key: ValueKey(_controllers[field.name]?.text ?? ''),
+                          label: field.label,
+                          value: formatDateInput(_controllers[field.name]?.text ?? ''),
+                          onTap: () => _pickDate(field),
+                        );
+                        break;
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: fieldWidget,
+                    );
+                  }),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        _error!,
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _save,
+                      child: Text(_saving ? 'Salvando...' : 'Salvar'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? 'Salvando...' : 'Salvar'),
           ),
         ],
       ),
     );
   }
 }
-

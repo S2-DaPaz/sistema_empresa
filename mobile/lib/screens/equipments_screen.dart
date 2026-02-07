@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -312,3 +312,5 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
     );
   }
 }
+
+

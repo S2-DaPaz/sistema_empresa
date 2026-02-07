@@ -1,4 +1,4 @@
-import '../utils/entity_config.dart';
+﻿import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../utils/formatters.dart';
 import 'entity_list_screen.dart';

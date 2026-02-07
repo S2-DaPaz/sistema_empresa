@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -9,6 +9,7 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/budget_form.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
+import '../widgets/section_header.dart';
 
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
@@ -105,7 +106,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     if (url == null || url.isEmpty) return;
     await Share.share(
       url,
-      subject: 'Relatório da tarefa #${budget['task_id']}',
+      subject: 'Orçamento #${budget['id']}',
     );
   }
 
@@ -158,16 +159,16 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               onTap: () => Navigator.pop(context, 'todos'),
             ),
             ListTile(
-              title: const Text('Rascunho'),
-              onTap: () => Navigator.pop(context, 'rascunho'),
-            ),
-            ListTile(
-              title: const Text('Enviado'),
-              onTap: () => Navigator.pop(context, 'enviado'),
+              title: const Text('Em andamento'),
+              onTap: () => Navigator.pop(context, 'em_andamento'),
             ),
             ListTile(
               title: const Text('Aprovado'),
               onTap: () => Navigator.pop(context, 'aprovado'),
+            ),
+            ListTile(
+              title: const Text('Recusado'),
+              onTap: () => Navigator.pop(context, 'recusado'),
             ),
           ],
         ),
@@ -245,6 +246,19 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
+  String _formatStatus(String? value) {
+    switch (value) {
+      case 'em_andamento':
+        return 'Em andamento';
+      case 'aprovado':
+        return 'Aprovado';
+      case 'recusado':
+        return 'Recusado';
+      default:
+        return value?.toString() ?? 'Em andamento';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -269,59 +283,73 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             onSaved: _load,
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Buscar orçamentos',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () {
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Buscar orçamentos',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchQuery.isEmpty
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.close),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  ),
+                          ),
+                          onChanged: (value) => setState(() => _searchQuery = value),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 48,
+                        child: OutlinedButton(
+                          onPressed: _openFilters,
+                          child: const Icon(Icons.tune),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_searchQuery.isNotEmpty || _statusFilter != null) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        if (_searchQuery.isNotEmpty)
+                          Chip(
+                            label: Text('Busca: $_searchQuery'),
+                            onDeleted: () {
                               _searchController.clear();
                               setState(() => _searchQuery = '');
                             },
                           ),
-                  ),
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                ),
+                        if (_statusFilter != null)
+                          Chip(
+                            label: Text('Status: ${_formatStatus(_statusFilter)}'),
+                            onDeleted: () => setState(() => _statusFilter = null),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 48,
-                child: OutlinedButton(
-                  onPressed: _openFilters,
-                  child: const Icon(Icons.tune),
-                ),
-              ),
-            ],
-          ),
-          if (_searchQuery.isNotEmpty || _statusFilter != null) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                if (_searchQuery.isNotEmpty)
-                  Chip(
-                    label: Text('Busca: $_searchQuery'),
-                    onDeleted: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    },
-                  ),
-                if (_statusFilter != null)
-                  Chip(
-                    label: Text('Status: $_statusFilter'),
-                    onDeleted: () => setState(() => _statusFilter = null),
-                  ),
-              ],
             ),
-          ],
+          ),
+          const SizedBox(height: 16),
+          const SectionHeader(
+            title: 'Orçamentos cadastrados',
+            subtitle: 'Histórico e andamento dos orçamentos',
+          ),
           const SizedBox(height: 12),
           if (_budgets.isEmpty)
             const Card(
@@ -339,6 +367,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             ),
           ...filteredBudgets.map((budget) {
             final clientName = budget['client_name'] ?? 'Sem cliente';
+            final statusLabel = _formatStatus(budget['status']?.toString());
             return Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -348,10 +377,11 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Orçamento #${budget['id']}', style: Theme.of(context).textTheme.titleSmall),
+                        Text('Orçamento #${budget['id']}',
+                            style: Theme.of(context).textTheme.titleSmall),
                         Row(
                           children: [
-                            Chip(label: Text(budget['status']?.toString() ?? 'rascunho')),
+                            Chip(label: Text(statusLabel)),
                             PopupMenuButton<String>(
                               onSelected: (value) {
                                 if (value == 'edit') {
@@ -370,7 +400,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text('Cliente: $clientName | Total: ${formatCurrency(budget['total'] ?? 0)}'),
+                    Text('Cliente: $clientName • Total: ${formatCurrency(budget['total'] ?? 0)}'),
                     if (budget['task_title'] != null)
                       Text('Tarefa: ${budget['task_title']}'),
                     if (budget['report_title'] != null)

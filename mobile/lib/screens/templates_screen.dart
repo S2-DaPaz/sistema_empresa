@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../widgets/app_scaffold.dart';
@@ -291,7 +291,7 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('Adicione seções e campos para o relatório.'),
+                child: Text('Adicione Seções e campos para o Relatório.'),
               ),
             ),
           ..._sections.map((section) {
@@ -356,17 +356,17 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
                                 items: const [
                                   DropdownMenuItem(value: 'text', child: Text('Texto curto')),
                                   DropdownMenuItem(value: 'textarea', child: Text('Texto longo')),
-                                  DropdownMenuItem(value: 'number', child: Text('Numero')),
+                                  DropdownMenuItem(value: 'number', child: Text('Número')),
                                   DropdownMenuItem(value: 'date', child: Text('Data')),
                                   DropdownMenuItem(value: 'select', child: Text('Seleção')),
                                   DropdownMenuItem(value: 'yesno', child: Text('Sim ou não')),
-                                  DropdownMenuItem(value: 'checkbox', child: Text('Caixa de seleção')),
+                                  DropdownMenuItem(value: 'checkbox', child: Text('Caixa de Seleção')),
                                 ],
                                 onChanged: (value) => setState(() => field['type'] = value ?? 'text'),
                               ),
                               SwitchListTile(
                                 value: required,
-                                title: const Text('Obrigatorio'),
+                                title: const Text('Obrigatório'),
                                 onChanged: (value) => setState(() => field['required'] = value),
                               ),
                               if (fieldType == 'select')
@@ -442,3 +442,4 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
     );
   }
 }
+

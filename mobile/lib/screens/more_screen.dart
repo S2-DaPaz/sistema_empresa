@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import 'products_screen.dart';
 import 'task_types_screen.dart';
@@ -6,8 +6,10 @@ import 'templates_screen.dart';
 import 'users_screen.dart';
 import '../services/auth_service.dart';
 import '../services/permissions.dart';
+import '../services/theme_service.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/brand_logo.dart';
+import '../widgets/section_header.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -28,15 +30,15 @@ class MoreScreen extends StatelessWidget {
               session?.user['role']?.toString() ??
               'visitante';
           final canViewUsers = AuthService.instance.hasPermission(Permissions.viewUsers);
+
           return ListView(
             children: [
-              const SizedBox(height: 8),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const BrandLogo(height: 36),
+                      const BrandLogo(height: 44),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -48,10 +50,10 @@ class MoreScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Atalhos e configurações do sistema',
+                              'Central de operações técnicas',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Text('$name • $role'),
                           ],
                         ),
@@ -60,13 +62,68 @@ class MoreScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              const SectionHeader(
+                title: 'Preferências',
+                subtitle: 'Aparência, tema e opções do app',
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: ValueListenableBuilder<ThemeMode>(
+                    valueListenable: ThemeService.instance.mode,
+                    builder: (context, mode, _) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tema do app',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 8),
+                          SegmentedButton<ThemeMode>(
+                            segments: const [
+                              ButtonSegment(
+                                value: ThemeMode.system,
+                                label: Text('Sistema'),
+                                icon: Icon(Icons.brightness_auto_outlined),
+                              ),
+                              ButtonSegment(
+                                value: ThemeMode.light,
+                                label: Text('Claro'),
+                                icon: Icon(Icons.light_mode_outlined),
+                              ),
+                              ButtonSegment(
+                                value: ThemeMode.dark,
+                                label: Text('Escuro'),
+                                icon: Icon(Icons.dark_mode_outlined),
+                              ),
+                            ],
+                            selected: {mode},
+                            onSelectionChanged: (selection) {
+                              final selected = selection.first;
+                              ThemeService.instance.setThemeMode(selected);
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const SectionHeader(
+                title: 'Acesso rápido',
+                subtitle: 'Cadastros e configurações do sistema',
+              ),
               const SizedBox(height: 12),
               if (canViewUsers)
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.people_outline),
                     title: const Text('Usuários'),
-                  subtitle: const Text('Gestão de usuários do sistema'),
+                    subtitle: const Text('Gestão de usuários do sistema'),
                     onTap: () => _open(context, const UsersScreen()),
                   ),
                 ),
@@ -94,7 +151,7 @@ class MoreScreen extends StatelessWidget {
                   onTap: () => _open(context, const TemplatesScreen()),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.logout),

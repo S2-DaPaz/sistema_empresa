@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/formatters.dart';
@@ -105,11 +105,11 @@ class _TasksScreenState extends State<TasksScreen> {
       case 'alta':
         return 'Alta';
       case 'media':
-        return 'Media';
+        return 'Média';
       case 'baixa':
         return 'Baixa';
       default:
-        return value?.isNotEmpty == true ? value! : 'Media';
+        return value?.isNotEmpty == true ? value! : 'Média';
     }
   }
 
@@ -229,79 +229,83 @@ class _TasksScreenState extends State<TasksScreen> {
       ),
       body: ListView(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Buscar tarefas',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () {
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Buscar tarefas',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchQuery.isEmpty
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.close),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  ),
+                          ),
+                          onChanged: (value) => setState(() => _searchQuery = value),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 48,
+                        child: OutlinedButton(
+                          onPressed: _openFilters,
+                          child: const Icon(Icons.tune),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SegmentedButton<TaskViewMode>(
+                      segments: const [
+                        ButtonSegment(value: TaskViewMode.list, label: Text('Lista')),
+                        ButtonSegment(value: TaskViewMode.calendar, label: Text('Calendário')),
+                      ],
+                      selected: {_viewMode},
+                      onSelectionChanged: (value) {
+                        setState(() {
+                          _viewMode = value.first;
+                        });
+                      },
+                    ),
+                  ),
+                  if (_searchQuery.isNotEmpty || _statusFilter != null) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        if (_searchQuery.isNotEmpty)
+                          Chip(
+                            label: Text('Busca: $_searchQuery'),
+                            onDeleted: () {
                               _searchController.clear();
                               setState(() => _searchQuery = '');
                             },
                           ),
-                  ),
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                ),
+                        if (_statusFilter != null)
+                          Chip(
+                            label: Text('Status: ${_formatStatus(_statusFilter)}'),
+                            onDeleted: () => setState(() => _statusFilter = null),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 48,
-                child: OutlinedButton(
-                  onPressed: _openFilters,
-                  child: const Icon(Icons.tune),
-                ),
-              ),
-            ],
-          ),
-          if (_searchQuery.isNotEmpty || _statusFilter != null) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                if (_searchQuery.isNotEmpty)
-                  Chip(
-                    label: Text('Busca: $_searchQuery'),
-                    onDeleted: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    },
-                  ),
-                if (_statusFilter != null)
-                  Chip(
-                    label: Text('Status: ${_formatStatus(_statusFilter)}'),
-                    onDeleted: () => setState(() => _statusFilter = null),
-                  ),
-              ],
             ),
-          ],
-          ToggleButtons(
-            isSelected: [
-              _viewMode == TaskViewMode.list,
-              _viewMode == TaskViewMode.calendar,
-            ],
-            onPressed: (index) {
-              setState(() {
-                _viewMode = index == 0 ? TaskViewMode.list : TaskViewMode.calendar;
-              });
-            },
-            children: const [
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('Lista'),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('Calendario'),
-              ),
-            ],
           ),
           const SizedBox(height: 16),
           if (_viewMode == TaskViewMode.list)
@@ -316,12 +320,13 @@ class _TasksScreenState extends State<TasksScreen> {
               ...filteredTasks.map((task) {
                 return Card(
                   child: ListTile(
+                    leading: const Icon(Icons.task_alt),
                     title: Text(task['title']?.toString() ?? 'Tarefa'),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${task['client_name'] ?? 'Sem cliente'} | ${task['task_type_name'] ?? 'Sem tipo'}',
+                          '${task['client_name'] ?? 'Sem cliente'} • ${task['task_type_name'] ?? 'Sem tipo'}',
                         ),
                         const SizedBox(height: 6),
                         Wrap(
@@ -356,7 +361,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     Row(
                       children: [
                         IconButton(
-                          tooltip: 'Mes anterior',
+                          tooltip: 'Mês anterior',
                           onPressed: () {
                             setState(() {
                               _calendarMonth = DateTime(
@@ -376,7 +381,7 @@ class _TasksScreenState extends State<TasksScreen> {
                           ),
                         ),
                         IconButton(
-                          tooltip: 'Proximo mes',
+                          tooltip: 'Próximo mês',
                           onPressed: () {
                             setState(() {
                               _calendarMonth = DateTime(
@@ -408,10 +413,11 @@ class _TasksScreenState extends State<TasksScreen> {
                                 )),
                         ...calendarDays.map((date) {
                           if (date == null) {
+                            final outline = Theme.of(context).colorScheme.outline;
                             return Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
+                                border: Border.all(color: outline.withValues(alpha: 0.35)),
                               ),
                             );
                           }
@@ -427,7 +433,10 @@ class _TasksScreenState extends State<TasksScreen> {
                                 border: Border.all(
                                   color: isSelected
                                       ? Theme.of(context).colorScheme.primary
-                                      : Colors.black.withValues(alpha: 0.1),
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .outline
+                                      .withValues(alpha: 0.35),
                                 ),
                               ),
                               child: Stack(
@@ -486,6 +495,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     ),
                   ...tasksForSelectedDate.map((task) => Card(
                         child: ListTile(
+                          leading: const Icon(Icons.task_alt),
                           title: Text(task['title']?.toString() ?? 'Tarefa'),
                           subtitle: Text(task['client_name']?.toString() ?? 'Sem cliente'),
                           onTap: () => _openTask(task['id'] as int?),

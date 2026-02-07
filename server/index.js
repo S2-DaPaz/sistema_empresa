@@ -977,40 +977,108 @@ function injectPublicToolbar(
     padding: 20px;
   }
   .public-approve-overlay.active { display: flex; }
-  .public-approve-card {
-    width: min(640px, 96vw);
+  .public-approve-card,
+  .public-signature-screen {
+    width: min(680px, 96vw);
     background: #ffffff;
-    border-radius: 16px;
-    padding: 20px;
+    border-radius: 18px;
     box-shadow: 0 24px 60px rgba(10, 30, 60, 0.25);
+  }
+  .public-approve-card {
+    padding: 20px;
     display: grid;
     gap: 16px;
   }
+  .public-approve-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .public-approve-header button {
+    border: none;
+    background: transparent;
+    font-size: 18px;
+    cursor: pointer;
+    color: #64748b;
+  }
   .public-approve-card h3 { margin: 0; }
+  .public-approve-card .headline { font-weight: 700; font-size: 18px; }
   .public-approve-fields { display: grid; gap: 10px; }
+  .public-approve-fields label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #1f2a37;
+  }
   .public-approve-fields input {
     width: 100%;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid #d7e0ec;
-    font-size: 14px;
-  }
-  .public-approve-signature {
-    border: 1px dashed #b8c6d8;
+    padding: 12px 14px;
     border-radius: 12px;
-    padding: 10px;
-  }
-  .public-approve-signature canvas {
-    width: 100%;
-    height: 200px;
-    background: #f8fbff;
-    border-radius: 10px;
-    touch-action: none;
+    border: 1px solid #d7e0ec;
+    background: #f4f7fb;
+    font-size: 15px;
   }
   .public-approve-actions {
     display: flex;
     gap: 8px;
-    justify-content: flex-end;
+    justify-content: center;
+  }
+  .public-signature-screen {
+    display: none;
+    padding: 16px;
+    width: min(880px, 96vw);
+    height: min(560px, 92vh);
+  }
+  .public-signature-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e6edf6;
+  }
+  .public-signature-header button {
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+    cursor: pointer;
+  }
+  .public-signature-title {
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .public-signature-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+    color: #475569;
+    margin: 12px 0 6px;
+  }
+  .public-approve-signature {
+    border: 1px solid #d7e0ec;
+    border-radius: 14px;
+    padding: 12px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+  .public-approve-signature canvas {
+    width: 100%;
+    height: 100%;
+    background: #ffffff;
+    border-radius: 10px;
+    touch-action: none;
+  }
+  .public-signature-footer {
+    padding-top: 12px;
+    display: flex;
+    justify-content: center;
   }
   @media print {
     body { background: #ffffff !important; }
@@ -1052,12 +1120,31 @@ function injectPublicToolbar(
       const overlay = document.getElementById("budget-approve-overlay");
       if (!overlay) return;
       overlay.classList.add("active");
-      setupApproveCanvas();
+      showApproveInfo();
     }
   function closeBudgetApproval() {
       const overlay = document.getElementById("budget-approve-overlay");
       if (!overlay) return;
       overlay.classList.remove("active");
+    }
+  function showApproveInfo() {
+      const info = document.getElementById("budget-approve-info");
+      const signature = document.getElementById("budget-approve-signature");
+      if (info) info.style.display = "grid";
+      if (signature) signature.style.display = "none";
+    }
+  function showApproveSignature() {
+      const info = document.getElementById("budget-approve-info");
+      const signature = document.getElementById("budget-approve-signature");
+      if (info) info.style.display = "none";
+      if (signature) signature.style.display = "flex";
+      const name = document.getElementById("budget-approve-name").value.trim();
+      const documentValue = document.getElementById("budget-approve-document").value.trim();
+      const nameTarget = document.getElementById("budget-approve-signer-name");
+      const docTarget = document.getElementById("budget-approve-signer-document");
+      if (nameTarget) nameTarget.textContent = name || "";
+      if (docTarget) docTarget.textContent = documentValue || "";
+      setupApproveCanvas();
     }
   function setupApproveCanvas() {
       approveCanvas = document.getElementById("budget-approve-canvas");
@@ -1140,28 +1227,46 @@ function injectPublicToolbar(
   const approveModal = approveBudget || approveReport
     ? `
     <div class="public-approve-overlay" id="budget-approve-overlay">
-      <div class="public-approve-card">
+      <div class="public-approve-card" id="budget-approve-info">
+        <div class="public-approve-header">
+          <h3>Assinatura</h3>
+          <button type="button" aria-label="Fechar" onclick="closeBudgetApproval()">×</button>
+        </div>
         <div>
-          <h3>${approveBudget ? "Aprovar orçamento" : "Assinar relatório"}</h3>
-          <small>Assine para confirmar. Nome e CPF são opcionais.</small>
+          <div class="headline">Quem está assinando?</div>
         </div>
         <div class="public-approve-fields">
-          <input id="budget-approve-name" type="text" placeholder="Nome (opcional)" />
-          <input id="budget-approve-document" type="text" placeholder="CPF (opcional)" />
+          <label for="budget-approve-name">Nome</label>
+          <input id="budget-approve-name" type="text" placeholder="Nome" />
+          <label for="budget-approve-document">CPF (opcional)</label>
+          <input id="budget-approve-document" type="text" placeholder="CPF" />
+        </div>
+        <div class="public-approve-actions">
+          <button type="button" onclick="showApproveSignature()">Continuar</button>
+        </div>
+      </div>
+      <div class="public-signature-screen" id="budget-approve-signature">
+        <div class="public-signature-header">
+          <button type="button" onclick="closeBudgetApproval()">Fechar</button>
+          <div class="public-signature-title">Assinatura</div>
+          <button type="button" onclick="clearApproveCanvas()">Limpar</button>
+        </div>
+        <div class="public-signature-meta">
+          <div id="budget-approve-signer-name"></div>
+          <div id="budget-approve-signer-document"></div>
         </div>
         <div class="public-approve-signature">
           <canvas id="budget-approve-canvas"></canvas>
         </div>
-        <div class="public-approve-actions">
-          <button type="button" onclick="clearApproveCanvas()">Limpar</button>
-          <button type="button" onclick="closeBudgetApproval()">Cancelar</button>
+        <div class="public-signature-footer">
           <button type="button" onclick="submitBudgetApproval()">Salvar assinatura</button>
         </div>
       </div>
     </div>
   `
     : "";
-  const toolbarHtml = `
+
+const toolbarHtml = `
 <div class="public-toolbar">
     <div class="title">${displayTitle}</div>
     ${statusBadge}

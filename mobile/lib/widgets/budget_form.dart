@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../models/budget_item.dart';
 import '../screens/budget_item_form_page.dart';
@@ -42,7 +42,7 @@ class _BudgetFormState extends State<BudgetForm> {
   final TextEditingController _notes = TextEditingController();
   final TextEditingController _internalNote = TextEditingController();
   final TextEditingController _proposalValidity = TextEditingController(text: '30 dias');
-  final TextEditingController _paymentTerms = TextEditingController(text: 'A vista');
+  final TextEditingController _paymentTerms = TextEditingController(text: 'À vista');
   final TextEditingController _serviceDeadline = TextEditingController(text: '03 a 04 horas');
   final TextEditingController _productValidity = TextEditingController(text: '03 meses');
   final TextEditingController _discount = TextEditingController(text: '0');
@@ -119,7 +119,7 @@ class _BudgetFormState extends State<BudgetForm> {
     _notes.text = budget['notes']?.toString() ?? '';
     _internalNote.text = budget['internal_note']?.toString() ?? '';
     _proposalValidity.text = budget['proposal_validity']?.toString() ?? '30 dias';
-    _paymentTerms.text = budget['payment_terms']?.toString() ?? 'A vista';
+    _paymentTerms.text = budget['payment_terms']?.toString() ?? 'À vista';
     _serviceDeadline.text = budget['service_deadline']?.toString() ?? '03 a 04 horas';
     _productValidity.text = budget['product_validity']?.toString() ?? '03 meses';
     _discount.text = (budget['discount'] ?? 0).toString();
@@ -285,7 +285,7 @@ class _BudgetFormState extends State<BudgetForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            budgetId != null ? 'Orçamento atualizado com sucesso.' : 'Orçamento salvo com sucesso.',
+            budgetId != null ? 'orçamento atualizado com sucesso.' : 'orçamento salvo com sucesso.',
           ),
         ),
       );
@@ -359,10 +359,10 @@ class _BudgetFormState extends State<BudgetForm> {
               label: 'Condição de pagamento',
               value: _paymentTerms.text,
               items: const [
-                DropdownMenuItem(value: 'A vista', child: Text('A vista')),
+                DropdownMenuItem(value: 'À vista', child: Text('À vista')),
                 DropdownMenuItem(value: 'Parcelado', child: Text('Parcelado')),
               ],
-              onChanged: (value) => setState(() => _paymentTerms.text = value ?? 'A vista'),
+              onChanged: (value) => setState(() => _paymentTerms.text = value ?? 'À vista'),
             ),
             const SizedBox(height: 8),
             AppTextField(label: 'Prazo de serviço', controller: _serviceDeadline),
@@ -382,7 +382,7 @@ class _BudgetFormState extends State<BudgetForm> {
                 DropdownMenuItem(value: 'none', child: Text('Sem assinatura')),
                 DropdownMenuItem(value: 'client', child: Text('Cliente')),
                 DropdownMenuItem(value: 'tech', child: Text('Técnico')),
-                DropdownMenuItem(value: 'both', child: Text('Cliente e técnico')),
+                DropdownMenuItem(value: 'both', child: Text('Cliente e Técnico')),
               ],
               onChanged: (value) => setState(() => _signatureMode = value ?? 'none'),
             ),
@@ -410,7 +410,7 @@ class _BudgetFormState extends State<BudgetForm> {
               if (_signatureMode == 'tech' || _signatureMode == 'both') ...[
                 const SizedBox(height: 12),
                 SignaturePadField(
-                  label: 'Assinatura do técnico',
+                  label: 'Assinatura do Técnico',
                   value: _signatureTech,
                   onChanged: (value) => setState(() => _signatureTech = value),
                 ),
@@ -501,3 +501,4 @@ class _BudgetFormState extends State<BudgetForm> {
     );
   }
 }
+

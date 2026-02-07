@@ -26,7 +26,9 @@ class AppScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final titleWidget = showLogo
         ? Row(
             children: [
@@ -51,13 +53,13 @@ class AppScaffold extends StatelessWidget {
           : null,
       floatingActionButton: floatingActionButton,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFFF2F7FB),
-              Color(0xFFE7EFF5),
+              isDark ? const Color(0xFF0F1B2A) : const Color(0xFFF6FAFD),
+              isDark ? const Color(0xFF0B1320) : const Color(0xFFEAF2F8),
             ],
           ),
         ),
@@ -68,7 +70,7 @@ class AppScaffold extends StatelessWidget {
               right: -60,
               child: _GlowCircle(
                 size: 220,
-                color: colors.primary.withValues(alpha: 0.12),
+                color: colors.primary.withValues(alpha: isDark ? 0.12 : 0.16),
               ),
             ),
             Positioned(
@@ -76,7 +78,7 @@ class AppScaffold extends StatelessWidget {
               left: -80,
               child: _GlowCircle(
                 size: 260,
-                color: colors.secondary.withValues(alpha: 0.12),
+                color: colors.secondary.withValues(alpha: isDark ? 0.12 : 0.16),
               ),
             ),
             Positioned(
@@ -84,7 +86,7 @@ class AppScaffold extends StatelessWidget {
               left: -40,
               child: _GlowCircle(
                 size: 160,
-                color: colors.tertiary.withValues(alpha: 0.08),
+                color: colors.tertiary.withValues(alpha: isDark ? 0.08 : 0.12),
               ),
             ),
             SafeArea(
