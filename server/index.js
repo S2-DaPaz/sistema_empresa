@@ -1143,10 +1143,14 @@ function injectPublicToolbar(
         const endpoint = budgetId
           ? '/public/budgets/' + budgetId + '/approve?token=' + encodeURIComponent(token)
           : '/public/tasks/' + taskId + '/approve?token=' + encodeURIComponent(token);
+        if (!token) {
+          alert("Token inv?lido. Reabra o link p?blico.");
+          return;
+        }
         const response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signature, name, document: documentValue })
+          body: JSON.stringify({ signature, name, document: documentValue, token })
         });
         if (!response.ok) {
           throw new Error(await response.text());
