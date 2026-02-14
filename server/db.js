@@ -419,6 +419,14 @@ async function initSqlite() {
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_mode", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_scope", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_client", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_client_name", "TEXT");
+  await ensureColumn(
+    database,
+    DB_TYPES.SQLITE,
+    "tasks",
+    "signature_client_document",
+    "TEXT"
+  );
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_tech", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_pages", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "reports", "equipment_id", "INTEGER");
@@ -461,6 +469,14 @@ async function initPostgres() {
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_mode", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_scope", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_client", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_client_name", "TEXT");
+  await ensureColumn(
+    database,
+    DB_TYPES.POSTGRES,
+    "tasks",
+    "signature_client_document",
+    "TEXT"
+  );
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_tech", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_pages", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "reports", "equipment_id", "INTEGER");

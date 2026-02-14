@@ -1157,7 +1157,12 @@ function injectPublicToolbar(
         }
         window.location.reload();
       } catch (error) {
-        alert("Falha ao enviar assinatura. Tente novamente.");
+        const reason = error?.message ? String(error.message).slice(0, 200) : "";
+        alert(
+          reason
+            ? "Falha ao enviar assinatura: " + reason
+            : "Falha ao enviar assinatura. Tente novamente."
+        );
       }
     }
   async function removePublicSignature() {
@@ -1184,7 +1189,12 @@ function injectPublicToolbar(
         }
         window.location.reload();
       } catch (error) {
-        alert("Falha ao remover assinatura. Tente novamente.");
+        const reason = error?.message ? String(error.message).slice(0, 200) : "";
+        alert(
+          reason
+            ? "Falha ao remover assinatura: " + reason
+            : "Falha ao remover assinatura. Tente novamente."
+        );
       }
     }
   </script>`;
