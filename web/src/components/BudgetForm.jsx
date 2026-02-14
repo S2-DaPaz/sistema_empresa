@@ -81,7 +81,7 @@ export default function BudgetForm({
     updateItem(id, {
       product_id: value,
       description: selected?.name || "",
-      unit_price: selected?.price ? 0
+      unit_price: selected?.price || 0
     });
   }
 
@@ -292,6 +292,15 @@ export default function BudgetForm({
                   onChange={setSignatureClient}
                   disabled={!canManage}
                 />
+                {canManage && signatureClient && (
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={() => setSignatureClient("")}
+                  >
+                    Remover assinatura
+                  </button>
+                )}
               </div>
             )}
             {(signatureMode === "tech" || signatureMode === "both") && (
@@ -302,6 +311,15 @@ export default function BudgetForm({
                   onChange={setSignatureTech}
                   disabled={!canManage}
                 />
+                {canManage && signatureTech && (
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={() => setSignatureTech("")}
+                  >
+                    Remover assinatura
+                  </button>
+                )}
               </div>
             )}
           </div>

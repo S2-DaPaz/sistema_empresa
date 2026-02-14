@@ -925,12 +925,14 @@ export default function TaskDetail() {
                     onChange={(value) => setForm((prev) => ({ ...prev, task_type_id: value }))}
                   />
                   <FormField
-                    label="Início"\n                    type="date-br"
+                    label="Inicio"
+                    type="date-br"
                     value={form.start_date}
                     onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))}
                   />
                   <FormField
-                    label="Fim"\n                    type="date-br"
+                    label="Fim"
+                    type="date-br"
                     value={form.due_date}
                     onChange={(value) => setForm((prev) => ({ ...prev, due_date: value }))}
                   />
@@ -1352,6 +1354,15 @@ export default function TaskDetail() {
                             onChange={setSignatureClient}
                             disabled={!canManage}
                           />
+                          {canManage && signatureClient && (
+                            <button
+                              className="btn ghost"
+                              type="button"
+                              onClick={() => setSignatureClient("")}
+                            >
+                              Remover assinatura
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -1363,6 +1374,15 @@ export default function TaskDetail() {
                             onChange={setSignatureTech}
                             disabled={!canManage}
                           />
+                          {canManage && signatureTech && (
+                            <button
+                              className="btn ghost"
+                              type="button"
+                              onClick={() => setSignatureTech("")}
+                            >
+                              Remover assinatura
+                            </button>
+                          )}
                         </div>
                       )}
                     </>
@@ -1384,6 +1404,15 @@ export default function TaskDetail() {
                                 onChange={(value) => updateSignaturePage(page.key, "client", value)}
                                 disabled={!canManage}
                               />
+                              {canManage && signaturePages?.[page.key]?.client && (
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => updateSignaturePage(page.key, "client", "")}
+                                >
+                                  Remover assinatura
+                                </button>
+                              )}
                             </div>
                           )}
                           {(signatureMode === "tech" || signatureMode === "both") && (
@@ -1394,6 +1423,15 @@ export default function TaskDetail() {
                                 onChange={(value) => updateSignaturePage(page.key, "tech", value)}
                                 disabled={!canManage}
                               />
+                              {canManage && signaturePages?.[page.key]?.tech && (
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => updateSignaturePage(page.key, "tech", "")}
+                                >
+                                  Remover assinatura
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

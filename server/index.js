@@ -1160,6 +1160,33 @@ function injectPublicToolbar(
         alert("Falha ao enviar assinatura. Tente novamente.");
       }
     }
+  async function removePublicSignature() {
+      const budgetId = document.body.dataset.publicBudgetId;
+      const taskId = document.body.dataset.publicTaskId;
+      const token = document.body.dataset.publicToken;
+      if (!token) {
+        alert("Token inv?lido. Reabra o link p?blico.");
+        return;
+      }
+      const confirmed = window.confirm("Deseja remover a assinatura atual?");
+      if (!confirmed) return;
+      try {
+        const endpoint = budgetId
+          ? '/public/budgets/' + budgetId + '/signature/remove?token=' + encodeURIComponent(token)
+          : '/public/tasks/' + taskId + '/signature/remove?token=' + encodeURIComponent(token);
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token })
+        });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        window.location.reload();
+      } catch (error) {
+        alert("Falha ao remover assinatura. Tente novamente.");
+      }
+    }
   </script>`;
 
   const displayTitle = title || `Relatorio da tarefa #${taskId}`;
@@ -1194,6 +1221,7 @@ function injectPublicToolbar(
         </div>
         <div class="public-approve-actions">
           <button type="button" onclick="clearApproveCanvas()">Limpar</button>
+          <button type="button" onclick="removePublicSignature()">Remover assinatura</button>
           <button type="button" onclick="closeBudgetApproval()">Cancelar</button>
           <button type="button" onclick="submitBudgetApproval()">Salvar assinatura</button>
         </div>
@@ -3010,6 +3038,40 @@ async function main() {
     }
   });
 
+  app.post("/public/tasks/:id/signature/remove", async (req, res) => {
+    try {
+      const token = String(req.query.token || req.body?.token || "");
+      if (!token) {
+        return res.status(401).send("Token publico ausente.");
+      }
+      const link = await findValidPublicLink(db, req.params.id, token);
+      if (!link) {
+        return res.status(403).send("Link publico invalido ou expirado.");
+      }
+      const task = await db.get(
+        "SELECT signature_mode, signature_tech FROM tasks WHERE id = ?",
+        [req.params.id]
+      );
+      let nextMode = task?.signature_mode || "none";
+      if (nextMode === "client") nextMode = "none";
+      if (nextMode === "both") nextMode = task?.signature_tech ? "tech" : "none";
+      await db.run(
+        `
+        UPDATE tasks
+        SET signature_client = NULL,
+            signature_client_name = NULL,
+            signature_client_document = NULL,
+            signature_mode = ?
+        WHERE id = ?
+      `,
+        [nextMode, req.params.id]
+      );
+      scheduleWarmTaskPdfCache(db, req.params.id);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).send("Falha ao remover assinatura do relatorio.");
+    }
+  });
   app.get("/public/budgets/:id", async (req, res) => {
     try {
       const token = String(req.query.token || "");
@@ -3110,6 +3172,43 @@ async function main() {
     }
   });
 
+  app.post("/public/budgets/:id/signature/remove", async (req, res) => {
+    try {
+      const token = String(req.query.token || req.body?.token || "");
+      if (!token) {
+        return res.status(401).send("Token publico ausente.");
+      }
+      const link = await findValidBudgetPublicLink(db, req.params.id, token);
+      if (!link) {
+        return res.status(403).send("Link publico invalido ou expirado.");
+      }
+      const budget = await db.get(
+        "SELECT signature_mode, signature_tech, status, task_id FROM budgets WHERE id = ?",
+        [req.params.id]
+      );
+      let nextMode = budget?.signature_mode || "none";
+      if (nextMode === "client") nextMode = "none";
+      if (nextMode === "both") nextMode = budget?.signature_tech ? "tech" : "none";
+      const nextStatus = budget?.status === "aprovado" ? "em_andamento" : budget?.status;
+      await db.run(
+        `
+        UPDATE budgets
+        SET signature_client = NULL,
+            signature_client_name = NULL,
+            signature_client_document = NULL,
+            signature_mode = ?,
+            status = ?
+        WHERE id = ?
+      `,
+        [nextMode, nextStatus || "rascunho", req.params.id]
+      );
+      scheduleWarmBudgetPdfCache(db, req.params.id);
+      scheduleWarmTaskPdfCache(db, budget?.task_id);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).send("Falha ao remover assinatura do orcamento.");
+    }
+  });
   app.get("/public/tasks/:id/pdf", async (req, res) => {
     try {
       const token = String(req.query.token || "");

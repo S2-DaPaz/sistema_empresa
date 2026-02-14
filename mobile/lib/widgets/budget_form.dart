@@ -402,17 +402,45 @@ class _BudgetFormState extends State<BudgetForm> {
             if (_signatureMode != 'none') ...[
               const SizedBox(height: 12),
               if (_signatureMode == 'client' || _signatureMode == 'both')
-                SignaturePadField(
-                  label: 'Assinatura do cliente',
-                  value: _signatureClient,
-                  onChanged: (value) => setState(() => _signatureClient = value),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SignaturePadField(
+                      label: 'Assinatura do cliente',
+                      value: _signatureClient,
+                      onChanged: (value) => setState(() => _signatureClient = value),
+                    ),
+                    if (_signatureClient.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => setState(() => _signatureClient = ''),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Remover assinatura'),
+                        ),
+                      ),
+                  ],
                 ),
               if (_signatureMode == 'tech' || _signatureMode == 'both') ...[
                 const SizedBox(height: 12),
-                SignaturePadField(
-                  label: 'Assinatura do Técnico',
-                  value: _signatureTech,
-                  onChanged: (value) => setState(() => _signatureTech = value),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SignaturePadField(
+                      label: 'Assinatura do Técnico',
+                      value: _signatureTech,
+                      onChanged: (value) => setState(() => _signatureTech = value),
+                    ),
+                    if (_signatureTech.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => setState(() => _signatureTech = ''),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Remover assinatura'),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ],
