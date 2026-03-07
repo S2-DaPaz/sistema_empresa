@@ -1360,7 +1360,10 @@ async function fetchTaskPdfData(db, taskId) {
     SELECT
       reports.*,
       report_templates.structure AS template_structure,
-      equipments.name AS equipment_name
+      equipments.name AS equipment_name,
+      equipments.model AS equipment_model,
+      equipments.serial AS equipment_serial,
+      equipments.description AS equipment_description
     FROM reports
     LEFT JOIN report_templates ON report_templates.id = reports.template_id
     LEFT JOIN equipments ON equipments.id = reports.equipment_id

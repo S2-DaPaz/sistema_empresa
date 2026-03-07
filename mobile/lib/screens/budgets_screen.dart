@@ -1,8 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
+import '../services/entity_refresh_service.dart';
 import '../utils/budget_email.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
@@ -21,6 +24,7 @@ class BudgetsScreen extends StatefulWidget {
 class _BudgetsScreenState extends State<BudgetsScreen> {
   final ApiService _api = ApiService();
   final TextEditingController _searchController = TextEditingController();
+  StreamSubscription<String>? _entityRefreshSubscription;
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _budgets = [];
@@ -32,11 +36,16 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   @override
   void initState() {
     super.initState();
+    _entityRefreshSubscription = EntityRefreshService.instance.listen(
+      const ['/products', '/clients'],
+      (_) => _load(),
+    );
     _load();
   }
 
   @override
   void dispose() {
+    _entityRefreshSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -47,7 +56,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       _error = null;
     });
     try {
-      final budgets = await _api.get('/budgets?includeItems=1') as List<dynamic>;
+      final budgets =
+          await _api.get('/budgets?includeItems=1') as List<dynamic>;
       final clients = await _api.get('/clients') as List<dynamic>;
       final products = await _api.get('/products') as List<dynamic>;
       setState(() {
@@ -129,13 +139,17 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       budget['status'],
       items,
     ];
-    return parts.map((value) => value?.toString() ?? '').join(' ').toLowerCase();
+    return parts
+        .map((value) => value?.toString() ?? '')
+        .join(' ')
+        .toLowerCase();
   }
 
   List<Map<String, dynamic>> _filteredBudgets() {
     final query = _searchQuery.trim().toLowerCase();
     return _budgets.where((budget) {
-      if (_statusFilter != null && budget['status']?.toString() != _statusFilter) {
+      if (_statusFilter != null &&
+          budget['status']?.toString() != _statusFilter) {
         return false;
       }
       if (query.isEmpty) return true;
@@ -194,7 +208,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             return Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: SingleChildScrollView(
                 controller: scrollController,
@@ -229,8 +244,12 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         title: const Text('Remover orçamento'),
         content: const Text('Deseja remover este orçamento?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remover')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover')),
         ],
       ),
     );
@@ -306,7 +325,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                                     },
                                   ),
                           ),
-                          onChanged: (value) => setState(() => _searchQuery = value),
+                          onChanged: (value) =>
+                              setState(() => _searchQuery = value),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -335,8 +355,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                           ),
                         if (_statusFilter != null)
                           Chip(
-                            label: Text('Status: ${_formatStatus(_statusFilter)}'),
-                            onDeleted: () => setState(() => _statusFilter = null),
+                            label:
+                                Text('Status: ${_formatStatus(_statusFilter)}'),
+                            onDeleted: () =>
+                                setState(() => _statusFilter = null),
                           ),
                       ],
                     ),
@@ -362,7 +384,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('Nenhum orçamento encontrado com os filtros atuais.'),
+                child:
+                    Text('Nenhum orçamento encontrado com os filtros atuais.'),
               ),
             ),
           ...filteredBudgets.map((budget) {
@@ -391,8 +414,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                                 }
                               },
                               itemBuilder: (context) => const [
-                                PopupMenuItem(value: 'edit', child: Text('Editar')),
-                                PopupMenuItem(value: 'delete', child: Text('Remover')),
+                                PopupMenuItem(
+                                    value: 'edit', child: Text('Editar')),
+                                PopupMenuItem(
+                                    value: 'delete', child: Text('Remover')),
                               ],
                             ),
                           ],
@@ -400,7 +425,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text('Cliente: $clientName • Total: ${formatCurrency(budget['total'] ?? 0)}'),
+                    Text(
+                        'Cliente: $clientName • Total: ${formatCurrency(budget['total'] ?? 0)}'),
                     if (budget['task_title'] != null)
                       Text('Tarefa: ${budget['task_title']}'),
                     if (budget['report_title'] != null)
@@ -411,9 +437,13 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         .map((item) => Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Expanded(child: Text(item['description']?.toString() ?? 'Item')),
+                                  Expanded(
+                                      child: Text(
+                                          item['description']?.toString() ??
+                                              'Item')),
                                   Text(formatCurrency(item['total'] ?? 0)),
                                 ],
                               ),

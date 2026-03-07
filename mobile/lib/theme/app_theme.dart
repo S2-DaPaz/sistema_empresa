@@ -65,7 +65,7 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: scheme.surface,
         indicatorColor: scheme.primary.withValues(alpha: 0.14),
-        labelTextStyle: MaterialStateProperty.all(
+        labelTextStyle: WidgetStateProperty.all(
           textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w600,
             fontSize: 11.5,
@@ -73,8 +73,8 @@ class AppTheme {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        iconTheme: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return IconThemeData(color: scheme.primary);
           }
           return IconThemeData(color: scheme.onSurface.withValues(alpha: 0.6));

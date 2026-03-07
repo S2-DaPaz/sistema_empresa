@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/entity_refresh_service.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../utils/formatters.dart';
@@ -40,8 +41,8 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
         case FieldType.textarea:
         case FieldType.number:
         case FieldType.date:
-          _controllers[field.name] =
-              TextEditingController(text: formatDateInput(rawValue?.toString()));
+          _controllers[field.name] = TextEditingController(
+              text: formatDateInput(rawValue?.toString()));
           break;
         case FieldType.select:
           _values[field.name] = rawValue;
@@ -73,11 +74,13 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
         case FieldType.text:
         case FieldType.textarea:
         case FieldType.date:
-          payload[field.name] = parseDateBrToIso(_controllers[field.name]?.text.trim());
+          payload[field.name] =
+              parseDateBrToIso(_controllers[field.name]?.text.trim());
           break;
         case FieldType.number:
           final raw = _controllers[field.name]?.text.trim();
-          payload[field.name] = raw == null || raw.isEmpty ? 0 : num.tryParse(raw) ?? 0;
+          payload[field.name] =
+              raw == null || raw.isEmpty ? 0 : num.tryParse(raw) ?? 0;
           break;
         case FieldType.select:
           payload[field.name] = _values[field.name];
@@ -90,12 +93,14 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
 
     try {
       if (_isEdit) {
-        await _api.put('${widget.config.endpoint}/${widget.item?['id']}', payload);
+        await _api.put(
+            '${widget.config.endpoint}/${widget.item?['id']}', payload);
       } else {
         await _api.post(widget.config.endpoint, payload);
       }
+      EntityRefreshService.instance.notifyChanged(widget.config.endpoint);
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context, true);
     } catch (error) {
       setState(() => _error = error.toString());
     } finally {
@@ -122,7 +127,9 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: _isEdit ? 'Editar ${widget.config.title}' : 'Novo ${widget.config.title}',
+      title: _isEdit
+          ? 'Editar ${widget.config.title}'
+          : 'Novo ${widget.config.title}',
       body: ListView(
         children: [
           Card(
@@ -165,21 +172,24 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
                                 ),
                               )
                               .toList(),
-                          onChanged: (value) => setState(() => _values[field.name] = value),
+                          onChanged: (value) =>
+                              setState(() => _values[field.name] = value),
                         );
                         break;
                       case FieldType.checkbox:
                         fieldWidget = AppCheckboxField(
                           label: field.label,
                           value: _values[field.name] == true,
-                          onChanged: (value) => setState(() => _values[field.name] = value ?? false),
+                          onChanged: (value) => setState(
+                              () => _values[field.name] = value ?? false),
                         );
                         break;
                       case FieldType.date:
                         fieldWidget = AppDateField(
                           key: ValueKey(_controllers[field.name]?.text ?? ''),
                           label: field.label,
-                          value: formatDateInput(_controllers[field.name]?.text ?? ''),
+                          value: formatDateInput(
+                              _controllers[field.name]?.text ?? ''),
                           onTap: () => _pickDate(field),
                         );
                         break;
@@ -194,7 +204,8 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(
                         _error!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error),
                       ),
                     ),
                   SizedBox(

@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/entity_refresh_service.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../widgets/app_scaffold.dart';
@@ -63,8 +64,12 @@ class _EntityListScreenState extends State<EntityListScreen> {
         title: const Text('Remover registro'),
         content: const Text('Deseja remover este item?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remover')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover')),
         ],
       ),
     );
@@ -72,6 +77,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
 
     try {
       await _api.delete('${widget.config.endpoint}/$id');
+      EntityRefreshService.instance.notifyChanged(widget.config.endpoint);
       await _load();
     } catch (error) {
       if (!mounted) return;
@@ -147,7 +153,8 @@ class _EntityListScreenState extends State<EntityListScreen> {
             final map = item as Map<String, dynamic>;
             return Card(
               child: ListTile(
-                title: Text(map[widget.config.primaryField]?.toString() ?? 'Sem título'),
+                title: Text(map[widget.config.primaryField]?.toString() ??
+                    'Sem título'),
                 subtitle: Text(_buildSubtitle(map)),
                 onTap: () => _openForm(item: map),
                 trailing: PopupMenuButton<String>(

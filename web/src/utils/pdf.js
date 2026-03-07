@@ -232,6 +232,49 @@ function buildReportPageHtml({ report, task, client, signatureHtml, logoUrl }) {
     )
     .join("");
 
+  const equipmentRows = [
+    { label: "Nome", value: report?.equipment_name || "" },
+    { label: "Modelo", value: report?.equipment_model || "" },
+    { label: "Série", value: report?.equipment_serial || "" }
+  ].filter((row) => row.value);
+
+  const equipmentHtml =
+    equipmentRows.length || report?.equipment_description
+      ? `
+        <div class="section-card equipment-card">
+          <h3>Detalhes do equipamento</h3>
+          ${
+            equipmentRows.length
+              ? `
+                <div class="equipment-grid">
+                  ${equipmentRows
+                    .map(
+                      (row) => `
+                        <div class="equipment-row">
+                          <span>${escapeHtml(row.label)}</span>
+                          <strong>${escapeHtml(row.value)}</strong>
+                        </div>
+                      `
+                    )
+                    .join("")}
+                </div>
+              `
+              : ""
+          }
+          ${
+            report?.equipment_description
+              ? `
+                <div class="equipment-description">
+                  <span>Descrição</span>
+                  <p>${formatMultiline(report.equipment_description)}</p>
+                </div>
+              `
+              : ""
+          }
+        </div>
+      `
+      : "";
+
   const sectionsHtml = sections
     .map((section) => {
       const fields = (section.fields || [])
@@ -325,6 +368,8 @@ function buildReportPageHtml({ report, task, client, signatureHtml, logoUrl }) {
           ${taskHtml}
         </div>
       </div>
+
+      ${equipmentHtml}
 
       <div class="section-intro">
         <div class="intro-title">Detalhes do Relatório</div>
@@ -593,6 +638,14 @@ export function buildTaskPdfHtml({
   .intro-line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(26, 167, 214, 0.6), rgba(20, 194, 163, 0.2)); }
   .section-card { background: #ffffff; border: 1px solid #d7e0ec; border-left: 4px solid #1aa7d6; border-radius: 12px; padding: 12px 14px; page-break-inside: avoid; }
   .section-card h3 { margin: -12px -14px 10px; padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #17304f; background: #eef4fb; border-bottom: 1px solid #d7e0ec; border-top-left-radius: 10px; border-top-right-radius: 10px; }
+  .equipment-card { border-left-color: #14c2a3; }
+  .equipment-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .equipment-row { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid #e1e6ef; border-radius: 10px; background: #fbfdff; }
+  .equipment-row span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7a92; }
+  .equipment-row strong { font-size: 11px; color: #0c1b2a; }
+  .equipment-description { margin-top: 10px; display: grid; gap: 4px; padding-top: 10px; border-top: 1px dashed #d7e0ec; }
+  .equipment-description span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7a92; }
+  .equipment-description p { margin: 0; font-size: 11px; line-height: 1.5; color: #1f2f44; }
   .report-sections { display: grid; grid-template-columns: repeat(var(--section-cols, 1), minmax(0, 1fr)); gap: 12px; }
   .fields-grid { display: grid; grid-template-columns: repeat(var(--field-cols, 1), minmax(0, 1fr)); gap: 10px; }
   .report-sections .empty { grid-column: 1 / -1; }

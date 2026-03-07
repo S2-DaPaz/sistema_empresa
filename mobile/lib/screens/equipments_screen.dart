@@ -1,7 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
+import 'dart:async';
 
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/entity_refresh_service.dart';
 import '../services/permissions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/error_view.dart';
@@ -17,18 +20,31 @@ class EquipmentsScreen extends StatefulWidget {
 
 class _EquipmentsScreenState extends State<EquipmentsScreen> {
   final ApiService _api = ApiService();
+  StreamSubscription<String>? _entityRefreshSubscription;
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _equipments = [];
   List<Map<String, dynamic>> _clients = [];
 
-  bool get _canView => AuthService.instance.hasPermission(Permissions.viewTasks);
-  bool get _canManage => AuthService.instance.hasPermission(Permissions.manageTasks);
+  bool get _canView =>
+      AuthService.instance.hasPermission(Permissions.viewTasks);
+  bool get _canManage =>
+      AuthService.instance.hasPermission(Permissions.manageTasks);
 
   @override
   void initState() {
     super.initState();
+    _entityRefreshSubscription = EntityRefreshService.instance.listen(
+      const ['/equipments', '/clients'],
+      (_) => _load(),
+    );
     _load();
+  }
+
+  @override
+  void dispose() {
+    _entityRefreshSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -93,14 +109,19 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
         title: const Text('Remover equipamento'),
         content: const Text('Deseja remover este equipamento?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remover')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover')),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
       await _api.delete('/equipments/$id');
+      EntityRefreshService.instance.notifyChanged('/equipments');
       await _load();
     } catch (error) {
       if (!mounted) return;
@@ -122,12 +143,13 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
       );
     }
     if (!_canView) {
-      return AppScaffold(
+      return const AppScaffold(
         title: 'Equipamentos',
-        body: const Card(
+        body: Card(
           child: Padding(
             padding: EdgeInsets.all(16),
-            child: Text('Você não possui permissão para visualizar equipamentos.'),
+            child:
+                Text('Você não possui permissão para visualizar equipamentos.'),
           ),
         ),
       );
@@ -166,16 +188,22 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
                 child: ListTile(
                   title: Text(name),
                   subtitle: Text(subtitleParts.join(' | ')),
-                  onTap: _canManage ? () => _openForm(equipment: equipment) : null,
+                  onTap:
+                      _canManage ? () => _openForm(equipment: equipment) : null,
                   trailing: _canManage
                       ? PopupMenuButton<String>(
                           onSelected: (value) {
-                            if (value == 'edit') _openForm(equipment: equipment);
-                            if (value == 'delete') _deleteEquipment(equipment);
+                            if (value == 'edit') {
+                              _openForm(equipment: equipment);
+                            }
+                            if (value == 'delete') {
+                              _deleteEquipment(equipment);
+                            }
                           },
                           itemBuilder: (_) => const [
                             PopupMenuItem(value: 'edit', child: Text('Editar')),
-                            PopupMenuItem(value: 'delete', child: Text('Remover')),
+                            PopupMenuItem(
+                                value: 'delete', child: Text('Remover')),
                           ],
                         )
                       : null,
@@ -272,6 +300,7 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
       } else {
         await _api.post('/equipments', payload);
       }
+      EntityRefreshService.instance.notifyChanged('/equipments');
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (error) {
@@ -296,12 +325,16 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
           AppTextField(label: 'Nome', controller: _nameController),
           AppTextField(label: 'Modelo', controller: _modelController),
           AppTextField(label: 'Série', controller: _serialController),
-          AppTextField(label: 'Descrição', controller: _descriptionController, maxLines: 3),
+          AppTextField(
+              label: 'Descrição',
+              controller: _descriptionController,
+              maxLines: 3),
           const SizedBox(height: 12),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              child: Text(_error!,
+                  style: const TextStyle(color: Colors.redAccent)),
             ),
           ElevatedButton(
             onPressed: _saving ? null : _save,
@@ -312,5 +345,3 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
     );
   }
 }
-
-

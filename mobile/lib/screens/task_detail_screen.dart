@@ -85,6 +85,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
   String _signatureTech = '';
   Map<String, dynamic> _signaturePages = {};
 
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  void _openReportTab() {
+    if (!mounted) return;
+    if (_tabController.length <= 1) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_tabController.index != 1) {
+        _tabController.animateTo(1);
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -306,13 +324,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     try {
       await _api.delete('/budgets/$id');
       await _loadBudgets(_reports);
-      if (!mounted) return;
-      DefaultTabController.of(context)?.animateTo(1);
+      _openReportTab();
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      _showMessage(error.toString());
     }
   }
 
@@ -382,20 +396,45 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
       'signature_pages': _signaturePages,
     };
 
+    final isEditing = _taskId != null;
+
     try {
       if (_taskId == null) {
         final saved = await _api.post('/tasks', payload) as Map<String, dynamic>;
-        _taskId = saved['id'] as int?;
+        setState(() {
+          _taskId = saved['id'] as int?;
+        });
+        _openReportTab();
       } else {
         await _api.put('/tasks/$_taskId', payload);
+        _openReportTab();
       }
+    } catch (error) {
+      _showMessage(error.toString());
+      return;
+    }
+
+    Object? refreshError;
+    try {
+      await _loadClientEquipments();
       await _loadReports(_taskTypeId);
       await _loadBudgets(_reports);
-      if (!mounted) return;
-      _tabController.animateTo(1);
     } catch (error) {
-      setState(() => _error = error.toString());
+      refreshError = error;
     }
+
+    _openReportTab();
+
+    if (refreshError != null) {
+      _showMessage(
+        'Tarefa salva, mas houve uma falha ao atualizar a aba de relatório: $refreshError',
+      );
+      return;
+    }
+
+    _showMessage(
+      isEditing ? 'Tarefa atualizada com sucesso.' : 'Tarefa salva com sucesso.',
+    );
   }
   Map<String, dynamic> _normalizeReportAnswers() {
     final normalized = Map<String, dynamic>.from(_reportAnswers);
