@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || "";
+const DEFAULT_API_URL = "https://sistema-empresa-jvkb.onrender.com";
+const API_URL = (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
 
 let authToken = "";
 

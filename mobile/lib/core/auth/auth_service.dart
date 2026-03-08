@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config/app_config.dart';
+import '../network/request_executor.dart';
 import 'session_permissions.dart';
 
 class AuthException implements Exception {
@@ -67,9 +67,12 @@ class AuthService {
   Future<void> refreshUser() async {
     if (token == null) return;
 
-    final response = await _client.get(
-      AppConfig.buildUri('/auth/me'),
-      headers: {'Authorization': 'Bearer $token'},
+    final response = await RequestExecutor.send(
+      '/auth/me',
+      (uri) => _client.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      ),
     );
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -118,10 +121,13 @@ class AuthService {
     String path,
     Map<String, dynamic> body,
   ) async {
-    final response = await _client.post(
-      AppConfig.buildUri(path),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
+    final response = await _send(
+      path,
+      (uri) => _client.post(
+        uri,
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ),
     );
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -129,6 +135,19 @@ class AuthService {
     }
 
     throw AuthException(_extractError(response));
+  }
+
+  Future<http.Response> _send(
+    String path,
+    Future<http.Response> Function(Uri uri) request,
+  ) async {
+    try {
+      return await RequestExecutor.send(path, request);
+    } on NetworkRequestException catch (error) {
+      throw AuthException(error.message);
+    } on http.ClientException catch (error) {
+      throw AuthException(error.message);
+    }
   }
 
   Future<void> _applyAuthPayload(Map<String, dynamic> payload) async {

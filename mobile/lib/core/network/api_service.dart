@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import '../auth/auth_service.dart';
-import '../config/app_config.dart';
+import 'request_executor.dart';
 
 class ApiException implements Exception {
   ApiException(this.message);
@@ -34,43 +35,49 @@ class ApiService {
   }
 
   Future<dynamic> get(String path) async {
-    final response = await _client.get(
-      AppConfig.buildUri(path),
-      headers: _headers(json: false),
+    final response = await _send(
+      path,
+      (uri) => _client.get(uri, headers: _headers(json: false)),
     );
     return _handleResponse(response);
   }
 
   Future<dynamic> post(String path, Map<String, dynamic> body) async {
-    final response = await _client.post(
-      AppConfig.buildUri(path),
-      headers: _headers(),
-      body: jsonEncode(body),
+    final response = await _send(
+      path,
+      (uri) => _client.post(
+        uri,
+        headers: _headers(),
+        body: jsonEncode(body),
+      ),
     );
     return _handleResponse(response);
   }
 
   Future<dynamic> put(String path, Map<String, dynamic> body) async {
-    final response = await _client.put(
-      AppConfig.buildUri(path),
-      headers: _headers(),
-      body: jsonEncode(body),
+    final response = await _send(
+      path,
+      (uri) => _client.put(
+        uri,
+        headers: _headers(),
+        body: jsonEncode(body),
+      ),
     );
     return _handleResponse(response);
   }
 
   Future<dynamic> delete(String path) async {
-    final response = await _client.delete(
-      AppConfig.buildUri(path),
-      headers: _headers(json: false),
+    final response = await _send(
+      path,
+      (uri) => _client.delete(uri, headers: _headers(json: false)),
     );
     return _handleResponse(response);
   }
 
   Future<List<int>> getBytes(String path) async {
-    final response = await _client.get(
-      AppConfig.buildUri(path),
-      headers: _headers(json: false),
+    final response = await _send(
+      path,
+      (uri) => _client.get(uri, headers: _headers(json: false)),
     );
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -82,6 +89,21 @@ class ApiService {
     }
 
     throw ApiException(_extractError(response));
+  }
+
+  Future<http.Response> _send(
+    String path,
+    Future<http.Response> Function(Uri uri) request,
+  ) async {
+    try {
+      return await RequestExecutor.send(path, request);
+    } on TimeoutException catch (error) {
+      throw ApiException(error.toString());
+    } on NetworkRequestException catch (error) {
+      throw ApiException(error.message);
+    } on http.ClientException catch (error) {
+      throw ApiException(error.message);
+    }
   }
 
   dynamic _handleResponse(http.Response response) {

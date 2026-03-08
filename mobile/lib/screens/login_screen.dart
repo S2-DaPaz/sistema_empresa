@@ -87,15 +87,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          const BrandLogo(height: 44),
-                          const SizedBox(width: 12),
-                          Column(
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isCompact = constraints.maxWidth < 300;
+                          final brandText = Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 AppConfig.appName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -103,18 +104,44 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 AppConfig.appTagline,
+                                maxLines: isCompact ? 3 : 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodySmall,
                               ),
                             ],
-                          ),
-                        ],
+                          );
+
+                          if (isCompact) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Align(
+                                  alignment: Alignment.centerRight,
+                                  child: BrandLogo(height: 40),
+                                ),
+                                const SizedBox(height: 12),
+                                brandText,
+                              ],
+                            );
+                          }
+
+                          return Row(
+                            children: [
+                              const BrandLogo(height: 44),
+                              const SizedBox(width: 12),
+                              Expanded(child: brandText),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 20),
                       SegmentedButton<bool>(
                         segments: const [
                           ButtonSegment(value: false, label: Text('Entrar')),
                           ButtonSegment(
-                              value: true, label: Text('Criar conta')),
+                            value: true,
+                            label: Text('Criar conta'),
+                          ),
                         ],
                         selected: {_registerMode},
                         onSelectionChanged: _loading
