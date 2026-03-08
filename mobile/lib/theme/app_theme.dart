@@ -48,12 +48,15 @@ class AppTheme {
     );
 
     final isDark = brightness == Brightness.dark;
-    final fieldFill = isDark ? const Color(0xFF1F2A37) : const Color(0xFFE8F2F8);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFC7D9E6);
+    final fieldFill =
+        isDark ? const Color(0xFF1F2A37) : const Color(0xFFE8F2F8);
+    final borderColor =
+        isDark ? const Color(0xFF334155) : const Color(0xFFC7D9E6);
 
     return base.copyWith(
       colorScheme: scheme,
-      scaffoldBackgroundColor: isDark ? const Color(0xFF0E1623) : const Color(0xFFF3F7FB),
+      scaffoldBackgroundColor:
+          isDark ? const Color(0xFF0E1623) : const Color(0xFFF3F7FB),
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -92,14 +95,16 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: scheme.outline.withValues(alpha: isDark ? 0.4 : 0.25)),
+          side: BorderSide(
+              color: scheme.outline.withValues(alpha: isDark ? 0.4 : 0.25)),
         ),
         margin: const EdgeInsets.symmetric(vertical: 6),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: fieldFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: borderColor),
@@ -112,7 +117,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.primary),
         ),
-        labelStyle: textTheme.labelMedium?.copyWith(color: scheme.onSurface.withValues(alpha: 0.7)),
+        labelStyle: textTheme.labelMedium
+            ?.copyWith(color: scheme.onSurface.withValues(alpha: 0.7)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -122,7 +128,8 @@ class AppTheme {
             borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          textStyle:
+              textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -142,7 +149,8 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: isDark ? const Color(0xFF1F2937) : const Color(0xFF1C2B3A),
+        backgroundColor:
+            isDark ? const Color(0xFF1F2937) : const Color(0xFF1C2B3A),
         contentTextStyle: textTheme.bodyMedium?.copyWith(color: Colors.white),
       ),
       dialogTheme: DialogThemeData(

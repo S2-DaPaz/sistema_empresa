@@ -5,6 +5,15 @@ import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
 import BudgetForm from "../components/BudgetForm";
 import FormField from "../components/FormField";
 import SignaturePad from "../components/SignaturePad";
+import {
+  reportStatusOptions as reportStatusOptionsConfig,
+  signatureModeOptions as signatureModeOptionsConfig,
+  signatureScopeOptions as signatureScopeOptionsConfig,
+  taskDetailTabs as taskDetailTabsConfig,
+  taskPriorityOptions as taskPriorityOptionsConfig,
+  taskStatusOptions as taskStatusOptionsConfig
+} from "../features/tasks/task-detail-options";
+import { buildTaskReportText, createDraftId } from "../features/tasks/task-report-text";
 import { buildTaskPdfHtml, openPrintWindow } from "../utils/pdf";
 import logo from "../assets/Logo.png";
 
@@ -525,7 +534,7 @@ export default function TaskDetail() {
       /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
     );
     const email = emailMatch ? emailMatch[0] : "";
-    const body = buildReportText({
+    const body = buildTaskReportText({
       reportTitle: activeReport.title,
       taskTitle: form.title,
       clientName: client?.name,
@@ -687,7 +696,7 @@ export default function TaskDetail() {
             const reader = new FileReader();
             reader.onload = () =>
               resolve({
-                id: uid(),
+                id: createDraftId(),
                 name: file.name,
                 dataUrl: reader.result
               });
@@ -855,7 +864,7 @@ export default function TaskDetail() {
 
       <div className="task-config">
         <aside className="task-config-nav">
-          {tabs.map((tab) => {
+          {taskDetailTabsConfig.map((tab) => {
             const disabled = !taskId && tab.id !== "detalhes";
             return (
               <button
@@ -890,14 +899,14 @@ export default function TaskDetail() {
                     label="Status"
                     type="select"
                     value={form.status}
-                    options={statusOptions}
+                    options={taskStatusOptionsConfig}
                     onChange={(value) => setForm((prev) => ({ ...prev, status: value }))}
                   />
                   <FormField
                     label="Prioridade"
                     type="select"
                     value={form.priority}
-                    options={priorityOptions}
+                    options={taskPriorityOptionsConfig}
                     onChange={(value) => setForm((prev) => ({ ...prev, priority: value }))}
                   />
                   <FormField
@@ -1029,7 +1038,7 @@ export default function TaskDetail() {
                       label="Status do relatório"
                       type="select"
                       value={reportStatus}
-                      options={reportStatusOptions}
+                      options={reportStatusOptionsConfig}
                       onChange={setReportStatus}
                       disabled={!canManage}
                     />
@@ -1330,7 +1339,7 @@ export default function TaskDetail() {
                       label="Assinaturas"
                       type="select"
                       value={signatureMode}
-                      options={signatureModeOptions}
+                      options={signatureModeOptionsConfig}
                       onChange={setSignatureMode}
                       disabled={!canManage}
                     />
@@ -1338,7 +1347,7 @@ export default function TaskDetail() {
                       label="Aplicação"
                       type="select"
                       value={signatureScope}
-                      options={signatureScopeOptions}
+                      options={signatureScopeOptionsConfig}
                       onChange={setSignatureScope}
                       disabled={!canManage}
                     />

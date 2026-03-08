@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,19 +32,6 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
     }
   }
 
-  String _onlyDigits(String value) => value.replaceAll(RegExp(r'\D'), '');
-
-  String _formatCpfDigits(String digits) {
-    final trimmed = digits.length > 11 ? digits.substring(0, 11) : digits;
-    final buffer = StringBuffer();
-    for (var i = 0; i < trimmed.length; i++) {
-      if (i == 3 || i == 6) buffer.write('.');
-      if (i == 9) buffer.write('-');
-      buffer.write(trimmed[i]);
-    }
-    return buffer.toString();
-  }
-
   Future<_SignerInfo?> _promptSignerInfo() async {
     return Navigator.of(context).push<_SignerInfo>(
       PageRouteBuilder(
@@ -55,7 +42,8 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
         reverseTransitionDuration: const Duration(milliseconds: 120),
         pageBuilder: (_, __, ___) => const SignatureInfoScreen(),
         transitionsBuilder: (_, animation, __, child) {
-          final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+          final curved =
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
           return FadeTransition(
             opacity: curved,
             child: ScaleTransition(
@@ -94,7 +82,8 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label.toUpperCase(), style: Theme.of(context).textTheme.titleSmall),
+        Text(widget.label.toUpperCase(),
+            style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
         InkWell(
           onTap: _openSignature,
@@ -119,7 +108,8 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
                   )
                 : Column(
                     children: [
-                      Expanded(child: Image.memory(preview, fit: BoxFit.contain)),
+                      Expanded(
+                          child: Image.memory(preview, fit: BoxFit.contain)),
                       const SizedBox(height: 8),
                       Text(
                         'toque para assinar',
@@ -226,7 +216,10 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
                     if (widget.signerCpf.isNotEmpty)
                       Text(
                         widget.signerCpf,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.black54),
                       ),
                   ],
                 ),
@@ -236,16 +229,19 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.black.withValues(alpha: 0.12)),
+                    border:
+                        Border.all(color: Colors.black.withValues(alpha: 0.12)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Assinatura', style: Theme.of(context).textTheme.labelLarge),
+                      Text('Assinatura',
+                          style: Theme.of(context).textTheme.labelLarge),
                       const SizedBox(height: 8),
                       Expanded(
                         child: Signature(
@@ -355,21 +351,24 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Assinatura', style: Theme.of(context).textTheme.titleMedium),
+                      Text('Assinatura',
+                          style: Theme.of(context).textTheme.titleMedium),
                       IconButton(
                         onPressed: () => _close(),
                         icon: const Icon(Icons.close),
                       ),
                     ],
                   ),
-                  Text('Quem está assinando?', style: Theme.of(context).textTheme.titleSmall),
+                  Text('Quem está assinando?',
+                      style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _nameController,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
                     keyboardType: TextInputType.name,
-                    decoration: InputDecoration(labelText: 'Nome', errorText: _nameError),
+                    decoration: InputDecoration(
+                        labelText: 'Nome', errorText: _nameError),
                     onChanged: (_) {
                       if (_nameError != null) {
                         setState(() => _nameError = null);
@@ -384,7 +383,8 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
                       FilteringTextInputFormatter.digitsOnly,
                       CpfInputFormatter(),
                     ],
-                    decoration: InputDecoration(labelText: 'CPF (opcional)', errorText: _cpfError),
+                    decoration: InputDecoration(
+                        labelText: 'CPF (opcional)', errorText: _cpfError),
                     onChanged: (_) {
                       if (_cpfError != null) {
                         setState(() => _cpfError = null);
@@ -418,7 +418,8 @@ class _SignerInfo {
 
 class CpfInputFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
     final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
     final buffer = StringBuffer();
     for (var i = 0; i < digits.length && i < 11; i++) {
@@ -433,4 +434,3 @@ class CpfInputFormatter extends TextInputFormatter {
     );
   }
 }
-

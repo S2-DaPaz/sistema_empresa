@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
+import '../core/config/app_config.dart';
 import '../services/auth_service.dart';
 import '../widgets/brand_logo.dart';
 
@@ -32,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _loading = true;
       _error = null;
     });
+
     try {
       if (_registerMode) {
         await AuthService.instance.register(
@@ -58,6 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -92,14 +95,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'RV TecnoCare',
+                                AppConfig.appName,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Relatórios e orçamentos técnicos',
+                                AppConfig.appTagline,
                                 style: theme.textTheme.bodySmall,
                               ),
                             ],
@@ -110,19 +113,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       SegmentedButton<bool>(
                         segments: const [
                           ButtonSegment(value: false, label: Text('Entrar')),
-                          ButtonSegment(value: true, label: Text('Criar conta')),
+                          ButtonSegment(
+                              value: true, label: Text('Criar conta')),
                         ],
                         selected: {_registerMode},
                         onSelectionChanged: _loading
                             ? null
-                            : (value) => setState(() => _registerMode = value.first),
+                            : (value) =>
+                                setState(() => _registerMode = value.first),
                       ),
                       const SizedBox(height: 16),
                       if (_registerMode) ...[
                         TextField(
                           controller: _name,
                           textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(labelText: 'Nome completo'),
+                          decoration:
+                              const InputDecoration(labelText: 'Nome completo'),
                         ),
                         const SizedBox(height: 12),
                       ],
@@ -149,11 +155,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loading ? null : _submit,
-                        child: Text(_loading
-                            ? 'Aguarde...'
-                            : _registerMode
-                                ? 'Cadastrar'
-                                : 'Entrar'),
+                        child: Text(
+                          _loading
+                              ? 'Aguarde...'
+                              : _registerMode
+                                  ? 'Cadastrar'
+                                  : 'Entrar',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Text(

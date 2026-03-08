@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/entity_config.dart';
@@ -53,7 +53,10 @@ class _TaskTypesScreenState extends State<TaskTypesScreen> {
         hint: 'Defina os tipos e amarre um modelo de relatório.',
         fields: [
           FieldConfig(name: 'name', label: 'Nome', type: FieldType.text),
-          FieldConfig(name: 'description', label: 'Descrição', type: FieldType.textarea),
+          FieldConfig(
+              name: 'description',
+              label: 'Descrição',
+              type: FieldType.textarea),
           FieldConfig(
             name: 'report_template_id',
             label: 'Modelo de relatório',

@@ -1,51 +1,91 @@
-﻿# Sistema Empresa (MVP)
+# RV Sistema Empresa
 
-Este projeto tem dois apps:
-- `server`: API em Node/Express + SQLite.
-- `web`: interface React (Vite).
-- `launcher`: executavel local (servidor + navegador).
+Monorepo para operacao tecnica com tarefas, relatorios customizados, orcamentos vinculados, links publicos e distribuicao local Windows.
+
+## Estrutura
+
+- `server/`
+  API Node.js + Express com persistencia dual SQLite/PostgreSQL
+- `web/`
+  cliente React + Vite
+- `mobile/`
+  aplicativo Flutter
+- `packages/contracts/`
+  contratos compartilhados de permissao e enums de dominio
+- `launcher/` e `installer/`
+  empacotamento local Windows
+- `docs/`
+  auditoria, arquitetura e guias operacionais
+
+## O que mudou nesta reforma
+
+- backend modularizado em `server/src/`
+- respostas e erros da API padronizados
+- contratos de permissao e enums centralizados
+- auth e cliente HTTP alinhados entre backend, web e mobile
+- launcher local passa a subir a API real, nao apenas arquivos estaticos
+- testes adicionados nas tres frentes
+- ambiente documentado com `.env.example`
 
 ## Como rodar
-1) Instale Node.js LTS.
-2) Instale as dependencias:
-   - `npm install`
-   - `npm run install:all`
-3) Rode em desenvolvimento:
-   - `npm run dev`
 
-A API sobe em `http://localhost:3001` e o front em `http://localhost:5173`.
+### Backend + web
 
-## Pastas
-- `server/`: API e banco SQLite (`server/data.db`).
-- `web/`: app React.
+1. `npm install`
+2. `npm run install:all`
+3. `npm run dev`
 
-## Observacoes
-- O banco e criado automaticamente no primeiro start.
-- Esta versao foca em tarefas com relatorios customizados e orcamentos vinculados.
-- Para autocomplete de endereco via Google Maps, crie `web/.env` com `VITE_GOOGLE_MAPS_API_KEY`.
+API: `http://localhost:3001`  
+Web: `http://localhost:5173`
 
-## Servidor local + navegador (Windows)
-Para gerar o executavel local (Node embutido):
-1) `npm install`
-2) `npm run install:all`
-3) `npm run package:local`
-4) `npm run installer:local` (gera o instalador)
+### Mobile
 
-O executavel sera gerado em `dist/launcher/RV Sistema Empresa.exe`.
+1. `cd mobile`
+2. `flutter pub get`
+3. `flutter run --dart-define API_URL=http://127.0.0.1:3001`
 
-O instalador sera gerado em `dist/installer/RV Sistema Empresa Installer.exe`.
-Na primeira execucao, o arquivo de configuracao sera criado em:
-`%APPDATA%\\RV Sistema Empresa\\server.env`
+Na raiz, o atalho equivalente e `npm run dev:mobile`.
 
-## Banco remoto (Neon)
-Se quiser manter o site local e hospedar apenas o banco:
-1) Crie um banco no Neon e copie a `DATABASE_URL`.
-2) Crie `server/.env` com:
-   - `DATABASE_URL=postgresql://...`
-   - `DATABASE_SSL=true` (se o Neon exigir TLS)
-3) Migre os dados atuais do SQLite:
-   - `cd server`
-   - `npm run migrate:neon`
+## Testes e validacao
 
-Se o banco Neon ja tiver dados e voce quiser sobrescrever, rode com:
-`RESET_DB=1 npm run migrate:neon`
+- `npm test`
+- `npm run build --prefix web`
+- `cd mobile && flutter analyze`
+
+## Configuracao
+
+- backend: copie `server/.env.example` para `server/.env`
+- web: opcionalmente copie `web/.env.example` para `web/.env`
+- launcher Windows: ajuste `launcher/default.env` ou o arquivo gerado em `%APPDATA%\\RV Sistema Empresa\\server.env`
+
+Importante:
+
+- em producao, `JWT_SECRET` e obrigatorio
+- para o primeiro admin local, defina `ADMIN_PASSWORD`; se nao definir, o backend gera uma senha aleatoria e registra no log de bootstrap
+- para builds mobile de release, `API_URL` deve ser informado explicitamente
+
+## Comandos principais
+
+- `npm run sync:contracts`
+- `npm run dev`
+- `npm run dev:mobile`
+- `npm test`
+- `npm run package:local`
+- `npm run installer:local`
+
+## Documentacao
+
+- `docs/architecture/audit.md`
+- `docs/architecture/target-architecture.md`
+- `docs/backend.md`
+- `docs/web.md`
+- `docs/mobile.md`
+- `docs/auth-permissions.md`
+- `docs/development.md`
+
+## Roadmap tecnico recomendado
+
+- quebrar `server/db.js` em adapters/repositorios menores com migracoes formais
+- decompor `web/src/pages/TaskDetail.jsx` em controllers e componentes de feature
+- migrar `mobile/lib/screens/` para `features/<dominio>/presentation`
+- adicionar testes de integracao E2E para fluxos criticos de tarefa, relatorio e orcamento

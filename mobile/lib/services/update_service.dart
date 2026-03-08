@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -54,7 +54,10 @@ class UpdateService {
       if (response.statusCode < 200 || response.statusCode >= 300) return;
       final payload = jsonDecode(response.body);
       if (payload is! Map<String, dynamic>) return;
-      final info = AppUpdateInfo.fromJson(payload);
+      final body = payload['data'] is Map<String, dynamic>
+          ? payload['data'] as Map<String, dynamic>
+          : payload;
+      final info = AppUpdateInfo.fromJson(body);
       if (info == null) return;
 
       final packageInfo = await PackageInfo.fromPlatform();
@@ -70,7 +73,8 @@ class UpdateService {
     }
   }
 
-  Future<void> _showUpdateDialog(BuildContext context, AppUpdateInfo info) async {
+  Future<void> _showUpdateDialog(
+      BuildContext context, AppUpdateInfo info) async {
     final versionLabel = info.versionName.isNotEmpty
         ? info.versionName
         : 'build ${info.versionCode}';
@@ -109,7 +113,8 @@ class UpdateService {
     );
   }
 
-  Future<void> _downloadAndInstall(BuildContext context, AppUpdateInfo info) async {
+  Future<void> _downloadAndInstall(
+      BuildContext context, AppUpdateInfo info) async {
     bool started = false;
     double progress = 0;
     bool done = false;
@@ -138,7 +143,8 @@ class UpdateService {
                   setState(() {});
                 }
               } catch (err) {
-                if (err is DioException && err.type == DioExceptionType.cancel) {
+                if (err is DioException &&
+                    err.type == DioExceptionType.cancel) {
                   error = 'Download cancelado.';
                 } else {
                   error = 'Falha ao baixar a atualizacao.';
@@ -163,15 +169,14 @@ class UpdateService {
                     children: [
                       LinearProgressIndicator(value: progressValue),
                       const SizedBox(height: 8),
-                      Text(
-                        progress > 0
-                            ? 'Progresso: ${(progress * 100).toStringAsFixed(0)}%'
-                            : 'Preparando download...'
-                      ),
+                      Text(progress > 0
+                          ? 'Progresso: ${(progress * 100).toStringAsFixed(0)}%'
+                          : 'Preparando download...'),
                     ],
                   ),
                 if (done && error == null)
-                  const Text('Instalador aberto. Conclua a instalacao no Android.'),
+                  const Text(
+                      'Instalador aberto. Conclua a instalacao no Android.'),
                 if (error != null)
                   Text(error!, style: const TextStyle(color: Colors.redAccent)),
               ],

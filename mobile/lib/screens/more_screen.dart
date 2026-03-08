@@ -1,15 +1,16 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
-import 'products_screen.dart';
-import 'task_types_screen.dart';
-import 'templates_screen.dart';
-import 'users_screen.dart';
+import '../core/config/app_config.dart';
 import '../services/auth_service.dart';
 import '../services/permissions.dart';
 import '../services/theme_service.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/section_header.dart';
+import 'products_screen.dart';
+import 'task_types_screen.dart';
+import 'templates_screen.dart';
+import 'users_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -29,7 +30,8 @@ class MoreScreen extends StatelessWidget {
           final role = session?.user['role_name']?.toString() ??
               session?.user['role']?.toString() ??
               'visitante';
-          final canViewUsers = AuthService.instance.hasPermission(Permissions.viewUsers);
+          final canViewUsers =
+              AuthService.instance.hasPermission(Permissions.viewUsers);
 
           return ListView(
             children: [
@@ -45,12 +47,12 @@ class MoreScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'RV TecnoCare',
+                              AppConfig.appName,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Central de operações técnicas',
+                              AppConfig.appTagline,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             const SizedBox(height: 10),
@@ -64,8 +66,8 @@ class MoreScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const SectionHeader(
-                title: 'Preferências',
-                subtitle: 'Aparência, tema e opções do app',
+                title: 'Preferencias',
+                subtitle: 'Aparencia, tema e opcoes do app',
               ),
               const SizedBox(height: 12),
               Card(
@@ -102,8 +104,8 @@ class MoreScreen extends StatelessWidget {
                             ],
                             selected: {mode},
                             onSelectionChanged: (selection) {
-                              final selected = selection.first;
-                              ThemeService.instance.setThemeMode(selected);
+                              ThemeService.instance
+                                  .setThemeMode(selection.first);
                             },
                           ),
                         ],
@@ -114,16 +116,16 @@ class MoreScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const SectionHeader(
-                title: 'Acesso rápido',
-                subtitle: 'Cadastros e configurações do sistema',
+                title: 'Acesso rapido',
+                subtitle: 'Cadastros e configuracoes do sistema',
               ),
               const SizedBox(height: 12),
               if (canViewUsers)
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.people_outline),
-                    title: const Text('Usuários'),
-                    subtitle: const Text('Gestão de usuários do sistema'),
+                    title: const Text('Usuarios'),
+                    subtitle: const Text('Gestao de usuarios do sistema'),
                     onTap: () => _open(context, const UsersScreen()),
                   ),
                 ),
@@ -131,7 +133,7 @@ class MoreScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.inventory_2_outlined),
                   title: const Text('Produtos'),
-                  subtitle: const Text('Cadastro de itens de orçamento'),
+                  subtitle: const Text('Cadastro de itens de orcamento'),
                   onTap: () => _open(context, ProductsScreen()),
                 ),
               ),
@@ -139,15 +141,15 @@ class MoreScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.category_outlined),
                   title: const Text('Tipos de tarefa'),
-                  subtitle: const Text('Modelo de relatório por tipo'),
+                  subtitle: const Text('Modelo de relatorio por tipo'),
                   onTap: () => _open(context, const TaskTypesScreen()),
                 ),
               ),
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.description_outlined),
-                  title: const Text('Modelos de relatório'),
-                  subtitle: const Text('Campos dinâmicos para relatórios'),
+                  title: const Text('Modelos de relatorio'),
+                  subtitle: const Text('Campos dinamicos para relatorios'),
                   onTap: () => _open(context, const TemplatesScreen()),
                 ),
               ),

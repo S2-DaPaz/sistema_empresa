@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/budget_item.dart';
@@ -92,7 +92,8 @@ class _BudgetItemFormPageState extends State<BudgetItemFormPage> {
     }
 
     final item = BudgetItemData(
-      id: widget.initialItem?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      id: widget.initialItem?.id ??
+          DateTime.now().microsecondsSinceEpoch.toString(),
       description: description,
       qty: qty,
       unitPrice: unitPrice,

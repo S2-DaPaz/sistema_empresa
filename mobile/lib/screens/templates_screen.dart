@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../widgets/app_scaffold.dart';
@@ -42,7 +42,8 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
 
   void _openEditor({Map<String, dynamic>? template}) {
     Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => TemplateEditorScreen(template: template)))
+        .push(MaterialPageRoute(
+            builder: (_) => TemplateEditorScreen(template: template)))
         .then((_) => _load());
   }
 
@@ -55,8 +56,12 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
         title: const Text('Remover modelo'),
         content: const Text('Deseja remover este modelo?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remover')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover')),
         ],
       ),
     );
@@ -101,7 +106,8 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
           ..._templates.map((template) => Card(
                 child: ListTile(
                   title: Text(template['name']?.toString() ?? 'Modelo'),
-                  subtitle: Text(template['description']?.toString() ?? 'Sem descrição'),
+                  subtitle: Text(
+                      template['description']?.toString() ?? 'Sem descrição'),
                   onTap: () => _openEditor(template: template),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline),
@@ -139,10 +145,13 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
   @override
   void initState() {
     super.initState();
-    _name = TextEditingController(text: widget.template?['name']?.toString() ?? '');
-    _description = TextEditingController(text: widget.template?['description']?.toString() ?? '');
+    _name =
+        TextEditingController(text: widget.template?['name']?.toString() ?? '');
+    _description = TextEditingController(
+        text: widget.template?['description']?.toString() ?? '');
 
-    final structure = widget.template?['structure'] as Map<String, dynamic>? ?? {};
+    final structure =
+        widget.template?['structure'] as Map<String, dynamic>? ?? {};
     final layout = structure['layout'] as Map<String, dynamic>? ?? {};
     _sectionColumns = layout['sectionColumns']?.toString() ?? '1';
     _fieldColumns = layout['fieldColumns']?.toString() ?? '1';
@@ -174,7 +183,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
   }
 
   void _addField(Map<String, dynamic> section) {
-    final fields = (section['fields'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final fields = (section['fields'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
     fields.add({
       'id': _uid(),
       'label': '',
@@ -186,7 +196,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
   }
 
   void _removeField(Map<String, dynamic> section, Map<String, dynamic> field) {
-    final fields = (section['fields'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final fields = (section['fields'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
     fields.remove(field);
     setState(() => section['fields'] = fields);
   }
@@ -264,7 +275,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
               DropdownMenuItem(value: '2', child: Text('2 colunas')),
               DropdownMenuItem(value: '3', child: Text('3 colunas')),
             ],
-            onChanged: (value) => setState(() => _sectionColumns = value ?? '1'),
+            onChanged: (value) =>
+                setState(() => _sectionColumns = value ?? '1'),
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
@@ -283,7 +295,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Seções', style: Theme.of(context).textTheme.titleSmall),
-              OutlinedButton(onPressed: _addSection, child: const Text('Adicionar seção')),
+              OutlinedButton(
+                  onPressed: _addSection, child: const Text('Adicionar seção')),
             ],
           ),
           const SizedBox(height: 8),
@@ -296,7 +309,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
             ),
           ..._sections.map((section) {
             final sectionTitle = section['title']?.toString() ?? '';
-            final fields = (section['fields'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+            final fields = (section['fields'] as List<dynamic>? ?? [])
+                .cast<Map<String, dynamic>>();
             return Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -308,7 +322,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
                         Expanded(
                           child: TextFormField(
                             initialValue: sectionTitle,
-                            decoration: const InputDecoration(labelText: 'Título da seção'),
+                            decoration: const InputDecoration(
+                                labelText: 'Título da seção'),
                             onChanged: (value) => section['title'] = value,
                           ),
                         ),
@@ -322,7 +337,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Campos', style: Theme.of(context).textTheme.titleSmall),
+                        Text('Campos',
+                            style: Theme.of(context).textTheme.titleSmall),
                         OutlinedButton(
                           onPressed: () => _addField(section),
                           child: const Text('Adicionar campo'),
@@ -336,7 +352,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
                       final fieldLabel = field['label']?.toString() ?? '';
                       final fieldType = field['type']?.toString() ?? 'text';
                       final required = field['required'] == true;
-                      final options = (field['options'] as List<dynamic>? ?? []).cast<String>();
+                      final options = (field['options'] as List<dynamic>? ?? [])
+                          .cast<String>();
                       final optionController = TextEditingController();
                       return Card(
                         child: Padding(
@@ -345,29 +362,44 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
                             children: [
                               TextFormField(
                                 initialValue: fieldLabel,
-                                decoration: const InputDecoration(labelText: 'Label'),
+                                decoration:
+                                    const InputDecoration(labelText: 'Label'),
                                 onChanged: (value) => field['label'] = value,
                               ),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
                                 key: ValueKey(fieldType),
                                 initialValue: fieldType,
-                                decoration: const InputDecoration(labelText: 'Tipo'),
+                                decoration:
+                                    const InputDecoration(labelText: 'Tipo'),
                                 items: const [
-                                  DropdownMenuItem(value: 'text', child: Text('Texto curto')),
-                                  DropdownMenuItem(value: 'textarea', child: Text('Texto longo')),
-                                  DropdownMenuItem(value: 'number', child: Text('Número')),
-                                  DropdownMenuItem(value: 'date', child: Text('Data')),
-                                  DropdownMenuItem(value: 'select', child: Text('Seleção')),
-                                  DropdownMenuItem(value: 'yesno', child: Text('Sim ou não')),
-                                  DropdownMenuItem(value: 'checkbox', child: Text('Caixa de Seleção')),
+                                  DropdownMenuItem(
+                                      value: 'text',
+                                      child: Text('Texto curto')),
+                                  DropdownMenuItem(
+                                      value: 'textarea',
+                                      child: Text('Texto longo')),
+                                  DropdownMenuItem(
+                                      value: 'number', child: Text('Número')),
+                                  DropdownMenuItem(
+                                      value: 'date', child: Text('Data')),
+                                  DropdownMenuItem(
+                                      value: 'select', child: Text('Seleção')),
+                                  DropdownMenuItem(
+                                      value: 'yesno',
+                                      child: Text('Sim ou não')),
+                                  DropdownMenuItem(
+                                      value: 'checkbox',
+                                      child: Text('Caixa de Seleção')),
                                 ],
-                                onChanged: (value) => setState(() => field['type'] = value ?? 'text'),
+                                onChanged: (value) => setState(
+                                    () => field['type'] = value ?? 'text'),
                               ),
                               SwitchListTile(
                                 value: required,
                                 title: const Text('Obrigatório'),
-                                onChanged: (value) => setState(() => field['required'] = value),
+                                onChanged: (value) =>
+                                    setState(() => field['required'] = value),
                               ),
                               if (fieldType == 'select')
                                 Column(
@@ -378,13 +410,15 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
                                         Expanded(
                                           child: TextField(
                                             controller: optionController,
-                                            decoration: const InputDecoration(labelText: 'Adicionar opção'),
+                                            decoration: const InputDecoration(
+                                                labelText: 'Adicionar opção'),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
                                         OutlinedButton(
                                           onPressed: () {
-                                            final value = optionController.text.trim();
+                                            final value =
+                                                optionController.text.trim();
                                             if (value.isEmpty) return;
                                             _addOption(field, value);
                                             optionController.clear();
@@ -394,15 +428,18 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 8),
-                                    if (options.isEmpty) const Text('Nenhuma opção adicionada.'),
+                                    if (options.isEmpty)
+                                      const Text('Nenhuma opção adicionada.'),
                                     ...options.map(
                                       (option) => Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(option),
                                           IconButton(
                                             icon: const Icon(Icons.close),
-                                            onPressed: () => _removeOption(field, option),
+                                            onPressed: () =>
+                                                _removeOption(field, option),
                                           ),
                                         ],
                                       ),
@@ -430,7 +467,8 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              child: Text(_error!,
+                  style: const TextStyle(color: Colors.redAccent)),
             ),
           const SizedBox(height: 16),
           ElevatedButton(
@@ -442,4 +480,3 @@ class _TemplateEditorScreenState extends State<TemplateEditorScreen> {
     );
   }
 }
-

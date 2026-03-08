@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'core/config/app_config.dart';
+import 'services/theme_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/auth_gate.dart';
-import 'services/theme_service.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -13,7 +14,7 @@ class App extends StatelessWidget {
       valueListenable: ThemeService.instance.mode,
       builder: (context, mode, _) {
         return MaterialApp(
-          title: 'RV TecnoCare',
+          title: AppConfig.appName,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),

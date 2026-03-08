@@ -1,0 +1,76 @@
+{
+  "permissions": {
+    "VIEW_DASHBOARD": "view_dashboard",
+    "VIEW_CLIENTS": "view_clients",
+    "MANAGE_CLIENTS": "manage_clients",
+    "VIEW_TASKS": "view_tasks",
+    "MANAGE_TASKS": "manage_tasks",
+    "VIEW_TEMPLATES": "view_templates",
+    "MANAGE_TEMPLATES": "manage_templates",
+    "VIEW_BUDGETS": "view_budgets",
+    "MANAGE_BUDGETS": "manage_budgets",
+    "VIEW_USERS": "view_users",
+    "MANAGE_USERS": "manage_users",
+    "VIEW_PRODUCTS": "view_products",
+    "MANAGE_PRODUCTS": "manage_products",
+    "VIEW_TASK_TYPES": "view_task_types",
+    "MANAGE_TASK_TYPES": "manage_task_types"
+  },
+  "roleDefaults": {
+    "administracao": [
+      "view_dashboard",
+      "view_clients",
+      "manage_clients",
+      "view_tasks",
+      "manage_tasks",
+      "view_templates",
+      "manage_templates",
+      "view_budgets",
+      "manage_budgets",
+      "view_users",
+      "manage_users",
+      "view_products",
+      "manage_products",
+      "view_task_types",
+      "manage_task_types"
+    ],
+    "gestor": [
+      "view_dashboard",
+      "view_clients",
+      "manage_clients",
+      "view_tasks",
+      "manage_tasks",
+      "view_templates",
+      "manage_templates",
+      "view_budgets",
+      "manage_budgets",
+      "view_products",
+      "manage_products",
+      "view_task_types",
+      "manage_task_types"
+    ],
+    "tecnico": [
+      "view_dashboard",
+      "view_clients",
+      "view_tasks",
+      "manage_tasks",
+      "view_budgets",
+      "view_products"
+    ],
+    "visitante": [
+      "view_dashboard",
+      "view_clients",
+      "view_tasks",
+      "view_templates",
+      "view_budgets",
+      "view_products",
+      "view_task_types"
+    ]
+  },
+  "reservedRoleKeys": [
+    "administracao",
+    "gestor",
+    "tecnico",
+    "visitante"
+  ]
+}

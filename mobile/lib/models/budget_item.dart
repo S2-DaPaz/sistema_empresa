@@ -1,4 +1,4 @@
-﻿class BudgetItemData {
+class BudgetItemData {
   BudgetItemData({
     required this.id,
     required this.description,
@@ -26,7 +26,8 @@
     final qty = item['qty'] ?? item['quantity'] ?? 1;
     final unitPrice = item['unit_price'] ?? item['unitPrice'] ?? 0;
     return BudgetItemData(
-      id: item['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      id: item['id']?.toString() ??
+          DateTime.now().microsecondsSinceEpoch.toString(),
       description: item['description']?.toString() ?? '',
       qty: double.tryParse(qty.toString()) ?? 0,
       unitPrice: double.tryParse(unitPrice.toString()) ?? 0,

@@ -1,7 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-final _currencyFormatter = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+final _currencyFormatter =
+    NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 final _dateFormatter = DateFormat('dd/MM/yyyy', 'pt_BR');
 final _isoDateFormatter = DateFormat('yyyy-MM-dd', 'en_US');
 

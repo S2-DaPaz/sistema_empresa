@@ -33,7 +33,6 @@ class ThemeService {
       case ThemeMode.dark:
         return 'dark';
       case ThemeMode.system:
-      default:
         return 'system';
     }
   }
@@ -44,7 +43,6 @@ class ThemeService {
         return ThemeMode.light;
       case 'dark':
         return ThemeMode.dark;
-      case 'system':
       default:
         return ThemeMode.system;
     }

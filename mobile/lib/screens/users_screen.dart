@@ -49,7 +49,12 @@ const List<PermissionOption> _permissionOptions = [
   PermissionOption(Permissions.manageTaskTypes, 'Gerenciar tipos de tarefa'),
 ];
 
-const Set<String> _reservedRoles = {'administracao', 'gestor', 'tecnico', 'visitante'};
+const Set<String> _reservedRoles = {
+  'administracao',
+  'gestor',
+  'tecnico',
+  'visitante'
+};
 
 List<String> _parsePermissions(dynamic value) {
   if (value is List) {
@@ -80,8 +85,10 @@ class _UsersScreenState extends State<UsersScreen> {
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _roles = [];
 
-  bool get _canManage => AuthService.instance.hasPermission(Permissions.manageUsers);
-  bool get _canView => AuthService.instance.hasPermission(Permissions.viewUsers);
+  bool get _canManage =>
+      AuthService.instance.hasPermission(Permissions.manageUsers);
+  bool get _canView =>
+      AuthService.instance.hasPermission(Permissions.viewUsers);
 
   @override
   void initState() {
@@ -123,7 +130,8 @@ class _UsersScreenState extends State<UsersScreen> {
 
   String _roleName(String? key) {
     if (key == null) return 'Visitante';
-    final match = _roles.where((role) => role['key']?.toString() == key).toList();
+    final match =
+        _roles.where((role) => role['key']?.toString() == key).toList();
     if (match.isNotEmpty) {
       return match.first['name']?.toString() ?? key;
     }
@@ -168,8 +176,12 @@ class _UsersScreenState extends State<UsersScreen> {
         title: const Text('Remover usuário'),
         content: const Text('Deseja remover este usuário?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remover')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover')),
         ],
       ),
     );
@@ -191,7 +203,8 @@ class _UsersScreenState extends State<UsersScreen> {
     if (id == null) return;
     if (_reservedRoles.contains(item['key']?.toString())) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Este cargo é protegido e não pode ser removido.')),
+        const SnackBar(
+            content: Text('Este cargo é protegido e não pode ser removido.')),
       );
       return;
     }
@@ -201,8 +214,12 @@ class _UsersScreenState extends State<UsersScreen> {
         title: const Text('Remover cargo'),
         content: Text('Deseja remover o cargo "${item['name']}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remover')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover')),
         ],
       ),
     );
@@ -243,13 +260,15 @@ class _UsersScreenState extends State<UsersScreen> {
             ),
           ..._users.map((item) {
             final roleKey = item['role']?.toString();
-            final roleName = item['role_name']?.toString() ?? _roleName(roleKey);
+            final roleName =
+                item['role_name']?.toString() ?? _roleName(roleKey);
             final isMe = item['id'] == AuthService.instance.user?['id'];
             return Card(
               child: ListTile(
                 title: Row(
                   children: [
-                    Expanded(child: Text(item['name']?.toString() ?? 'Sem nome')),
+                    Expanded(
+                        child: Text(item['name']?.toString() ?? 'Sem nome')),
                     if (isMe)
                       const Padding(
                         padding: EdgeInsets.only(left: 8),
@@ -268,9 +287,11 @@ class _UsersScreenState extends State<UsersScreen> {
                           if (value == 'delete') _deleteUser(item);
                         },
                         itemBuilder: (context) => [
-                          const PopupMenuItem(value: 'edit', child: Text('Editar')),
+                          const PopupMenuItem(
+                              value: 'edit', child: Text('Editar')),
                           if (!isMe)
-                            const PopupMenuItem(value: 'delete', child: Text('Remover')),
+                            const PopupMenuItem(
+                                value: 'delete', child: Text('Remover')),
                         ],
                       )
                     : null,
@@ -336,9 +357,11 @@ class _UsersScreenState extends State<UsersScreen> {
                           if (value == 'delete') _deleteRole(item);
                         },
                         itemBuilder: (context) => [
-                          const PopupMenuItem(value: 'edit', child: Text('Editar')),
+                          const PopupMenuItem(
+                              value: 'edit', child: Text('Editar')),
                           if (!_reservedRoles.contains(key))
-                            const PopupMenuItem(value: 'delete', child: Text('Remover')),
+                            const PopupMenuItem(
+                                value: 'delete', child: Text('Remover')),
                         ],
                       )
                     : null,
@@ -518,7 +541,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              child: Text(_error!,
+                  style: const TextStyle(color: Colors.redAccent)),
             ),
           ElevatedButton(
             onPressed: _saving ? null : _save,
@@ -569,7 +593,8 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
   void _togglePermission(String permission) {
     setState(() {
       if (_permissions.contains(permission)) {
-        _permissions = _permissions.where((item) => item != permission).toList();
+        _permissions =
+            _permissions.where((item) => item != permission).toList();
       } else {
         _permissions = [..._permissions, permission];
       }
@@ -644,7 +669,8 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              child: Text(_error!,
+                  style: const TextStyle(color: Colors.redAccent)),
             ),
           ElevatedButton(
             onPressed: _saving ? null : _save,

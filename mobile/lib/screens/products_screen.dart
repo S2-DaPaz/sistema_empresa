@@ -1,4 +1,4 @@
-﻿import '../utils/entity_config.dart';
+import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../utils/formatters.dart';
 import 'entity_list_screen.dart';
@@ -19,7 +19,8 @@ class ProductsScreen extends EntityListScreen {
                 name: 'price',
                 label: 'Preço',
                 type: FieldType.number,
-                formatter: (value) => formatCurrency(num.tryParse(value.toString()) ?? 0),
+                formatter: (value) =>
+                    formatCurrency(num.tryParse(value.toString()) ?? 0),
               ),
             ],
           ),

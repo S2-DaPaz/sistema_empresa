@@ -12,7 +12,8 @@ class PdfViewerScreen extends StatefulWidget {
     required this.title,
     this.pdfFetcher,
     this.initialBytes,
-  }) : assert(pdfFetcher != null || initialBytes != null, 'Informe pdfFetcher ou initialBytes');
+  }) : assert(pdfFetcher != null || initialBytes != null,
+            'Informe pdfFetcher ou initialBytes');
 
   final String title;
   final Future<List<int>> Function()? pdfFetcher;

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../models/budget_item.dart';
 import '../screens/budget_item_form_page.dart';
@@ -41,10 +41,14 @@ class _BudgetFormState extends State<BudgetForm> {
   int? _selectedItemIndex;
   final TextEditingController _notes = TextEditingController();
   final TextEditingController _internalNote = TextEditingController();
-  final TextEditingController _proposalValidity = TextEditingController(text: '30 dias');
-  final TextEditingController _paymentTerms = TextEditingController(text: 'À vista');
-  final TextEditingController _serviceDeadline = TextEditingController(text: '03 a 04 horas');
-  final TextEditingController _productValidity = TextEditingController(text: '03 meses');
+  final TextEditingController _proposalValidity =
+      TextEditingController(text: '30 dias');
+  final TextEditingController _paymentTerms =
+      TextEditingController(text: 'À vista');
+  final TextEditingController _serviceDeadline =
+      TextEditingController(text: '03 a 04 horas');
+  final TextEditingController _productValidity =
+      TextEditingController(text: '03 meses');
   final TextEditingController _discount = TextEditingController(text: '0');
   final TextEditingController _tax = TextEditingController(text: '0');
   String _signatureMode = 'none';
@@ -118,10 +122,13 @@ class _BudgetFormState extends State<BudgetForm> {
     _status = budget['status']?.toString() ?? 'em_andamento';
     _notes.text = budget['notes']?.toString() ?? '';
     _internalNote.text = budget['internal_note']?.toString() ?? '';
-    _proposalValidity.text = budget['proposal_validity']?.toString() ?? '30 dias';
+    _proposalValidity.text =
+        budget['proposal_validity']?.toString() ?? '30 dias';
     _paymentTerms.text = budget['payment_terms']?.toString() ?? 'À vista';
-    _serviceDeadline.text = budget['service_deadline']?.toString() ?? '03 a 04 horas';
-    _productValidity.text = budget['product_validity']?.toString() ?? '03 meses';
+    _serviceDeadline.text =
+        budget['service_deadline']?.toString() ?? '03 a 04 horas';
+    _productValidity.text =
+        budget['product_validity']?.toString() ?? '03 meses';
     _discount.text = (budget['discount'] ?? 0).toString();
     _tax.text = (budget['tax'] ?? 0).toString();
     _signatureMode = budget['signature_mode']?.toString() ?? 'none';
@@ -136,7 +143,8 @@ class _BudgetFormState extends State<BudgetForm> {
     }
     _createdAt = budget['created_at']?.toString();
 
-    final items = (budget['items'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final items =
+        (budget['items'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
     for (final item in items) {
       _items.add(BudgetItemData.fromMap(item));
     }
@@ -285,7 +293,9 @@ class _BudgetFormState extends State<BudgetForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            budgetId != null ? 'orçamento atualizado com sucesso.' : 'orçamento salvo com sucesso.',
+            budgetId != null
+                ? 'orçamento atualizado com sucesso.'
+                : 'orçamento salvo com sucesso.',
           ),
         ),
       );
@@ -337,10 +347,12 @@ class _BudgetFormState extends State<BudgetForm> {
               value: _status,
               items: const [
                 DropdownMenuItem(value: 'aprovado', child: Text('Aprovado')),
-                DropdownMenuItem(value: 'em_andamento', child: Text('Em andamento')),
+                DropdownMenuItem(
+                    value: 'em_andamento', child: Text('Em andamento')),
                 DropdownMenuItem(value: 'recusado', child: Text('Recusado')),
               ],
-              onChanged: (value) => setState(() => _status = value ?? 'em_andamento'),
+              onChanged: (value) =>
+                  setState(() => _status = value ?? 'em_andamento'),
             ),
             const SizedBox(height: 8),
             AppTextField(
@@ -353,7 +365,8 @@ class _BudgetFormState extends State<BudgetForm> {
               ],
             ),
             const SizedBox(height: 8),
-            AppTextField(label: 'Validade da proposta', controller: _proposalValidity),
+            AppTextField(
+                label: 'Validade da proposta', controller: _proposalValidity),
             const SizedBox(height: 8),
             AppDropdownField<String>(
               label: 'Condição de pagamento',
@@ -362,16 +375,20 @@ class _BudgetFormState extends State<BudgetForm> {
                 DropdownMenuItem(value: 'À vista', child: Text('À vista')),
                 DropdownMenuItem(value: 'Parcelado', child: Text('Parcelado')),
               ],
-              onChanged: (value) => setState(() => _paymentTerms.text = value ?? 'À vista'),
+              onChanged: (value) =>
+                  setState(() => _paymentTerms.text = value ?? 'À vista'),
             ),
             const SizedBox(height: 8),
-            AppTextField(label: 'Prazo de serviço', controller: _serviceDeadline),
+            AppTextField(
+                label: 'Prazo de serviço', controller: _serviceDeadline),
             const SizedBox(height: 8),
-            AppTextField(label: 'Validade dos produtos', controller: _productValidity),
+            AppTextField(
+                label: 'Validade dos produtos', controller: _productValidity),
             const SizedBox(height: 8),
             AppTextField(label: 'Observações', controller: _notes, maxLines: 3),
             const SizedBox(height: 8),
-            AppTextField(label: 'Nota interna', controller: _internalNote, maxLines: 3),
+            AppTextField(
+                label: 'Nota interna', controller: _internalNote, maxLines: 3),
             const SizedBox(height: 16),
             Text('Assinaturas', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
@@ -382,17 +399,22 @@ class _BudgetFormState extends State<BudgetForm> {
                 DropdownMenuItem(value: 'none', child: Text('Sem assinatura')),
                 DropdownMenuItem(value: 'client', child: Text('Cliente')),
                 DropdownMenuItem(value: 'tech', child: Text('Técnico')),
-                DropdownMenuItem(value: 'both', child: Text('Cliente e Técnico')),
+                DropdownMenuItem(
+                    value: 'both', child: Text('Cliente e Técnico')),
               ],
-              onChanged: (value) => setState(() => _signatureMode = value ?? 'none'),
+              onChanged: (value) =>
+                  setState(() => _signatureMode = value ?? 'none'),
             ),
             const SizedBox(height: 8),
             AppDropdownField<String>(
               label: 'Escopo',
               value: _signatureScope,
               items: const [
-                DropdownMenuItem(value: 'last_page', child: Text('Assinar apenas no final')),
-                DropdownMenuItem(value: 'all_pages', child: Text('Assinar todas as páginas')),
+                DropdownMenuItem(
+                    value: 'last_page', child: Text('Assinar apenas no final')),
+                DropdownMenuItem(
+                    value: 'all_pages',
+                    child: Text('Assinar todas as páginas')),
               ],
               onChanged: (value) {
                 if (_signatureMode == 'none') return;
@@ -408,13 +430,15 @@ class _BudgetFormState extends State<BudgetForm> {
                     SignaturePadField(
                       label: 'Assinatura do cliente',
                       value: _signatureClient,
-                      onChanged: (value) => setState(() => _signatureClient = value),
+                      onChanged: (value) =>
+                          setState(() => _signatureClient = value),
                     ),
                     if (_signatureClient.isNotEmpty)
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton.icon(
-                          onPressed: () => setState(() => _signatureClient = ''),
+                          onPressed: () =>
+                              setState(() => _signatureClient = ''),
                           icon: const Icon(Icons.delete_outline),
                           label: const Text('Remover assinatura'),
                         ),
@@ -429,7 +453,8 @@ class _BudgetFormState extends State<BudgetForm> {
                     SignaturePadField(
                       label: 'Assinatura do Técnico',
                       value: _signatureTech,
-                      onChanged: (value) => setState(() => _signatureTech = value),
+                      onChanged: (value) =>
+                          setState(() => _signatureTech = value),
                     ),
                     if (_signatureTech.isNotEmpty)
                       Align(
@@ -451,7 +476,8 @@ class _BudgetFormState extends State<BudgetForm> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text('Itens', style: Theme.of(context).textTheme.titleSmall),
-                OutlinedButton(onPressed: _addItem, child: const Text('Adicionar item')),
+                OutlinedButton(
+                    onPressed: _addItem, child: const Text('Adicionar item')),
               ],
             ),
             const SizedBox(height: 8),
@@ -464,37 +490,36 @@ class _BudgetFormState extends State<BudgetForm> {
                   AppDropdownField<int>(
                     label: 'Item selecionado',
                     value: _selectedItemIndex,
-                    items: _items
-                        .asMap()
-                        .entries
-                        .map((entry) {
-                          final item = entry.value;
-                          final label =
-                              '${entry.key + 1} - ${item.description} (Qtd: ${item.qty}, Unit: ${formatCurrency(item.unitPrice)})';
-                          return DropdownMenuItem<int>(
-                            value: entry.key,
-                            child: Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        })
-                        .toList(),
-                    onChanged: (value) => setState(() => _selectedItemIndex = value),
+                    items: _items.asMap().entries.map((entry) {
+                      final item = entry.value;
+                      final label =
+                          '${entry.key + 1} - ${item.description} (Qtd: ${item.qty}, Unit: ${formatCurrency(item.unitPrice)})';
+                      return DropdownMenuItem<int>(
+                        value: entry.key,
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) =>
+                        setState(() => _selectedItemIndex = value),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       OutlinedButton(
-                        onPressed:
-                            _selectedItemIndex == null ? null : _editSelectedItem,
+                        onPressed: _selectedItemIndex == null
+                            ? null
+                            : _editSelectedItem,
                         child: const Text('Editar'),
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton(
-                        onPressed:
-                            _selectedItemIndex == null ? null : _removeSelectedItem,
+                        onPressed: _selectedItemIndex == null
+                            ? null
+                            : _removeSelectedItem,
                         child: const Text('Excluir'),
                       ),
                     ],
@@ -529,4 +554,3 @@ class _BudgetFormState extends State<BudgetForm> {
     );
   }
 }
-

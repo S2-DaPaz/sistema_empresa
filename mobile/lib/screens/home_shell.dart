@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import 'budgets_screen.dart';
 import 'clients_screen.dart';
@@ -35,11 +35,15 @@ class _HomeShellState extends State<HomeShell> {
         labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
         onDestinationSelected: (value) => setState(() => _index = value),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Painel'),
+          NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined), label: 'Painel'),
           NavigationDestination(icon: Icon(Icons.task_alt), label: 'Tarefas'),
-          NavigationDestination(icon: Icon(Icons.handyman_outlined), label: 'Equipamentos'),
-          NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Orçamentos'),
-          NavigationDestination(icon: Icon(Icons.people_alt_outlined), label: 'Clientes'),
+          NavigationDestination(
+              icon: Icon(Icons.handyman_outlined), label: 'Equipamentos'),
+          NavigationDestination(
+              icon: Icon(Icons.receipt_long), label: 'Orçamentos'),
+          NavigationDestination(
+              icon: Icon(Icons.people_alt_outlined), label: 'Clientes'),
           NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Mais'),
         ],
       ),

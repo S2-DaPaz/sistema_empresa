@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/formatters.dart';
@@ -70,8 +70,12 @@ class _TasksScreenState extends State<TasksScreen> {
         title: const Text('Remover tarefa'),
         content: const Text('Deseja remover esta tarefa?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remover')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover')),
         ],
       ),
     );
@@ -113,7 +117,8 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  Map<String, List<Map<String, dynamic>>> _groupTasksByDate(List<Map<String, dynamic>> tasks) {
+  Map<String, List<Map<String, dynamic>>> _groupTasksByDate(
+      List<Map<String, dynamic>> tasks) {
     final map = <String, List<Map<String, dynamic>>>{};
     for (final task in tasks) {
       final key = formatDateKey(task['start_date']?.toString() ?? '')
@@ -132,13 +137,17 @@ class _TasksScreenState extends State<TasksScreen> {
       task['status'],
       task['priority'],
     ];
-    return parts.map((value) => value?.toString() ?? '').join(' ').toLowerCase();
+    return parts
+        .map((value) => value?.toString() ?? '')
+        .join(' ')
+        .toLowerCase();
   }
 
   List<Map<String, dynamic>> _filteredTasks() {
     final query = _searchQuery.trim().toLowerCase();
     return _tasks.where((task) {
-      if (_statusFilter != null && task['status']?.toString() != _statusFilter) {
+      if (_statusFilter != null &&
+          task['status']?.toString() != _statusFilter) {
         return false;
       }
       if (query.isEmpty) return true;
@@ -252,7 +261,8 @@ class _TasksScreenState extends State<TasksScreen> {
                                     },
                                   ),
                           ),
-                          onChanged: (value) => setState(() => _searchQuery = value),
+                          onChanged: (value) =>
+                              setState(() => _searchQuery = value),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -270,8 +280,11 @@ class _TasksScreenState extends State<TasksScreen> {
                     alignment: Alignment.centerLeft,
                     child: SegmentedButton<TaskViewMode>(
                       segments: const [
-                        ButtonSegment(value: TaskViewMode.list, label: Text('Lista')),
-                        ButtonSegment(value: TaskViewMode.calendar, label: Text('Calendário')),
+                        ButtonSegment(
+                            value: TaskViewMode.list, label: Text('Lista')),
+                        ButtonSegment(
+                            value: TaskViewMode.calendar,
+                            label: Text('Calendário')),
                       ],
                       selected: {_viewMode},
                       onSelectionChanged: (value) {
@@ -297,8 +310,10 @@ class _TasksScreenState extends State<TasksScreen> {
                           ),
                         if (_statusFilter != null)
                           Chip(
-                            label: Text('Status: ${_formatStatus(_statusFilter)}'),
-                            onDeleted: () => setState(() => _statusFilter = null),
+                            label:
+                                Text('Status: ${_formatStatus(_statusFilter)}'),
+                            onDeleted: () =>
+                                setState(() => _statusFilter = null),
                           ),
                       ],
                     ),
@@ -313,7 +328,8 @@ class _TasksScreenState extends State<TasksScreen> {
               const Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('Nenhuma tarefa encontrada com os filtros atuais.'),
+                  child:
+                      Text('Nenhuma tarefa encontrada com os filtros atuais.'),
                 ),
               )
             else
@@ -332,8 +348,12 @@ class _TasksScreenState extends State<TasksScreen> {
                         Wrap(
                           spacing: 6,
                           children: [
-                            Chip(label: Text(_formatStatus(task['status']?.toString()))),
-                            Chip(label: Text(_formatPriority(task['priority']?.toString()))),
+                            Chip(
+                                label: Text(
+                                    _formatStatus(task['status']?.toString()))),
+                            Chip(
+                                label: Text(_formatPriority(
+                                    task['priority']?.toString()))),
                           ],
                         ),
                       ],
@@ -404,20 +424,29 @@ class _TasksScreenState extends State<TasksScreen> {
                       childAspectRatio: 0.95,
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
-                        ...['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
-                            .map((label) => Center(
-                                  child: Text(
-                                    label,
-                                    style: Theme.of(context).textTheme.labelSmall,
-                                  ),
-                                )),
+                        ...[
+                          'Dom',
+                          'Seg',
+                          'Ter',
+                          'Qua',
+                          'Qui',
+                          'Sex',
+                          'Sab'
+                        ].map((label) => Center(
+                              child: Text(
+                                label,
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            )),
                         ...calendarDays.map((date) {
                           if (date == null) {
-                            final outline = Theme.of(context).colorScheme.outline;
+                            final outline =
+                                Theme.of(context).colorScheme.outline;
                             return Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: outline.withValues(alpha: 0.35)),
+                                border: Border.all(
+                                    color: outline.withValues(alpha: 0.35)),
                               ),
                             );
                           }
@@ -433,10 +462,10 @@ class _TasksScreenState extends State<TasksScreen> {
                                 border: Border.all(
                                   color: isSelected
                                       ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context)
-                                      .colorScheme
-                                      .outline
-                                      .withValues(alpha: 0.35),
+                                      : Theme.of(context)
+                                          .colorScheme
+                                          .outline
+                                          .withValues(alpha: 0.35),
                                 ),
                               ),
                               child: Stack(
@@ -444,7 +473,10 @@ class _TasksScreenState extends State<TasksScreen> {
                                   Center(
                                     child: Text(
                                       date.day.toString(),
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
                                             fontWeight: FontWeight.w600,
                                           ),
                                     ),
@@ -454,18 +486,25 @@ class _TasksScreenState extends State<TasksScreen> {
                                       right: 6,
                                       top: 6,
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
                                           color: Theme.of(context)
                                               .colorScheme
                                               .primary
                                               .withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(999),
+                                          borderRadius:
+                                              BorderRadius.circular(999),
                                         ),
                                         child: Text(
                                           count.toString(),
-                                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                                color: Theme.of(context).colorScheme.primary,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary,
                                               ),
                                         ),
                                       ),
@@ -497,7 +536,8 @@ class _TasksScreenState extends State<TasksScreen> {
                         child: ListTile(
                           leading: const Icon(Icons.task_alt),
                           title: Text(task['title']?.toString() ?? 'Tarefa'),
-                          subtitle: Text(task['client_name']?.toString() ?? 'Sem cliente'),
+                          subtitle: Text(
+                              task['client_name']?.toString() ?? 'Sem cliente'),
                           onTap: () => _openTask(task['id'] as int?),
                         ),
                       )),

@@ -8,7 +8,10 @@ const { initDb } = require("../db");
 async function resetAdmin() {
   const name = process.env.ADMIN_NAME || "Administrador";
   const email = process.env.ADMIN_EMAIL || "admin@local";
-  const password = process.env.ADMIN_PASSWORD || "admin123";
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) {
+    throw new Error("ADMIN_PASSWORD is required to reset the administrator password.");
+  }
   const hash = await bcrypt.hash(password, 10);
   const db = await initDb();
 

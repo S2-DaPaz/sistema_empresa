@@ -1,0 +1,10 @@
+{
+  "name": "@rv-sistema/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./permissions.json": "./permissions.json",
+    "./domain-options.json": "./domain-options.json"
+  }
+}
