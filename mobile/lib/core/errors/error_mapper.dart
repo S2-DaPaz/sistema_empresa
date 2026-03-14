@@ -2,15 +2,15 @@ import 'app_exception.dart';
 
 const Map<String, String> _categoryMessages = {
   'connection_error':
-      'Nao foi possivel conectar ao servidor. Verifique sua internet e tente novamente.',
+      'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
   'server_error': 'Algo deu errado. Tente novamente em instantes.',
   'authentication_error':
-      'Sua sessao expirou. Faca login novamente para continuar.',
-  'permission_error': 'Voce nao tem permissao para realizar esta acao.',
+      'Sua sessão expirou. Faça login novamente para continuar.',
+  'permission_error': 'Você não tem permissão para realizar esta ação.',
   'validation_error': 'Revise os dados informados e tente novamente.',
-  'not_found': 'Nao foi possivel encontrar as informacoes solicitadas.',
-  'operation_invalid': 'Nao foi possivel concluir a operacao no momento.',
-  'unexpected_error': 'Nao foi possivel concluir a operacao no momento.',
+  'not_found': 'Não foi possível encontrar as informações solicitadas.',
+  'operation_invalid': 'Não foi possível concluir a operação no momento.',
+  'unexpected_error': 'Não foi possível concluir a operação no momento.',
 };
 
 final RegExp _technicalPattern = RegExp(
@@ -92,7 +92,7 @@ AppException normalizeNetworkError(
 }) {
   return AppException(
     message: timedOut
-        ? 'A conexao demorou mais do que o esperado. Tente novamente.'
+        ? 'A conexão demorou mais do que o esperado. Tente novamente.'
         : _messageForCategory('connection_error'),
     category: 'connection_error',
     code: timedOut ? 'timeout' : 'network_error',

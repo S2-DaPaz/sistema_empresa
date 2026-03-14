@@ -7,7 +7,7 @@ function isEmpty(value) {
 function ensureRequiredFields(body, fields) {
   const missing = fields.filter((field) => isEmpty(body[field]));
   if (missing.length) {
-    throw new ValidationError("Campos obrigatorios ausentes.", missing);
+    throw new ValidationError("Campos obrigatórios ausentes.", missing);
   }
 }
 
@@ -23,7 +23,7 @@ function buildPayload(body, fields, jsonFields = []) {
 function normalizeId(value, label = "id") {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) {
-    throw new ValidationError(`Parametro ${label} invalido.`);
+    throw new ValidationError(`Parâmetro ${label} inválido.`);
   }
   return id;
 }

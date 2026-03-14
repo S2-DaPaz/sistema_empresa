@@ -103,10 +103,10 @@ function createBudgetsRouter({ db, publicService }) {
           [id]
         ),
         ["signature_pages"]
-      );
-      if (!budget) {
-        throw new NotFoundError("Orcamento nao encontrado.");
-      }
+        );
+        if (!budget) {
+          throw new NotFoundError("Orçamento não encontrado.");
+        }
       budget.items = await db.all("SELECT * FROM budget_items WHERE budget_id = ? ORDER BY id ASC", [id]);
       return send(res, budget);
     })
@@ -150,10 +150,10 @@ function createBudgetsRouter({ db, publicService }) {
     "/:id/public-link",
     requirePermission(PERMISSIONS.VIEW_BUDGETS),
     asyncHandler(async (req, res) => {
-      const budgetId = normalizeId(req.params.id);
-      const budget = await db.get("SELECT id FROM budgets WHERE id = ?", [budgetId]);
-      if (!budget) throw new NotFoundError("Orcamento nao encontrado.");
-      const link = await publicService.ensureBudgetPublicLink(db, req, budgetId, req.user?.id);
+        const budgetId = normalizeId(req.params.id);
+        const budget = await db.get("SELECT id FROM budgets WHERE id = ?", [budgetId]);
+      if (!budget) throw new NotFoundError("Orçamento não encontrado.");
+        const link = await publicService.ensureBudgetPublicLink(db, req, budgetId, req.user?.id);
       publicService.scheduleWarmBudgetPdfCache(db, budgetId);
       return send(res, link);
     })

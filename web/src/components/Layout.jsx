@@ -8,10 +8,10 @@ const navItems = [
   { to: "/tarefas", label: "Tarefas", permission: PERMISSIONS.VIEW_TASKS },
   { to: "/equipamentos", label: "Equipamentos", permission: PERMISSIONS.VIEW_TASKS },
   { to: "/modelos", label: "Modelos", permission: PERMISSIONS.VIEW_TEMPLATES },
-  { to: "/orcamentos", label: "Orcamentos", permission: PERMISSIONS.VIEW_BUDGETS },
+  { to: "/orcamentos", label: "Orçamentos", permission: PERMISSIONS.VIEW_BUDGETS },
   { to: "/produtos", label: "Produtos", permission: PERMISSIONS.VIEW_PRODUCTS },
   { to: "/tipos-tarefa", label: "Tipos de tarefa", permission: PERMISSIONS.VIEW_TASK_TYPES },
-  { to: "/usuarios", label: "Usuarios", permission: PERMISSIONS.VIEW_USERS },
+  { to: "/usuarios", label: "Usuários", permission: PERMISSIONS.VIEW_USERS },
   { to: "/admin/logs-erros", label: "Logs de erro", adminOnly: true },
   { to: "/admin/logs-eventos", label: "Log de eventos", adminOnly: true }
 ];
@@ -62,7 +62,7 @@ export default function Layout() {
           <img src={logo} alt="RV TecnoCare" />
           <div>
             <span className="brand-title">RV TecnoCare</span>
-            <span className="brand-subtitle">Operacao, relatorios e auditoria</span>
+            <span className="brand-subtitle">Operação, relatórios e auditoria</span>
           </div>
         </div>
 
@@ -80,14 +80,14 @@ export default function Layout() {
 
         <div className="nav-footer">
           <span className="pill">Monitoramento ativo</span>
-          <span className="muted">Erros amigaveis e auditoria centralizada</span>
+          <span className="muted">Erros amigáveis e auditoria centralizada</span>
         </div>
       </aside>
 
       <div className="main-wrap">
         <header className="top-bar">
           <div>
-            <span className="eyebrow">Sistema de operacoes</span>
+            <span className="eyebrow">Sistema de operações</span>
             <h1>Atendimento, documentos e rastreabilidade no mesmo fluxo</h1>
           </div>
 
@@ -112,7 +112,7 @@ export default function Layout() {
                     <option value="all">Todos</option>
                     <option value="aberta">Aberta</option>
                     <option value="em_andamento">Em andamento</option>
-                    <option value="concluida">Concluida</option>
+                    <option value="concluida">Concluída</option>
                   </select>
                 </label>
 
@@ -124,7 +124,7 @@ export default function Layout() {
                   >
                     <option value="all">Todas</option>
                     <option value="alta">Alta</option>
-                    <option value="media">Media</option>
+                    <option value="media">Média</option>
                     <option value="baixa">Baixa</option>
                   </select>
                 </label>
@@ -144,7 +144,7 @@ export default function Layout() {
             )}
 
             <div className="user-pill">
-              <span>{user?.name || "Usuario"}</span>
+              <span>{user?.name || "Usuário"}</span>
               <small>{roleLabel}</small>
               <button className="btn ghost" type="button" onClick={logout}>
                 Sair

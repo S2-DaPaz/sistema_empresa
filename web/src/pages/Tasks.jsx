@@ -97,7 +97,7 @@ export default function Tasks() {
       const data = await apiGet("/tasks");
       setTasks(data || []);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel carregar as tarefas."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível carregar as tarefas."));
     }
   }
 
@@ -115,7 +115,7 @@ export default function Tasks() {
       await apiDelete(`/tasks/${id}`);
       await loadTasks();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover a tarefa."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível remover a tarefa."));
     }
   }
 

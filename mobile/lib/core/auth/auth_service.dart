@@ -99,7 +99,7 @@ class AuthService {
 
     throw normalizeUnexpectedError(
       'Invalid auth refresh response',
-      fallbackMessage: 'Nao foi possivel validar sua sessao agora.',
+      fallbackMessage: 'Não foi possível validar sua sessão agora.',
     );
   }
 
@@ -153,7 +153,7 @@ class AuthService {
       if (payload == null) {
         final error = normalizeUnexpectedError(
           'Invalid auth response',
-          fallbackMessage: 'Nao foi possivel processar a autenticacao.',
+          fallbackMessage: 'Não foi possível processar a autenticação.',
         );
         await _report(error, path: path, method: 'POST', payloadSummary: body);
         throw error;
@@ -167,7 +167,7 @@ class AuthService {
       payload: payload,
       statusCode: response.statusCode,
       technicalMessage: payload?['error']?.toString() ?? response.body,
-      fallbackMessage: 'Nao foi possivel autenticar com os dados informados.',
+      fallbackMessage: 'Não foi possível autenticar com os dados informados.',
     );
     await _report(error, path: path, method: 'POST', payloadSummary: body);
     throw error;
@@ -204,7 +204,7 @@ class AuthService {
     if (nextToken == null || userPayload is! Map) {
       final error = normalizeUnexpectedError(
         'Missing auth payload',
-        fallbackMessage: 'Nao foi possivel concluir a autenticacao.',
+        fallbackMessage: 'Não foi possível concluir a autenticação.',
       );
       await _report(error, path: '/auth/login', method: 'POST');
       throw error;

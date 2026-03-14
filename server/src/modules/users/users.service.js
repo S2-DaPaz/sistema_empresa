@@ -25,7 +25,7 @@ async function list(db) {
 async function create(db, payload) {
   const exists = await findUserByEmail(db, payload.email);
   if (exists) {
-    throw new ConflictError("E-mail ja cadastrado.");
+    throw new ConflictError("E-mail já cadastrado.");
   }
 
   const password_hash = await bcrypt.hash(payload.password, 10);
@@ -46,7 +46,7 @@ async function create(db, payload) {
 async function update(db, userId, payload) {
   const current = await findUserWithRoleById(db, userId);
   if (!current) {
-    throw new NotFoundError("Usuario nao encontrado.");
+    throw new NotFoundError("Usuário não encontrado.");
   }
 
   const updated = await updateUser(db, userId, {
@@ -66,7 +66,7 @@ async function update(db, userId, payload) {
 async function remove(db, userId) {
   const current = await findUserWithRoleById(db, userId);
   if (!current) {
-    throw new NotFoundError("Usuario nao encontrado.");
+    throw new NotFoundError("Usuário não encontrado.");
   }
 
   await deleteUser(db, userId);

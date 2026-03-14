@@ -17,7 +17,7 @@ export function RequireAuth({ children }) {
   const location = useLocation();
 
   if (loading) {
-    return <LoadingCard title="Carregando acesso" subtitle="Validando sua sessao." />;
+    return <LoadingCard title="Carregando acesso" subtitle="Validando sua sessão." />;
   }
 
   if (!user) {
@@ -32,7 +32,7 @@ export function RequireAdmin({ children }) {
   const isAdmin = user?.role_is_admin === true || user?.role === "administracao";
 
   if (loading) {
-    return <LoadingCard title="Carregando acesso" subtitle="Validando permissoes." />;
+    return <LoadingCard title="Carregando acesso" subtitle="Validando permissões." />;
   }
 
   if (!user) {
@@ -46,7 +46,7 @@ export function RequireAdmin({ children }) {
           <h2 className="section-title">Acesso restrito</h2>
         </div>
         <div className="card">
-          <p>Somente o administrador pode acessar esta area.</p>
+          <p>Somente o administrador pode acessar esta área.</p>
         </div>
       </section>
     );
@@ -59,7 +59,7 @@ export function RequirePermission({ permission, children }) {
   const { user, loading, hasPermission } = useAuth();
 
   if (loading) {
-    return <LoadingCard title="Carregando acesso" subtitle="Validando permissoes." />;
+    return <LoadingCard title="Carregando acesso" subtitle="Validando permissões." />;
   }
 
   if (!user) {
@@ -73,7 +73,7 @@ export function RequirePermission({ permission, children }) {
           <h2 className="section-title">Acesso restrito</h2>
         </div>
         <div className="card">
-          <p>Voce nao possui permissao para acessar esta area.</p>
+          <p>Você não possui permissão para acessar esta área.</p>
         </div>
       </section>
     );

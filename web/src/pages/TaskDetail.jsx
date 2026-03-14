@@ -439,7 +439,7 @@ export default function TaskDetail() {
         await loadBudgets();
       }
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar a tarefa."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível salvar a tarefa."));
     }
   }
 
@@ -480,7 +480,7 @@ export default function TaskDetail() {
       setReportMessage("Relatório salvo com sucesso.");
       await loadReports(form.task_type_id);
     } catch (err) {
-      setReportMessage(getFriendlyErrorMessage(err, "Nao foi possivel salvar o relatorio."));
+      setReportMessage(getFriendlyErrorMessage(err, "Não foi possível salvar o relatório."));
     }
   }
 
@@ -568,7 +568,7 @@ export default function TaskDetail() {
         window.prompt("Copie o link abaixo:", url);
       }
     } catch (err) {
-      alert(getFriendlyErrorMessage(err, "Nao foi possivel gerar o link publico."));
+      alert(getFriendlyErrorMessage(err, "Não foi possível gerar o link público."));
     }
   }
 
@@ -578,7 +578,7 @@ export default function TaskDetail() {
       if (!url) return;
       window.open(url, "_blank", "noopener");
     } catch (err) {
-      alert(getFriendlyErrorMessage(err, "Nao foi possivel abrir o link publico."));
+      alert(getFriendlyErrorMessage(err, "Não foi possível abrir o link público."));
     }
   }
 
@@ -599,7 +599,7 @@ export default function TaskDetail() {
         window.prompt("Copie o link abaixo:", url);
       }
     } catch (err) {
-      alert(getFriendlyErrorMessage(err, "Nao foi possivel gerar o link publico."));
+      alert(getFriendlyErrorMessage(err, "Não foi possível gerar o link público."));
     }
   }
 
@@ -609,7 +609,7 @@ export default function TaskDetail() {
       if (!url) return;
       window.open(url, "_blank", "noopener");
     } catch (err) {
-      alert(getFriendlyErrorMessage(err, "Nao foi possivel abrir o link publico."));
+      alert(getFriendlyErrorMessage(err, "Não foi possível abrir o link público."));
     }
   }
 
@@ -660,7 +660,7 @@ export default function TaskDetail() {
       applyReportData(created, form.task_type_id, types, templates);
       setReportMessage("Relatório criado com sucesso.");
     } catch (err) {
-      setReportMessage(getFriendlyErrorMessage(err, "Nao foi possivel criar o relatorio."));
+      setReportMessage(getFriendlyErrorMessage(err, "Não foi possível criar o relatório."));
     }
   }
 
@@ -682,7 +682,7 @@ export default function TaskDetail() {
       await loadBudgets();
       setReportMessage("Relatório excluído.");
     } catch (err) {
-      setReportMessage(getFriendlyErrorMessage(err, "Nao foi possivel excluir o relatorio."));
+      setReportMessage(getFriendlyErrorMessage(err, "Não foi possível excluir o relatório."));
     }
   }
 
@@ -736,7 +736,7 @@ export default function TaskDetail() {
       await loadTaskEquipments();
       await loadReports(form.task_type_id);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel vincular o equipamento."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível vincular o equipamento."));
     }
   }
 
@@ -761,7 +761,7 @@ export default function TaskDetail() {
       await loadTaskEquipments();
       await loadReports(form.task_type_id);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel cadastrar o equipamento."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível cadastrar o equipamento."));
     }
   }
 
@@ -779,7 +779,7 @@ export default function TaskDetail() {
       await loadTaskEquipments();
       await loadReports(form.task_type_id);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover o equipamento."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível remover o equipamento."));
     }
   }
 

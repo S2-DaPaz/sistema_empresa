@@ -170,7 +170,7 @@ export default function Templates() {
       await loadItems();
       resetForm();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar o modelo."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível salvar o modelo."));
     }
   }
 
@@ -183,7 +183,7 @@ export default function Templates() {
       }
       await loadItems();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover o modelo."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível remover o modelo."));
     }
   }
 

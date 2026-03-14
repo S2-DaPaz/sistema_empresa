@@ -52,7 +52,7 @@ export default function EntityManager({
       const data = await apiGet(endpoint);
       setItems(data || []);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel carregar os dados."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível carregar os dados."));
     }
   }
 
@@ -81,7 +81,7 @@ export default function EntityManager({
       await loadItems();
       resetForm();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar as informacoes."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível salvar as informações."));
     }
   }
 
@@ -104,7 +104,7 @@ export default function EntityManager({
       }
       await loadItems();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover o registro."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível remover o registro."));
     }
   }
 

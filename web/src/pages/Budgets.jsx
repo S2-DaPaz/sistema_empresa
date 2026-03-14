@@ -79,7 +79,7 @@ export default function Budgets() {
         window.prompt("Copie o link abaixo:", url);
       }
     } catch (error) {
-      alert(getFriendlyErrorMessage(error, "Nao foi possivel gerar o link publico."));
+      alert(getFriendlyErrorMessage(error, "Não foi possível gerar o link público."));
     }
   }
 
@@ -89,7 +89,7 @@ export default function Budgets() {
       if (!url) return;
       window.open(url, "_blank", "noopener");
     } catch (error) {
-      alert(getFriendlyErrorMessage(error, "Nao foi possivel abrir o link publico."));
+      alert(getFriendlyErrorMessage(error, "Não foi possível abrir o link público."));
     }
   }
 

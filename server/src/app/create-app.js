@@ -147,11 +147,11 @@ function createApp({ db, env, logger, publicService, monitoringService }) {
       }
       return res.sendFile(path.join(staticDir, "index.html"));
     });
-  } else {
-    app.get("/", (req, res) => {
-      res.status(404).send("Front-end nao encontrado. Gere o build do web/dist.");
-    });
-  }
+    } else {
+      app.get("/", (req, res) => {
+        res.status(404).send("Front-end não encontrado. Gere o build de web/dist.");
+      });
+    }
 
   app.use(notFoundHandler);
   app.use(errorHandler({ logger, monitoringService, db }));

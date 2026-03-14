@@ -139,7 +139,7 @@ class UpdateService {
                 setState(() {});
                 final result = await OpenFilex.open(file.path);
                 if (result.type != ResultType.done) {
-                  error = 'Nao foi possivel abrir o instalador.';
+                  error = 'Não foi possível abrir o instalador.';
                   setState(() {});
                 }
               } catch (err) {

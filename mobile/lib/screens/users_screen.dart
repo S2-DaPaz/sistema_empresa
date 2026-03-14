@@ -204,15 +204,15 @@ class _UsersScreenState extends State<UsersScreen> {
     if (_reservedRoles.contains(item['key']?.toString())) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Este cargo é protegido e não pode ser removido.')),
+            content: Text('Este perfil é protegido e não pode ser removido.')),
       );
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Remover cargo'),
-        content: Text('Deseja remover o cargo "${item['name']}"?'),
+        title: const Text('Remover perfil'),
+            content: Text('Deseja remover o perfil "${item['name']}"?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -277,7 +277,7 @@ class _UsersScreenState extends State<UsersScreen> {
                   ],
                 ),
                 subtitle: Text(
-                  '${item['email']?.toString() ?? 'Sem e-mail'}\nCargo: $roleName',
+                  '${item['email']?.toString() ?? 'Sem e-mail'}\nPerfil: $roleName',
                 ),
                 isThreeLine: true,
                 trailing: _canManage
@@ -314,7 +314,7 @@ class _UsersScreenState extends State<UsersScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => _openRoleForm(),
                 icon: const Icon(Icons.add_moderator_outlined),
-                label: const Text('Novo cargo'),
+                label: const Text('Novo perfil'),
               ),
             ),
           const SizedBox(height: 12),
@@ -322,7 +322,7 @@ class _UsersScreenState extends State<UsersScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('Nenhum cargo cadastrado.'),
+                child: Text('Nenhum perfil cadastrado.'),
               ),
             ),
           ..._roles.map((item) {
@@ -333,7 +333,7 @@ class _UsersScreenState extends State<UsersScreen> {
               child: ListTile(
                 title: Row(
                   children: [
-                    Expanded(child: Text(item['name']?.toString() ?? 'Cargo')),
+                    Expanded(child: Text(item['name']?.toString() ?? 'Perfil')),
                     if (isAdmin)
                       const Padding(
                         padding: EdgeInsets.only(left: 8),
@@ -406,7 +406,7 @@ class _UsersScreenState extends State<UsersScreen> {
               labelColor: Theme.of(context).colorScheme.primary,
               tabs: const [
                 Tab(text: 'Usuários'),
-                Tab(text: 'Cargos'),
+                Tab(text: 'Perfis'),
               ],
             ),
             const SizedBox(height: 12),
@@ -528,7 +528,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
           AppTextField(label: 'Nome', controller: _nameController),
           AppTextField(label: 'E-mail', controller: _emailController),
           AppDropdownField<String>(
-            label: 'Cargo',
+            label: 'Perfil',
             value: _role,
             items: _buildRoleItems(),
             onChanged: (value) => setState(() => _role = value ?? _role),
@@ -631,10 +631,10 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: _isEdit ? 'Editar cargo' : 'Novo cargo',
+      title: _isEdit ? 'Editar perfil' : 'Novo perfil',
       body: ListView(
         children: [
-          AppTextField(label: 'Nome do cargo', controller: _nameController),
+          AppTextField(label: 'Nome do perfil', controller: _nameController),
           CheckboxListTile(
             value: _isAdmin,
             onChanged: (value) => setState(() {
@@ -647,7 +647,7 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Permissões do cargo',
+            'Permissões do perfil',
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 8),
@@ -662,7 +662,7 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Ao ativar "Permissões de ADM", o cargo passa a ter acesso total.',
+            'Ao ativar "Permissões de ADM", o perfil passa a ter acesso total.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),

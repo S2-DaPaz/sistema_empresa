@@ -159,7 +159,7 @@ export default function BudgetForm({
       ]);
       onSaved?.();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar o orcamento."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível salvar o orçamento."));
     }
   }
 

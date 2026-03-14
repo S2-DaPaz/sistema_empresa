@@ -27,6 +27,22 @@ const RESOURCE_NAMES = {
   "report-templates": "report_template"
 };
 
+const RESOURCE_LABELS = {
+  auth: "autenticação",
+  client: "cliente",
+  product: "produto",
+  task: "tarefa",
+  report: "relatório",
+  budget: "orçamento",
+  user: "usuário",
+  role: "perfil",
+  equipment: "equipamento",
+  task_type: "tipo de tarefa",
+  report_template: "modelo de relatório",
+  error_log: "log de erro",
+  session: "sessão"
+};
+
 function createMonitoringService({ env, logger }) {
   function nowIso() {
     return new Date().toISOString();
@@ -95,12 +111,16 @@ function createMonitoringService({ env, logger }) {
   }
 
   function splitApiPath(pathname = "") {
-    return String(pathname)
+      return String(pathname)
       .replace(/^https?:\/\/[^/]+/i, "")
       .replace(/\?.*$/g, "")
       .replace(/^\/api\/?/, "")
       .split("/")
       .filter(Boolean);
+  }
+
+  function getResourceLabel(resource) {
+    return RESOURCE_LABELS[resource] || String(resource || "registro").replace(/_/g, " ");
   }
 
   function buildFriendlyMessage(req, error) {
@@ -122,14 +142,14 @@ function createMonitoringService({ env, logger }) {
           code,
           category: "authentication_error",
           severity: "warning",
-          message: "Nao foi possivel autenticar com os dados informados."
+          message: "Não foi possível autenticar com os dados informados."
         };
       }
       return {
         code,
         category: "authentication_error",
         severity: "warning",
-        message: "Sua sessao expirou. Faca login novamente para continuar."
+        message: "Sua sessão expirou. Faça login novamente para continuar."
       };
     }
 
@@ -138,7 +158,7 @@ function createMonitoringService({ env, logger }) {
         code,
         category: "permission_error",
         severity: "warning",
-        message: "Voce nao tem permissao para realizar esta acao."
+        message: "Você não tem permissão para realizar esta ação."
       };
     }
 
@@ -156,7 +176,7 @@ function createMonitoringService({ env, logger }) {
         code,
         category: "not_found",
         severity: "warning",
-        message: "Nao foi possivel encontrar as informacoes solicitadas."
+        message: "Não foi possível encontrar as informações solicitadas."
       };
     }
 
@@ -165,7 +185,7 @@ function createMonitoringService({ env, logger }) {
         code,
         category: "operation_invalid",
         severity: "warning",
-        message: error.message || "Nao foi possivel concluir a operacao no momento."
+        message: error.message || "Não foi possível concluir a operação no momento."
       };
     }
 
@@ -174,7 +194,7 @@ function createMonitoringService({ env, logger }) {
         code,
         category: "operation_invalid",
         severity: "warning",
-        message: error.message || "Nao foi possivel concluir a operacao no momento."
+        message: error.message || "Não foi possível concluir a operação no momento."
       };
     }
 
@@ -244,7 +264,7 @@ function createMonitoringService({ env, logger }) {
       severity: payload.severity || "error",
       category: payload.category || "unexpected_error",
       errorCode: payload.errorCode || "client_error",
-      friendlyMessage: payload.friendlyMessage || "Nao foi possivel concluir a operacao no momento.",
+      friendlyMessage: payload.friendlyMessage || "Não foi possível concluir a operação no momento.",
       httpStatus: payload.httpStatus || null,
       httpMethod: payload.httpMethod || null,
       endpoint: payload.endpoint || null,
@@ -281,7 +301,7 @@ function createMonitoringService({ env, logger }) {
       if (method === "POST" && segments[1] === "error-logs" && segments[3] === "resolve") {
         return {
           action: "ERROR_LOG_RESOLVED",
-          description: "Status de resolucao do log de erro atualizado.",
+          description: "Status de resolução do log de erro atualizado.",
           module: "monitoring",
           entityType: "error_log",
           entityId: segments[2] || null
@@ -297,7 +317,7 @@ function createMonitoringService({ env, logger }) {
         return {
           action: outcome === "success" ? "AUTH_LOGIN_SUCCESS" : "AUTH_LOGIN_FAILURE",
           description:
-            outcome === "success" ? "Login realizado com sucesso." : "Falha de autenticacao.",
+            outcome === "success" ? "Login realizado com sucesso." : "Falha de autenticação.",
           module: "auth",
           entityType: "session",
           entityId: res.locals?.responseData?.user?.id || null
@@ -310,7 +330,7 @@ function createMonitoringService({ env, logger }) {
           description:
             outcome === "success"
               ? "Cadastro realizado com sucesso."
-              : "Falha ao registrar novo usuario.",
+              : "Falha ao registrar um novo usuário.",
           module: "auth",
           entityType: "user",
           entityId: res.locals?.responseData?.user?.id || null
@@ -324,7 +344,7 @@ function createMonitoringService({ env, logger }) {
       const entityName = RESOURCE_NAMES[resource] || resource;
       return {
         action: `${entityName.toUpperCase()}_PDF_EXPORTED`,
-        description: `Documento PDF de ${entityName} gerado.`,
+        description: `Documento em PDF de ${getResourceLabel(entityName)} gerado.`,
         module: resource,
         entityType: entityName,
         entityId: segments[1] || null
@@ -335,7 +355,7 @@ function createMonitoringService({ env, logger }) {
       const entityName = RESOURCE_NAMES[resource] || resource;
       return {
         action: `${entityName.toUpperCase()}_PUBLIC_LINK_CREATED`,
-        description: `Link publico de ${entityName} gerado.`,
+        description: `Link público de ${getResourceLabel(entityName)} gerado.`,
         module: resource,
         entityType: entityName,
         entityId: segments[1] || null
@@ -345,7 +365,7 @@ function createMonitoringService({ env, logger }) {
     if (resource === "tasks" && method === "POST" && segments[2] === "equipments") {
       return {
         action: "TASK_EQUIPMENT_ATTACHED",
-        description: "Equipamento vinculado a tarefa.",
+        description: "Equipamento vinculado à tarefa.",
         module: "tasks",
         entityType: "task",
         entityId: segments[1] || null
@@ -374,9 +394,12 @@ function createMonitoringService({ env, logger }) {
 
     return {
       action: `${entityName.toUpperCase()}_${suffix}`,
-      description: `${entityName.replace(/_/g, " ")} ${
-        method === "POST" ? "criado" : method === "PUT" ? "atualizado" : "removido"
-      }.`,
+      description:
+        method === "POST"
+          ? `Cadastro de ${getResourceLabel(entityName)} realizado.`
+          : method === "PUT"
+            ? `Atualização de ${getResourceLabel(entityName)} realizada.`
+            : `Remoção de ${getResourceLabel(entityName)} realizada.`,
       module: resource,
       entityType: entityName,
       entityId: segments[1] || res.locals?.responseData?.id || null

@@ -21,7 +21,7 @@ export function formatDateTime(value) {
 
 export function formatUser(item) {
   if (!item) return "Sistema";
-  return item.user_name || item.user_email || (item.user_id ? `Usuario #${item.user_id}` : "Sistema");
+  return item.user_name || item.user_email || (item.user_id ? `Usuário #${item.user_id}` : "Sistema");
 }
 
 export function safeJson(value) {

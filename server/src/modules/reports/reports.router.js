@@ -66,10 +66,10 @@ function createReportsRouter({ db, publicService }) {
          LEFT JOIN equipments ON equipments.id = reports.equipment_id
          WHERE reports.id = ?`,
         [normalizeId(req.params.id)]
-      );
-      if (!report) {
-        throw new NotFoundError("Relatorio nao encontrado.");
-      }
+        );
+        if (!report) {
+          throw new NotFoundError("Relatório não encontrado.");
+        }
       return send(res, parseJsonFields(report, ["content"]));
     })
   );

@@ -12,7 +12,7 @@ void main() {
     expect(error.category, 'connection_error');
     expect(
       error.message,
-      'Nao foi possivel conectar ao servidor. Verifique sua internet e tente novamente.',
+      'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
     );
     expect(error.technicalMessage, contains('SocketException'));
   });
@@ -24,7 +24,7 @@ void main() {
         'error': {
           'code': 'unauthorized',
           'category': 'authentication_error',
-          'message': 'Sua sessao expirou. Faca login novamente para continuar.',
+          'message': 'Sua sessão expirou. Faça login novamente para continuar.',
           'requestId': 'req-123',
         },
       },
@@ -34,7 +34,7 @@ void main() {
     expect(error.category, 'authentication_error');
     expect(
       error.message,
-      'Sua sessao expirou. Faca login novamente para continuar.',
+      'Sua sessão expirou. Faça login novamente para continuar.',
     );
     expect(error.requestId, 'req-123');
   });

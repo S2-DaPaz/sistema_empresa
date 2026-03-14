@@ -768,7 +768,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         : '';
     if (url.isEmpty) {
       throw AppException(
-        message: 'Nao foi possivel gerar o link publico agora.',
+        message: 'Não foi possível gerar o link público agora.',
         category: 'unexpected_error',
         code: 'public_link_missing',
         technicalMessage: 'Public link response without url.',
@@ -1535,8 +1535,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             }),
           ],
           const SizedBox(height: 12),
-          ElevatedButton(
-              onPressed: _saveTask, child: const Text('Salvar Assinaturas')),
+            ElevatedButton(
+              onPressed: _saveTask,
+              child: const Text('Salvar assinaturas'),
+            ),
         ],
       ],
     );

@@ -24,11 +24,11 @@ function buildTechnicalSnapshot(log) {
     `ID: ${log.id}`,
     `Data: ${log.created_at}`,
     `Severidade: ${log.severity}`,
-    `Codigo: ${log.error_code || "-"}`,
+    `Código: ${log.error_code || "-"}`,
     `Request ID: ${log.request_id || "-"}`,
     `Endpoint: ${log.http_method || "-"} ${log.endpoint || "-"}`,
     "",
-    "Mensagem tecnica:",
+    "Mensagem técnica:",
     log.technical_message || "-",
     "",
     "Stack trace:",
@@ -60,10 +60,7 @@ export default function ErrorLogs() {
   const [resolutionNote, setResolutionNote] = useState("");
   const [detailNotice, setDetailNotice] = useState("");
 
-  const queryString = useMemo(
-    () => buildQueryString(filters, page, 20),
-    [filters, page]
-  );
+  const queryString = useMemo(() => buildQueryString(filters, page, 20), [filters, page]);
 
   useEffect(() => {
     let active = true;
@@ -91,7 +88,7 @@ export default function ErrorLogs() {
         setListState((prev) => ({
           ...prev,
           loading: false,
-          error: getFriendlyErrorMessage(error, "Nao foi possivel carregar os logs de erro.")
+          error: getFriendlyErrorMessage(error, "Não foi possível carregar os logs de erro.")
         }));
       }
     }
@@ -125,7 +122,10 @@ export default function ErrorLogs() {
         setDetailState({
           item: null,
           loading: false,
-          error: getFriendlyErrorMessage(error, "Nao foi possivel carregar os detalhes do log.")
+          error: getFriendlyErrorMessage(
+            error,
+            "Não foi possível carregar os detalhes do log."
+          )
         });
       }
     }
@@ -153,7 +153,7 @@ export default function ErrorLogs() {
       }));
     } catch (error) {
       setDetailNotice(
-        getFriendlyErrorMessage(error, "Nao foi possivel atualizar o status do log.")
+        getFriendlyErrorMessage(error, "Não foi possível atualizar o status do log.")
       );
     }
   }
@@ -161,7 +161,11 @@ export default function ErrorLogs() {
   async function handleCopy() {
     if (!detailState.item) return;
     const copied = await copyToClipboard(buildTechnicalSnapshot(detailState.item));
-    setDetailNotice(copied ? "Detalhes copiados para a area de transferencia." : "Nao foi possivel copiar os detalhes.");
+    setDetailNotice(
+      copied
+        ? "Detalhes copiados para a área de transferência."
+        : "Não foi possível copiar os detalhes."
+    );
   }
 
   function updateFilter(key, value) {
@@ -180,7 +184,7 @@ export default function ErrorLogs() {
         <div>
           <h2 className="section-title">Logs de erro</h2>
           <p className="muted">
-            Falhas tecnicas, erros de API e problemas reportados por web ou mobile.
+            Falhas técnicas, erros de API e problemas reportados por web ou mobile.
           </p>
         </div>
         <span className="badge neutral">
@@ -195,7 +199,7 @@ export default function ErrorLogs() {
             type="search"
             value={filters.search}
             onChange={(event) => updateFilter("search", event.target.value)}
-            placeholder="Mensagem, usuario, endpoint ou request ID"
+            placeholder="Mensagem, usuário, endpoint ou request ID"
           />
         </label>
 
@@ -212,7 +216,7 @@ export default function ErrorLogs() {
         </label>
 
         <label className="form-field">
-          <span>Modulo</span>
+          <span>Módulo</span>
           <input
             type="text"
             value={filters.module}
@@ -256,7 +260,7 @@ export default function ErrorLogs() {
         </label>
 
         <label className="form-field">
-          <span>Ate</span>
+          <span>Até</span>
           <input
             type="date"
             value={filters.dateTo}
@@ -276,8 +280,8 @@ export default function ErrorLogs() {
                   <th>Data</th>
                   <th>Severidade</th>
                   <th>Mensagem</th>
-                  <th>Modulo</th>
-                  <th>Usuario</th>
+                  <th>Módulo</th>
+                  <th>Usuário</th>
                   <th>Plataforma</th>
                   <th>Status</th>
                 </tr>
@@ -313,7 +317,9 @@ export default function ErrorLogs() {
                       <td>{formatUser(item)}</td>
                       <td>{item.platform || "-"}</td>
                       <td>
-                        <span className={`badge ${item.resolved_at ? "tone-success" : "tone-warning"}`}>
+                        <span
+                          className={`badge ${item.resolved_at ? "tone-success" : "tone-warning"}`}
+                        >
                           {item.resolved_at ? "Resolvido" : "Pendente"}
                         </span>
                       </td>
@@ -326,7 +332,7 @@ export default function ErrorLogs() {
 
           <div className="pagination-row">
             <span className="muted">
-              Pagina {listState.meta.page || 1} de {totalPages}
+              Página {listState.meta.page || 1} de {totalPages}
             </span>
             <div className="inline">
               <button
@@ -343,7 +349,7 @@ export default function ErrorLogs() {
                 onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                 disabled={page >= totalPages}
               >
-                Proxima
+                Próxima
               </button>
             </div>
           </div>
@@ -353,7 +359,9 @@ export default function ErrorLogs() {
           {!selectedId ? (
             <div className="empty-state">
               <h3>Selecione um log</h3>
-              <p className="muted">Escolha um item da lista para inspecionar os detalhes tecnicos.</p>
+              <p className="muted">
+                Escolha um item da lista para inspecionar os detalhes técnicos.
+              </p>
             </div>
           ) : detailState.loading ? (
             <div className="empty-state">
@@ -396,7 +404,7 @@ export default function ErrorLogs() {
                     </strong>
                   </div>
                   <div className="card soft">
-                    <small className="muted">Usuario</small>
+                    <small className="muted">Usuário</small>
                     <strong>{formatUser(detailState.item)}</strong>
                   </div>
                   <div className="card soft">
@@ -407,7 +415,7 @@ export default function ErrorLogs() {
 
                 <div className="form-grid">
                   <label className="form-field full">
-                    <span>Mensagem tecnica</span>
+                    <span>Mensagem técnica</span>
                     <textarea readOnly value={detailState.item.technical_message || "-"} />
                   </label>
 
@@ -427,11 +435,11 @@ export default function ErrorLogs() {
                   </label>
 
                   <label className="form-field full">
-                    <span>Nota de resolucao</span>
+                    <span>Nota de resolução</span>
                     <textarea
                       value={resolutionNote}
                       onChange={(event) => setResolutionNote(event.target.value)}
-                      placeholder="Descreva a causa raiz, a correcao aplicada ou o acompanhamento."
+                      placeholder="Descreva a causa raiz, a correção aplicada ou o acompanhamento."
                     />
                   </label>
                 </div>

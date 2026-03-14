@@ -198,9 +198,9 @@ function createTasksRouter({ db, publicService }) {
       const equipment = await db.get("SELECT * FROM equipments WHERE id = ?", [
         normalizeId(req.body.equipment_id, "equipment_id")
       ]);
-      if (!equipment) throw new NotFoundError("Equipamento nao encontrado.");
+      if (!equipment) throw new NotFoundError("Equipamento não encontrado.");
       if (task.client_id && equipment.client_id !== task.client_id) {
-        throw new ValidationError("Equipamento nao pertence ao cliente da tarefa.");
+        throw new ValidationError("O equipamento não pertence ao cliente da tarefa.");
       }
       await db.run(
         `INSERT OR IGNORE INTO task_equipments (task_id, equipment_id, created_at)
@@ -249,7 +249,7 @@ function createTasksRouter({ db, publicService }) {
         linkId,
         taskId
       ]);
-      if (!link) throw new NotFoundError("Link publico nao encontrado.");
+      if (!link) throw new NotFoundError("Link público não encontrado.");
       await db.run("UPDATE task_public_links SET revoked_at = ? WHERE id = ?", [
         new Date().toISOString(),
         link.id

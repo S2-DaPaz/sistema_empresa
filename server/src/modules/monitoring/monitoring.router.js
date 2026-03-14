@@ -30,7 +30,7 @@ function createMonitoringRouter({ db, monitoringService }) {
     asyncHandler(async (req, res) => {
       const item = await monitoringService.getErrorLog(db, normalizeId(req.params.id));
       if (!item) {
-        throw new NotFoundError("Log de erro nao encontrado.");
+        throw new NotFoundError("Log de erro não encontrado.");
       }
       return send(res, item);
     })
@@ -47,7 +47,7 @@ function createMonitoringRouter({ db, monitoringService }) {
         req.user
       );
       if (!item) {
-        throw new NotFoundError("Log de erro nao encontrado.");
+        throw new NotFoundError("Log de erro não encontrado.");
       }
       return send(res, item);
     })
@@ -74,7 +74,7 @@ function createMonitoringRouter({ db, monitoringService }) {
     asyncHandler(async (req, res) => {
       const item = await monitoringService.getEventLog(db, normalizeId(req.params.id));
       if (!item) {
-        throw new NotFoundError("Log de evento nao encontrado.");
+        throw new NotFoundError("Log de evento não encontrado.");
       }
       return send(res, item);
     })

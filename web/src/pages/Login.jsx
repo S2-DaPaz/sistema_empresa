@@ -31,7 +31,7 @@ export default function Login() {
       }
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel autenticar com os dados informados."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível autenticar com os dados informados."));
     } finally {
       setLoading(false);
     }

@@ -21,7 +21,7 @@ test("buildErrorResponse maps login unauthorized errors to a friendly auth messa
       originalUrl: "/api/auth/login",
       requestId: "req-auth"
     },
-    new UnauthorizedError("Token invalido.")
+    new UnauthorizedError("Token inválido.")
   );
 
   assert.equal(response.statusCode, 401);
@@ -29,7 +29,7 @@ test("buildErrorResponse maps login unauthorized errors to a friendly auth messa
     error: {
       code: "unauthorized",
       category: "authentication_error",
-      message: "Nao foi possivel autenticar com os dados informados.",
+      message: "Não foi possível autenticar com os dados informados.",
       details: undefined,
       requestId: "req-auth"
     }

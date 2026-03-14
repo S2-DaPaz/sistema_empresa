@@ -165,7 +165,7 @@ function createPublicService({ env, logger }) {
       }
     }
 
-    throw new ValidationError("Falha ao gerar token publico.");
+    throw new ValidationError("Falha ao gerar token público.");
   }
 
   async function findValidLink(db, { table, foreignKey, id, token }) {
@@ -213,7 +213,7 @@ function createPublicService({ env, logger }) {
         process.env.PDF_TEMPLATE_PATH ||
         path.join(__dirname, "..", "..", "..", "..", "web", "src", "utils", "pdf.js");
       if (!fs.existsSync(modulePath)) {
-        throw new Error("Template de PDF nao encontrado.");
+        throw new Error("Template de PDF não encontrado.");
       }
       pdfHelpersPromise = import(pathToFileURL(modulePath).href);
     }
@@ -386,7 +386,7 @@ function createPublicService({ env, logger }) {
   async function renderBudgetPdf(db, budgetId, { forceRefresh = false } = {}) {
     const data = await fetchBudgetPdfData(db, budgetId);
     if (!data) {
-      throw new NotFoundError("Orcamento nao encontrado.");
+      throw new NotFoundError("Orçamento não encontrado.");
     }
 
     const logoUrl = getLogoDataUrl();
@@ -423,7 +423,7 @@ function createPublicService({ env, logger }) {
 
   async function getBudgetPdfCacheStatus(db, budgetId) {
     const data = await fetchBudgetPdfData(db, budgetId);
-    if (!data) throw new NotFoundError("Orcamento nao encontrado.");
+    if (!data) throw new NotFoundError("Orçamento não encontrado.");
     const hash = computeCacheHash({ type: "budget", data, logoUrl: getLogoDataUrl() });
     return { ready: isCachedPdfReady("budgets", budgetId, hash), hash };
   }
@@ -505,7 +505,7 @@ function createPublicService({ env, logger }) {
     const statusBadge = status
       ? `<span class="badge ${status.variant}">${status.text}</span>`
       : "";
-    const actionLabel = approveBudget ? "Aprovar orcamento" : "Assinar relatorio";
+    const actionLabel = approveBudget ? "Aprovar orçamento" : "Assinar relatório";
     const approveButton = approveBudget || approveReport
       ? `<button type="button" onclick="openApproval()">${actionLabel}</button>`
       : "";
@@ -556,7 +556,7 @@ function createPublicService({ env, logger }) {
   async function fetchPdfBlob(url) {
     const response = await fetch(url, { credentials: 'same-origin' });
     if (!response.ok) {
-      throw new Error('Falha ao carregar PDF.');
+        throw new Error('Falha ao carregar o PDF.');
     }
     return response.blob();
   }
@@ -676,7 +676,7 @@ function createPublicService({ env, logger }) {
       token
     });
     if (!link) {
-      throw new ValidationError("Link publico invalido ou expirado.");
+      throw new ValidationError("Link público inválido ou expirado.");
     }
 
     const data = await fetchTaskPdfData(db, taskId);
@@ -702,7 +702,7 @@ function createPublicService({ env, logger }) {
     const baseUrl = getPublicBaseUrl(req);
 
     return injectPublicToolbar(html, {
-      title: `Relatorio da tarefa #${taskId}`,
+      title: `Relatório da tarefa #${taskId}`,
       token,
       pdfUrl: `${baseUrl}/public/tasks/${taskId}/pdf?token=${encodedToken}`,
       pdfDownloadUrl: `${baseUrl}/public/tasks/${taskId}/pdf?token=${encodedToken}&download=1`,
@@ -721,12 +721,12 @@ function createPublicService({ env, logger }) {
       token
     });
     if (!link) {
-      throw new ValidationError("Link publico invalido ou expirado.");
+      throw new ValidationError("Link público inválido ou expirado.");
     }
 
     const data = await fetchBudgetPdfData(db, budgetId);
     if (!data) {
-      throw new NotFoundError("Orcamento nao encontrado.");
+      throw new NotFoundError("Orçamento não encontrado.");
     }
 
     const logoUrl = getLogoDataUrl();
@@ -745,7 +745,7 @@ function createPublicService({ env, logger }) {
     const baseUrl = getPublicBaseUrl(req);
 
     return injectPublicToolbar(html, {
-      title: `Orcamento #${budgetId}`,
+      title: `Orçamento #${budgetId}`,
       token,
       pdfUrl: `${baseUrl}/public/budgets/${budgetId}/pdf?token=${encodedToken}`,
       pdfDownloadUrl: `${baseUrl}/public/budgets/${budgetId}/pdf?token=${encodedToken}&download=1`,
@@ -764,10 +764,10 @@ function createPublicService({ env, logger }) {
       token
     });
     if (!link) {
-      throw new ValidationError("Link publico invalido ou expirado.");
+      throw new ValidationError("Link público inválido ou expirado.");
     }
     if (!payload.signature || !String(payload.signature).startsWith("data:image")) {
-      throw new ValidationError("Assinatura invalida.");
+      throw new ValidationError("Assinatura inválida.");
     }
 
     const task = await db.get("SELECT signature_mode, signature_scope FROM tasks WHERE id = ?", [taskId]);
@@ -805,10 +805,10 @@ function createPublicService({ env, logger }) {
       token
     });
     if (!link) {
-      throw new ValidationError("Link publico invalido ou expirado.");
+      throw new ValidationError("Link público inválido ou expirado.");
     }
     if (!payload.signature || !String(payload.signature).startsWith("data:image")) {
-      throw new ValidationError("Assinatura invalida.");
+      throw new ValidationError("Assinatura inválida.");
     }
 
     const budget = await db.get("SELECT signature_mode, signature_scope, task_id FROM budgets WHERE id = ?", [
@@ -850,7 +850,7 @@ function createPublicService({ env, logger }) {
       token
     });
     if (!link) {
-      throw new ValidationError("Link publico invalido ou expirado.");
+      throw new ValidationError("Link público inválido ou expirado.");
     }
 
     await db.run(
@@ -873,7 +873,7 @@ function createPublicService({ env, logger }) {
       token
     });
     if (!link) {
-      throw new ValidationError("Link publico invalido ou expirado.");
+      throw new ValidationError("Link público inválido ou expirado.");
     }
 
     const budget = await db.get("SELECT task_id FROM budgets WHERE id = ?", [budgetId]);

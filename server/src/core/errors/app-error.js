@@ -15,19 +15,19 @@ class ValidationError extends AppError {
 }
 
 class UnauthorizedError extends AppError {
-  constructor(message = "Nao autorizado") {
+  constructor(message = "Não autorizado") {
     super(message, { code: "unauthorized", statusCode: 401 });
   }
 }
 
 class ForbiddenError extends AppError {
-  constructor(message = "Sem permissao") {
+  constructor(message = "Sem permissão") {
     super(message, { code: "forbidden", statusCode: 403 });
   }
 }
 
 class NotFoundError extends AppError {
-  constructor(message = "Registro nao encontrado") {
+  constructor(message = "Registro não encontrado") {
     super(message, { code: "not_found", statusCode: 404 });
   }
 }

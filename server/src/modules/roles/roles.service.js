@@ -23,12 +23,12 @@ async function create(db, payload) {
   const name = String(payload.name || "").trim();
   const key = slugifyRoleKey(payload.key || name);
   if (!name || !key) {
-    throw new ValidationError("Nome e codigo da funcao sao obrigatorios.");
+    throw new ValidationError("Nome e código da função são obrigatórios.");
   }
 
   const existing = await findRoleByKey(db, key);
   if (existing) {
-    throw new ConflictError("Ja existe uma funcao com este codigo.");
+    throw new ConflictError("Já existe uma função com este código.");
   }
 
   const role = await createRole(db, {
@@ -44,7 +44,7 @@ async function create(db, payload) {
 async function update(db, roleId, payload) {
   const role = await findRoleById(db, roleId);
   if (!role) {
-    throw new NotFoundError("Funcao nao encontrada.");
+    throw new NotFoundError("Função não encontrada.");
   }
 
   const updated = await updateRole(db, roleId, {
@@ -59,11 +59,11 @@ async function update(db, roleId, payload) {
 async function remove(db, roleId) {
   const role = await findRoleById(db, roleId);
   if (!role) {
-    throw new NotFoundError("Funcao nao encontrada.");
+    throw new NotFoundError("Função não encontrada.");
   }
 
   if (RESERVED_ROLE_KEYS.includes(role.key)) {
-    throw new ValidationError("Funcoes padrao nao podem ser removidas.");
+    throw new ValidationError("Funções padrão não podem ser removidas.");
   }
 
   await deleteRole(db, roleId);

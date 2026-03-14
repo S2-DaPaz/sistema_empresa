@@ -145,7 +145,7 @@ export default function Users() {
       await loadUsers();
       resetForm();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar o usuario."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível salvar o usuário."));
     }
   }
 
@@ -153,7 +153,7 @@ export default function Users() {
     event.preventDefault();
     setRoleError("");
     if (!canManageUsers) {
-      setRoleError("Você não possui permissão para gerenciar cargos.");
+      setRoleError("Você não possui permissão para gerenciar perfis.");
       return;
     }
 
@@ -171,7 +171,7 @@ export default function Users() {
       await loadRoles();
       resetRoleForm();
     } catch (err) {
-      setRoleError(getFriendlyErrorMessage(err, "Nao foi possivel salvar o cargo."));
+      setRoleError(getFriendlyErrorMessage(err, "Não foi possível salvar o perfil."));
     }
   }
 
@@ -189,20 +189,20 @@ export default function Users() {
         resetForm();
       }
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover o usuario."));
+      setError(getFriendlyErrorMessage(err, "Não foi possível remover o usuário."));
     }
   }
 
   async function handleRoleDelete(role) {
     if (!canManageUsers) {
-      setRoleError("Você não possui permissão para gerenciar cargos.");
+      setRoleError("Você não possui permissão para gerenciar perfis.");
       return;
     }
     if (reservedRoleKeys.has(role.key)) {
-      setRoleError("Este cargo é protegido e não pode ser removido.");
+      setRoleError("Este perfil é protegido e não pode ser removido.");
       return;
     }
-    if (!window.confirm(`Deseja remover o cargo "${role.name}"?`)) return;
+    if (!window.confirm(`Deseja remover o perfil "${role.name}"?`)) return;
     setRoleError("");
     try {
       await apiDelete(`/roles/${role.id}`);
@@ -211,7 +211,7 @@ export default function Users() {
         resetRoleForm();
       }
     } catch (err) {
-      setRoleError(getFriendlyErrorMessage(err, "Nao foi possivel remover o cargo."));
+      setRoleError(getFriendlyErrorMessage(err, "Não foi possível remover o perfil."));
     }
   }
 
@@ -255,7 +255,7 @@ export default function Users() {
                     {item.id === user?.id && <span className="badge">Você</span>}
                   </div>
                   <small>{item.email || "Sem e-mail"}</small>
-                  <small>Cargo: {roleName}</small>
+                  <small>Perfil: {roleName}</small>
                   {canManageUsers && (
                     <div className="inline" style={{ marginTop: "12px" }}>
                       <button className="btn secondary" onClick={() => handleEdit(item)}>
@@ -292,7 +292,7 @@ export default function Users() {
                   onChange={(value) => setForm((prev) => ({ ...prev, email: value }))}
                 />
                 <FormField
-                  label="Cargo"
+                  label="Perfil"
                   type="select"
                   value={form.role}
                   options={roleOptions}
@@ -328,16 +328,16 @@ export default function Users() {
 
       <section className="section">
         <div className="section-header">
-          <h2 className="section-title">Cargos e permissões</h2>
-          <span className="muted">Crie cargos personalizados e defina acessos</span>
+          <h2 className="section-title">Perfis e permissões</h2>
+          <span className="muted">Crie perfis personalizados e defina os acessos</span>
         </div>
 
         <div className="grid-2">
           <div className="list">
             {roles.length === 0 && (
               <div className="card">
-                <h3>Nenhum cargo cadastrado</h3>
-                <small>Crie um cargo para organizar as permissões.</small>
+                <h3>Nenhum perfil cadastrado</h3>
+                <small>Crie um perfil para organizar as permissões.</small>
               </div>
             )}
             {roles.map((role) => (
@@ -373,9 +373,9 @@ export default function Users() {
 
           {canManageUsers ? (
             <form className="card" onSubmit={handleRoleSubmit}>
-              <h3>{activeRoleId ? "Editar cargo" : "Novo cargo"}</h3>
+              <h3>{activeRoleId ? "Editar perfil" : "Novo perfil"}</h3>
               <FormField
-                label="Nome do cargo"
+                label="Nome do perfil"
                 value={roleForm.name}
                 placeholder="Ex: Supervisor"
                 onChange={(value) => setRoleForm((prev) => ({ ...prev, name: value }))}
@@ -394,7 +394,7 @@ export default function Users() {
               />
 
               <div style={{ marginTop: "16px" }}>
-                <h4 className="section-title">Permissões do cargo</h4>
+                <h4 className="section-title">Permissões do perfil</h4>
                 <div className="permission-grid" aria-disabled={roleForm.is_admin}>
                   {permissionOptions.map((option) => (
                     <label key={option.id} className="permission-item">
@@ -409,7 +409,7 @@ export default function Users() {
                   ))}
                 </div>
                 <small className="muted">
-                  Ao ativar "Permissões de ADM", o cargo passa a ter acesso total.
+                  Ao ativar "Permissões de ADM", o perfil passa a ter acesso total.
                 </small>
               </div>
 
@@ -426,7 +426,7 @@ export default function Users() {
           ) : (
             <div className="card">
               <h3>Acesso somente leitura</h3>
-              <p>Você pode visualizar os cargos, mas não tem permissão para editar.</p>
+              <p>Você pode visualizar os perfis, mas não tem permissão para editar.</p>
             </div>
           )}
         </div>

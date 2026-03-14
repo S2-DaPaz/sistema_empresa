@@ -23,15 +23,15 @@ function buildEventSnapshot(log) {
   return [
     `ID: ${log.id}`,
     `Data: ${log.created_at}`,
-    `Acao: ${log.action}`,
+    `Ação: ${log.action}`,
     `Resultado: ${log.outcome}`,
-    `Usuario: ${formatUser(log)}`,
+    `Usuário: ${formatUser(log)}`,
     `Rota: ${log.http_method || "-"} ${log.route_path || "-"}`,
     "",
-    "Descricao:",
+    "Descrição:",
     log.description || "-",
     "",
-    "Metadata:",
+    "Metadados:",
     safeJson(log.metadata_json),
     "",
     "Antes:",
@@ -90,7 +90,7 @@ export default function EventLogs() {
         setListState((prev) => ({
           ...prev,
           loading: false,
-          error: getFriendlyErrorMessage(error, "Nao foi possivel carregar o log de eventos.")
+          error: getFriendlyErrorMessage(error, "Não foi possível carregar o log de eventos.")
         }));
       }
     }
@@ -121,7 +121,7 @@ export default function EventLogs() {
         setDetailState({
           item: null,
           loading: false,
-          error: getFriendlyErrorMessage(error, "Nao foi possivel carregar o evento."),
+          error: getFriendlyErrorMessage(error, "Não foi possível carregar o evento."),
           notice: ""
         });
       }
@@ -145,8 +145,8 @@ export default function EventLogs() {
     setDetailState((prev) => ({
       ...prev,
       notice: copied
-        ? "Detalhes copiados para a area de transferencia."
-        : "Nao foi possivel copiar os detalhes."
+        ? "Detalhes copiados para a área de transferência."
+        : "Não foi possível copiar os detalhes."
     }));
   }
 
@@ -161,7 +161,7 @@ export default function EventLogs() {
         <div>
           <h2 className="section-title">Log de eventos</h2>
           <p className="muted">
-            Auditoria operacional com rastreio de usuario, entidade afetada e resultado.
+            Auditoria operacional com rastreio de usuário, entidade afetada e resultado.
           </p>
         </div>
         <span className="badge neutral">
@@ -176,12 +176,12 @@ export default function EventLogs() {
             type="search"
             value={filters.search}
             onChange={(event) => updateFilter("search", event.target.value)}
-            placeholder="Acao, usuario, descricao ou entidade"
+            placeholder="Ação, usuário, descrição ou entidade"
           />
         </label>
 
         <label className="form-field">
-          <span>Acao</span>
+          <span>Ação</span>
           <input
             type="text"
             value={filters.action}
@@ -191,7 +191,7 @@ export default function EventLogs() {
         </label>
 
         <label className="form-field">
-          <span>Modulo</span>
+          <span>Módulo</span>
           <input
             type="text"
             value={filters.module}
@@ -235,7 +235,7 @@ export default function EventLogs() {
         </label>
 
         <label className="form-field">
-          <span>Ate</span>
+          <span>Até</span>
           <input
             type="date"
             value={filters.dateTo}
@@ -253,10 +253,10 @@ export default function EventLogs() {
               <thead>
                 <tr>
                   <th>Data</th>
-                  <th>Acao</th>
-                  <th>Descricao</th>
-                  <th>Usuario</th>
-                  <th>Modulo</th>
+                  <th>Ação</th>
+                  <th>Descrição</th>
+                  <th>Usuário</th>
+                  <th>Módulo</th>
                   <th>Plataforma</th>
                   <th>Resultado</th>
                 </tr>
@@ -301,7 +301,7 @@ export default function EventLogs() {
 
           <div className="pagination-row">
             <span className="muted">
-              Pagina {listState.meta.page || 1} de {totalPages}
+              Página {listState.meta.page || 1} de {totalPages}
             </span>
             <div className="inline">
               <button
@@ -318,7 +318,7 @@ export default function EventLogs() {
                 onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                 disabled={page >= totalPages}
               >
-                Proxima
+                Próxima
               </button>
             </div>
           </div>
@@ -333,7 +333,7 @@ export default function EventLogs() {
           ) : detailState.loading ? (
             <div className="empty-state">
               <h3>Carregando detalhes</h3>
-              <p className="muted">Buscando metadata, antes/depois e resultado da operacao.</p>
+              <p className="muted">Buscando metadados, antes/depois e resultado da operação.</p>
             </div>
           ) : detailState.error ? (
             <div className="banner banner-error">{detailState.error}</div>
@@ -358,7 +358,7 @@ export default function EventLogs() {
                     <strong>{formatDateTime(detailState.item.created_at)}</strong>
                   </div>
                   <div className="card soft">
-                    <small className="muted">Usuario</small>
+                    <small className="muted">Usuário</small>
                     <strong>{formatUser(detailState.item)}</strong>
                   </div>
                   <div className="card soft">
@@ -377,7 +377,7 @@ export default function EventLogs() {
 
                 <div className="form-grid">
                   <label className="form-field full">
-                    <span>Metadata</span>
+                    <span>Metadados</span>
                     <textarea readOnly value={safeJson(detailState.item.metadata_json)} />
                   </label>
 

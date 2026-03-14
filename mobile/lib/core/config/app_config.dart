@@ -8,7 +8,7 @@ class AppConfig {
 
   static const String appName = 'RV Sistema Empresa';
   static const String appTagline =
-      'Tarefas, relatorios e orcamentos vinculados';
+      'Tarefas, relatórios e orçamentos vinculados';
 
   static const bool pdfEnabled = bool.fromEnvironment(
     'PDF_ENABLED',
@@ -58,21 +58,21 @@ class AppConfig {
     Object? cause,
   }) {
     final attempted = attemptedBaseUrls.join(', ');
-    final detail = cause == null ? '' : ' Cause: $cause';
+    final detail = cause == null ? '' : ' Causa: $cause';
 
     if (hasConfiguredApiUrl) {
-      return 'Configured API unreachable. Attempted: $attempted.$detail';
+      return 'A API configurada não está acessível. Tentativas: $attempted.$detail';
     }
 
     if (attemptedBaseUrls.contains(defaultRemoteApiUrl)) {
-      return 'Project API unreachable. Attempted: $attempted.$detail';
+      return 'A API do projeto não está acessível. Tentativas: $attempted.$detail';
     }
 
     if (!kIsWeb && Platform.isAndroid) {
-      return 'Android API unreachable. Attempted: $attempted.$detail';
+      return 'A API no Android não está acessível. Tentativas: $attempted.$detail';
     }
 
-    return 'Local API unreachable. Attempted: $attempted.$detail';
+    return 'A API local não está acessível. Tentativas: $attempted.$detail';
   }
 
   static String _normalizeBaseUrl(String value) {

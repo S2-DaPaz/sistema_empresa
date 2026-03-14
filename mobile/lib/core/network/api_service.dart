@@ -103,7 +103,7 @@ class ApiService {
       if (!contentType.toLowerCase().contains('application/pdf')) {
         final error = normalizeUnexpectedError(
           'Invalid PDF response',
-          fallbackMessage: 'Nao foi possivel abrir o PDF no momento.',
+          fallbackMessage: 'Não foi possível abrir o PDF no momento.',
         );
         await _report(error, path: path, method: 'GET');
         throw error;
@@ -116,7 +116,7 @@ class ApiService {
       payload: payload,
       statusCode: response.statusCode,
       technicalMessage: payload?['error']?.toString() ?? response.body,
-      fallbackMessage: 'Nao foi possivel abrir o PDF no momento.',
+      fallbackMessage: 'Não foi possível abrir o PDF no momento.',
     );
     await _report(error, path: path, method: 'GET');
     throw error;
@@ -182,7 +182,7 @@ class ApiService {
       if (payload == null) {
         final error = normalizeUnexpectedError(
           'Invalid response body',
-          fallbackMessage: 'Nao foi possivel processar a resposta do servidor.',
+          fallbackMessage: 'Não foi possível processar a resposta do servidor.',
         );
         await _report(
           error,

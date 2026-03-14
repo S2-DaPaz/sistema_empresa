@@ -28,20 +28,20 @@ function createAuthMiddleware({ db, env, findUserWithRoleById }) {
     const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
     if (!token) {
-      return next(new UnauthorizedError("Nao autorizado."));
+      return next(new UnauthorizedError("Não autorizado."));
     }
 
     try {
       const payload = jwt.verify(token, env.jwtSecret);
       const user = await findUserWithRoleById(db, payload.id);
       if (!user) {
-        return next(new UnauthorizedError("Usuario nao encontrado."));
+        return next(new UnauthorizedError("Usuário não encontrado."));
       }
 
       req.user = { ...normalizeUser(user), permissions: getUserPermissions(user) };
       return next();
     } catch (error) {
-      return next(new UnauthorizedError("Token invalido."));
+      return next(new UnauthorizedError("Token inválido."));
     }
   };
 }
@@ -49,7 +49,7 @@ function createAuthMiddleware({ db, env, findUserWithRoleById }) {
 function requirePermission(permission) {
   return (req, res, next) => {
     if (!req.user || !hasPermission(req.user, permission)) {
-      return next(new ForbiddenError("Sem permissao."));
+      return next(new ForbiddenError("Sem permissão."));
     }
     return next();
   };

@@ -50,7 +50,7 @@ describe("http client", () => {
           error: {
             code: "forbidden",
             category: "permission_error",
-            message: "Voce nao tem permissao para realizar esta acao."
+            message: "Você não tem permissão para realizar esta ação."
           }
         })
       })
@@ -62,7 +62,7 @@ describe("http client", () => {
 
     await expect(apiGet("/users")).rejects.toMatchObject({
       category: "permission_error",
-      message: "Voce nao tem permissao para realizar esta acao."
+      message: "Você não tem permissão para realizar esta ação."
     });
 
     expect(global.fetch).toHaveBeenNthCalledWith(
@@ -78,7 +78,7 @@ describe("http client", () => {
     const error = createClientError(new TypeError("Failed to fetch"));
     expect(error.category).toBe("connection_error");
     expect(error.message).toBe(
-      "Nao foi possivel conectar ao servidor. Verifique sua internet e tente novamente."
+      "Não foi possível conectar ao servidor. Verifique sua internet e tente novamente."
     );
   });
 });

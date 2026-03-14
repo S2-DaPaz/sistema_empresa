@@ -98,7 +98,7 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    map['description']?.toString() ?? 'Sem descricao.',
+                    map['description']?.toString() ?? 'Sem descrição.',
                     style: textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 16),
@@ -107,17 +107,19 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                     runSpacing: 8,
                     children: [
                       Chip(
-                          label:
-                              Text(map['outcome']?.toString() ?? 'resultado')),
+                        label: Text(map['outcome']?.toString() ?? 'resultado'),
+                      ),
                       Chip(
-                          label:
-                              Text(map['platform']?.toString() ?? 'plataforma')),
-                      Chip(label: Text(map['module']?.toString() ?? 'sistema')),
+                        label: Text(map['platform']?.toString() ?? 'plataforma'),
+                      ),
+                      Chip(
+                        label: Text(map['module']?.toString() ?? 'sistema'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   _EventDetailBlock(
-                    title: 'Metadata',
+                    title: 'Metadados',
                     value: _prettyJson(map['metadata_json']),
                   ),
                   _EventDetailBlock(
@@ -137,7 +139,7 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Detalhes copiados para a area de transferencia.',
+                            'Detalhes copiados para a área de transferência.',
                           ),
                         ),
                       );
@@ -169,14 +171,14 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
     return [
       'ID: ${map['id']}',
       'Data: ${map['created_at']}',
-      'Acao: ${map['action']}',
+      'Ação: ${map['action']}',
       'Resultado: ${map['outcome']}',
-      'Usuario: ${map['user_name'] ?? map['user_email'] ?? '-'}',
+      'Usuário: ${map['user_name'] ?? map['user_email'] ?? '-'}',
       '',
-      'Descricao:',
+      'Descrição:',
       map['description']?.toString() ?? '-',
       '',
-      'Metadata:',
+      'Metadados:',
       _prettyJson(map['metadata_json']),
       '',
       'Antes:',
@@ -219,107 +221,118 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
               ),
             )
           else ...[
-          const SectionHeader(
-            title: 'Auditoria operacional',
-            subtitle: 'Rastreabilidade das acoes relevantes do sistema.',
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: _searchController,
-                    onSubmitted: (_) => _load(),
-                    decoration: InputDecoration(
-                      labelText: 'Buscar por acao, descricao ou usuario',
-                      suffixIcon: IconButton(
-                        onPressed: _load,
-                        icon: const Icon(Icons.search),
+            const SectionHeader(
+              title: 'Auditoria operacional',
+              subtitle: 'Rastreabilidade das ações relevantes do sistema.',
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _searchController,
+                      onSubmitted: (_) => _load(),
+                      decoration: InputDecoration(
+                        labelText: 'Buscar por ação, descrição ou usuário',
+                        suffixIcon: IconButton(
+                          onPressed: _load,
+                          icon: const Icon(Icons.search),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _outcome.isEmpty ? null : _outcome,
-                          decoration:
-                              const InputDecoration(labelText: 'Resultado'),
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'success', child: Text('Sucesso')),
-                            DropdownMenuItem(
-                                value: 'failure', child: Text('Falha')),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _outcome = value ?? ''),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _outcome.isEmpty ? null : _outcome,
+                            decoration:
+                                const InputDecoration(labelText: 'Resultado'),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'success',
+                                child: Text('Sucesso'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'failure',
+                                child: Text('Falha'),
+                              ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _outcome = value ?? ''),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _platform.isEmpty ? null : _platform,
-                          decoration:
-                              const InputDecoration(labelText: 'Plataforma'),
-                          items: const [
-                            DropdownMenuItem(value: 'web', child: Text('Web')),
-                            DropdownMenuItem(
-                                value: 'mobile', child: Text('Mobile')),
-                            DropdownMenuItem(
-                                value: 'backend', child: Text('Backend')),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _platform = value ?? ''),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _platform.isEmpty ? null : _platform,
+                            decoration:
+                                const InputDecoration(labelText: 'Plataforma'),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'web',
+                                child: Text('Web'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'mobile',
+                                child: Text('Mobile'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'backend',
+                                child: Text('Backend'),
+                              ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _platform = value ?? ''),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(child: Text(_error!))
-                    : _items.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'Nenhum evento encontrado com os filtros atuais.',
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: _items.length,
-                            itemBuilder: (context, index) {
-                              final item =
-                                  Map<String, dynamic>.from(_items[index] as Map);
-                              return Card(
-                                child: ListTile(
-                                  onTap: () => _openDetail(item),
-                                  title: Text(
-                                    item['action']?.toString() ?? 'Evento',
-                                  ),
-                                  subtitle: Text(
-                                    '${item['description'] ?? 'Sem descricao'}\n${_formatDate(item['created_at'])}',
-                                  ),
-                                  isThreeLine: true,
-                                  trailing: Chip(
-                                    label: Text(
-                                      item['outcome'] == 'success'
-                                          ? 'Sucesso'
-                                          : 'Falha',
+            const SizedBox(height: 16),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(child: Text(_error!))
+                      : _items.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'Nenhum evento encontrado com os filtros atuais.',
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: _items.length,
+                              itemBuilder: (context, index) {
+                                final item =
+                                    Map<String, dynamic>.from(_items[index] as Map);
+                                return Card(
+                                  child: ListTile(
+                                    onTap: () => _openDetail(item),
+                                    title: Text(
+                                      item['action']?.toString() ?? 'Evento',
+                                    ),
+                                    subtitle: Text(
+                                      '${item['description'] ?? 'Sem descrição'}\n${_formatDate(item['created_at'])}',
+                                    ),
+                                    isThreeLine: true,
+                                    trailing: Chip(
+                                      label: Text(
+                                        item['outcome'] == 'success'
+                                            ? 'Sucesso'
+                                            : 'Falha',
+                                      ),
                                     ),
                                   ),
-                                ),
-                              );
-                            },
-                          ),
-          ),
+                                );
+                              },
+                            ),
+            ),
           ],
         ],
       ),

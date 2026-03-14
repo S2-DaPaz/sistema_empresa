@@ -15,7 +15,7 @@ const {
 async function register(db, env, payload) {
   const exists = await findUserByEmail(db, payload.email);
   if (exists) {
-    throw new ConflictError("E-mail ja cadastrado.");
+    throw new ConflictError("E-mail já cadastrado.");
   }
 
   const password_hash = await bcrypt.hash(payload.password, 10);
@@ -33,12 +33,12 @@ async function register(db, env, payload) {
 async function login(db, env, payload) {
   const rawUser = await findUserByEmail(db, payload.email);
   if (!rawUser || !rawUser.password_hash) {
-    throw new UnauthorizedError("Credenciais invalidas.");
+    throw new UnauthorizedError("Credenciais inválidas.");
   }
 
   const validPassword = await bcrypt.compare(payload.password, rawUser.password_hash);
   if (!validPassword) {
-    throw new UnauthorizedError("Credenciais invalidas.");
+    throw new UnauthorizedError("Credenciais inválidas.");
   }
 
   const user = await findUserWithRoleById(db, rawUser.id);
