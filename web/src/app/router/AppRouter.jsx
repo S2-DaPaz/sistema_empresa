@@ -1,6 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import Layout from "../../components/Layout";
-import { RequireAuth, RequirePermission } from "../../components/AuthGate";
+import { RequireAdmin, RequireAuth, RequirePermission } from "../../components/AuthGate";
 import Dashboard from "../../pages/Dashboard";
 import Clients from "../../pages/Clients";
 import Tasks from "../../pages/Tasks";
@@ -11,6 +11,8 @@ import Users from "../../pages/Users";
 import Products from "../../pages/Products";
 import TaskTypes from "../../pages/TaskTypes";
 import Equipments from "../../pages/Equipments";
+import ErrorLogs from "../../pages/admin/ErrorLogs";
+import EventLogs from "../../pages/admin/EventLogs";
 import Login from "../../pages/Login";
 import NotFound from "../../pages/NotFound";
 import { PERMISSIONS } from "../providers/AuthProvider";
@@ -39,6 +41,22 @@ export function AppRouter() {
           />
           <Route path="/produtos" element={<Products />} />
           <Route path="/tipos-tarefa" element={<TaskTypes />} />
+          <Route
+            path="/admin/logs-erros"
+            element={
+              <RequireAdmin>
+                <ErrorLogs />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/logs-eventos"
+            element={
+              <RequireAdmin>
+                <EventLogs />
+              </RequireAdmin>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>

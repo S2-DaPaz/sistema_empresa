@@ -3,6 +3,8 @@ function send(res, data, { statusCode = 200, meta } = {}) {
   if (meta) {
     payload.meta = meta;
   }
+  res.locals.responseData = data;
+  res.locals.responseMeta = meta || null;
   return res.status(statusCode).json(payload);
 }
 
@@ -11,6 +13,8 @@ function sendCreated(res, data, meta) {
 }
 
 function sendNoContent(res) {
+  res.locals.responseData = null;
+  res.locals.responseMeta = null;
   return res.status(204).end();
 }
 

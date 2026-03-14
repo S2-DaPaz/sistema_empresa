@@ -2,6 +2,7 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import FormField from "../components/FormField";
 import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
+import { getFriendlyErrorMessage } from "../shared/errors/error-normalizer";
 
 const reservedRoleKeys = new Set(["administracao", "gestor", "tecnico", "visitante"]);
 
@@ -144,7 +145,7 @@ export default function Users() {
       await loadUsers();
       resetForm();
     } catch (err) {
-      setError(err.message || "Falha ao salvar");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar o usuario."));
     }
   }
 
@@ -170,7 +171,7 @@ export default function Users() {
       await loadRoles();
       resetRoleForm();
     } catch (err) {
-      setRoleError(err.message || "Falha ao salvar");
+      setRoleError(getFriendlyErrorMessage(err, "Nao foi possivel salvar o cargo."));
     }
   }
 
@@ -188,7 +189,7 @@ export default function Users() {
         resetForm();
       }
     } catch (err) {
-      setError(err.message || "Falha ao remover");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover o usuario."));
     }
   }
 
@@ -210,7 +211,7 @@ export default function Users() {
         resetRoleForm();
       }
     } catch (err) {
-      setRoleError(err.message || "Falha ao remover");
+      setRoleError(getFriendlyErrorMessage(err, "Nao foi possivel remover o cargo."));
     }
   }
 

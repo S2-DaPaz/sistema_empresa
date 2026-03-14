@@ -53,26 +53,26 @@ class AppConfig {
     return Uri.parse('$baseUrl/api$cleanPath');
   }
 
-  static String buildConnectivityErrorMessage({
+  static String buildConnectivityDiagnostic({
     required List<String> attemptedBaseUrls,
     Object? cause,
   }) {
     final attempted = attemptedBaseUrls.join(', ');
-    final detail = cause == null ? '' : ' Detalhe tecnico: $cause';
+    final detail = cause == null ? '' : ' Cause: $cause';
 
     if (hasConfiguredApiUrl) {
-      return 'Nao foi possivel conectar com a API configurada em $attempted.$detail';
+      return 'Configured API unreachable. Attempted: $attempted.$detail';
     }
 
     if (attemptedBaseUrls.contains(defaultRemoteApiUrl)) {
-      return 'Nao foi possivel conectar com a API padrao do projeto. Enderecos tentados: $attempted. Passe `API_URL` para sobrescrever o destino.$detail';
+      return 'Project API unreachable. Attempted: $attempted.$detail';
     }
 
     if (!kIsWeb && Platform.isAndroid) {
-      return 'Nao foi possivel conectar com a API local. Em aparelho fisico, mantenha `adb reverse tcp:3001 tcp:3001`. Em emulador Android, use `10.0.2.2:3001` ou passe `API_URL`. Enderecos tentados: $attempted.$detail';
+      return 'Android API unreachable. Attempted: $attempted.$detail';
     }
 
-    return 'Nao foi possivel conectar com a API local em $attempted.$detail';
+    return 'Local API unreachable. Attempted: $attempted.$detail';
   }
 
   static String _normalizeBaseUrl(String value) {

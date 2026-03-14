@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import logo from "../assets/Logo.png";
+import { getFriendlyErrorMessage } from "../shared/errors/error-normalizer";
 
 export default function Login() {
   const { login, register } = useAuth();
@@ -30,7 +31,7 @@ export default function Login() {
       }
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(err.message || "Falha ao autenticar");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel autenticar com os dados informados."));
     } finally {
       setLoading(false);
     }

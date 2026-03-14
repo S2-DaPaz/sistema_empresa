@@ -4,17 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/app_exception.dart';
+import '../errors/error_mapper.dart';
+import '../errors/error_reporter.dart';
 import '../network/request_executor.dart';
 import 'session_permissions.dart';
-
-class AuthException implements Exception {
-  AuthException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
 
 class AuthSession {
   AuthSession({required this.token, required this.user});
@@ -59,6 +53,11 @@ class AuthService {
       final userMap = jsonDecode(storedUser) as Map<String, dynamic>;
       session.value = AuthSession(token: storedToken, user: userMap);
       await refreshUser();
+    } on AppException catch (error) {
+      if (error.category == 'authentication_error' ||
+          error.category == 'permission_error') {
+        await logout();
+      }
     } catch (_) {
       await logout();
     }
@@ -67,17 +66,21 @@ class AuthService {
   Future<void> refreshUser() async {
     if (token == null) return;
 
-    final response = await RequestExecutor.send(
+    final response = await _send(
       '/auth/me',
       (uri) => _client.get(
         uri,
-        headers: {'Authorization': 'Bearer $token'},
+        headers: {
+          'Authorization': 'Bearer $token',
+          'X-Client-Platform': 'mobile',
+        },
       ),
     );
 
+    final payload = _tryDecode(response.body);
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      final payload = _unwrapResponse(response);
-      final userPayload = payload['user'];
+      final userPayload = payload?['data']?['user'] ?? payload?['user'];
       if (userPayload is Map) {
         final userMap = Map<String, dynamic>.from(userPayload);
         session.value = AuthSession(token: token!, user: userMap);
@@ -86,7 +89,18 @@ class AuthService {
       }
     }
 
-    await logout();
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      await logout();
+      throw normalizeApiError(
+        payload: payload,
+        statusCode: response.statusCode,
+      );
+    }
+
+    throw normalizeUnexpectedError(
+      'Invalid auth refresh response',
+      fallbackMessage: 'Nao foi possivel validar sua sessao agora.',
+    );
   }
 
   Future<void> login(String email, String password) async {
@@ -125,16 +139,38 @@ class AuthService {
       path,
       (uri) => _client.post(
         uri,
-        headers: const {'Content-Type': 'application/json'},
+        headers: const {
+          'Content-Type': 'application/json',
+          'X-Client-Platform': 'mobile',
+        },
         body: jsonEncode(body),
       ),
     );
 
+    final payload = _tryDecode(response.body);
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return _unwrapResponse(response);
+      if (payload == null) {
+        final error = normalizeUnexpectedError(
+          'Invalid auth response',
+          fallbackMessage: 'Nao foi possivel processar a autenticacao.',
+        );
+        await _report(error, path: path, method: 'POST', payloadSummary: body);
+        throw error;
+      }
+      return payload['data'] is Map
+          ? Map<String, dynamic>.from(payload['data'] as Map)
+          : payload;
     }
 
-    throw AuthException(_extractError(response));
+    final error = normalizeApiError(
+      payload: payload,
+      statusCode: response.statusCode,
+      technicalMessage: payload?['error']?.toString() ?? response.body,
+      fallbackMessage: 'Nao foi possivel autenticar com os dados informados.',
+    );
+    await _report(error, path: path, method: 'POST', payloadSummary: body);
+    throw error;
   }
 
   Future<http.Response> _send(
@@ -144,22 +180,38 @@ class AuthService {
     try {
       return await RequestExecutor.send(path, request);
     } on NetworkRequestException catch (error) {
-      throw AuthException(error.message);
+      final normalized = normalizeNetworkError(
+        error,
+        timedOut: error.timedOut,
+        technicalMessage: error.technicalMessage,
+      );
+      await _report(normalized, path: path, method: 'REQUEST');
+      throw normalized;
     } on http.ClientException catch (error) {
-      throw AuthException(error.message);
+      final normalized = normalizeNetworkError(
+        error,
+        technicalMessage: error.message,
+      );
+      await _report(normalized, path: path, method: 'REQUEST');
+      throw normalized;
     }
   }
 
   Future<void> _applyAuthPayload(Map<String, dynamic> payload) async {
-    final token = payload['token']?.toString();
+    final nextToken = payload['token']?.toString();
     final userPayload = payload['user'];
 
-    if (token == null || userPayload is! Map) {
-      throw AuthException('Falha ao autenticar.');
+    if (nextToken == null || userPayload is! Map) {
+      final error = normalizeUnexpectedError(
+        'Missing auth payload',
+        fallbackMessage: 'Nao foi possivel concluir a autenticacao.',
+      );
+      await _report(error, path: '/auth/login', method: 'POST');
+      throw error;
     }
 
     final userMap = Map<String, dynamic>.from(userPayload);
-    session.value = AuthSession(token: token, user: userMap);
+    session.value = AuthSession(token: nextToken, user: userMap);
     await _persist();
   }
 
@@ -172,35 +224,35 @@ class AuthService {
     await prefs.setString(_userKey, jsonEncode(current.user));
   }
 
-  Map<String, dynamic> _unwrapResponse(http.Response response) {
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map) {
-      throw AuthException('Resposta invalida do servidor.');
-    }
-
-    final payload = Map<String, dynamic>.from(decoded);
-    final data = payload['data'];
-    if (data is Map) {
-      return Map<String, dynamic>.from(data);
-    }
-
-    return payload;
-  }
-
-  String _extractError(http.Response response) {
+  Map<String, dynamic>? _tryDecode(String body) {
     try {
-      final payload = jsonDecode(response.body);
-      if (payload is Map) {
-        final error = payload['error'];
-        if (error is Map && error['message'] != null) {
-          return error['message'].toString();
-        }
-        if (error != null) {
-          return error.toString();
-        }
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
       }
     } catch (_) {}
+    return null;
+  }
 
-    return 'Falha ao autenticar (${response.statusCode})';
+  Future<void> _report(
+    AppException error, {
+    required String path,
+    required String method,
+    Object? payloadSummary,
+  }) async {
+    await ErrorReporter.report(
+      error: error,
+      endpoint: path,
+      method: method,
+      payloadSummary: payloadSummary,
+      module: 'auth',
+      token: token,
+      userId: user?['id']?.toString(),
+      userName: user?['name']?.toString(),
+      userEmail: user?['email']?.toString(),
+    );
   }
 }

@@ -193,6 +193,78 @@ const SQLITE_SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_budget_public_links_budget_id
     ON budget_public_links (budget_id);
+
+  CREATE TABLE IF NOT EXISTS error_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    category TEXT,
+    error_code TEXT,
+    friendly_message TEXT NOT NULL,
+    technical_message TEXT,
+    stack_trace TEXT,
+    http_status INTEGER,
+    http_method TEXT,
+    endpoint TEXT,
+    module TEXT,
+    platform TEXT,
+    screen_route TEXT,
+    operation TEXT,
+    request_id TEXT,
+    environment TEXT,
+    user_id INTEGER,
+    user_name TEXT,
+    user_email TEXT,
+    context_json TEXT,
+    payload_json TEXT,
+    resolved_at TEXT,
+    resolved_by_user_id INTEGER,
+    resolution_note TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (resolved_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_error_logs_created_at
+    ON error_logs (created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_error_logs_severity
+    ON error_logs (severity);
+  CREATE INDEX IF NOT EXISTS idx_error_logs_module
+    ON error_logs (module);
+  CREATE INDEX IF NOT EXISTS idx_error_logs_platform
+    ON error_logs (platform);
+
+  CREATE TABLE IF NOT EXISTS event_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    action TEXT NOT NULL,
+    description TEXT NOT NULL,
+    module TEXT,
+    entity_type TEXT,
+    entity_id TEXT,
+    outcome TEXT NOT NULL,
+    platform TEXT,
+    ip_address TEXT,
+    route_path TEXT,
+    http_method TEXT,
+    request_id TEXT,
+    user_id INTEGER,
+    user_name TEXT,
+    user_email TEXT,
+    user_role TEXT,
+    metadata_json TEXT,
+    before_json TEXT,
+    after_json TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_event_logs_created_at
+    ON event_logs (created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_event_logs_action
+    ON event_logs (action);
+  CREATE INDEX IF NOT EXISTS idx_event_logs_module
+    ON event_logs (module);
+  CREATE INDEX IF NOT EXISTS idx_event_logs_platform
+    ON event_logs (platform);
 `;
 
 const POSTGRES_SCHEMA = `
@@ -371,6 +443,78 @@ const POSTGRES_SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_budget_public_links_budget_id
     ON budget_public_links (budget_id);
+
+  CREATE TABLE IF NOT EXISTS error_logs (
+    id SERIAL PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    category TEXT,
+    error_code TEXT,
+    friendly_message TEXT NOT NULL,
+    technical_message TEXT,
+    stack_trace TEXT,
+    http_status INTEGER,
+    http_method TEXT,
+    endpoint TEXT,
+    module TEXT,
+    platform TEXT,
+    screen_route TEXT,
+    operation TEXT,
+    request_id TEXT,
+    environment TEXT,
+    user_id INTEGER,
+    user_name TEXT,
+    user_email TEXT,
+    context_json TEXT,
+    payload_json TEXT,
+    resolved_at TEXT,
+    resolved_by_user_id INTEGER,
+    resolution_note TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (resolved_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_error_logs_created_at
+    ON error_logs (created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_error_logs_severity
+    ON error_logs (severity);
+  CREATE INDEX IF NOT EXISTS idx_error_logs_module
+    ON error_logs (module);
+  CREATE INDEX IF NOT EXISTS idx_error_logs_platform
+    ON error_logs (platform);
+
+  CREATE TABLE IF NOT EXISTS event_logs (
+    id SERIAL PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    action TEXT NOT NULL,
+    description TEXT NOT NULL,
+    module TEXT,
+    entity_type TEXT,
+    entity_id TEXT,
+    outcome TEXT NOT NULL,
+    platform TEXT,
+    ip_address TEXT,
+    route_path TEXT,
+    http_method TEXT,
+    request_id TEXT,
+    user_id INTEGER,
+    user_name TEXT,
+    user_email TEXT,
+    user_role TEXT,
+    metadata_json TEXT,
+    before_json TEXT,
+    after_json TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_event_logs_created_at
+    ON event_logs (created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_event_logs_action
+    ON event_logs (action);
+  CREATE INDEX IF NOT EXISTS idx_event_logs_module
+    ON event_logs (module);
+  CREATE INDEX IF NOT EXISTS idx_event_logs_platform
+    ON event_logs (platform);
 `;
 
 function shouldUsePostgres() {

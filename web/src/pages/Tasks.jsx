@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiDelete, apiGet } from "../api";
 import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
+import { getFriendlyErrorMessage } from "../shared/errors/error-normalizer";
 
 function formatDateKey(value) {
   if (!value) return null;
@@ -96,7 +97,7 @@ export default function Tasks() {
       const data = await apiGet("/tasks");
       setTasks(data || []);
     } catch (err) {
-      setError(err.message || "Falha ao carregar tarefas");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel carregar as tarefas."));
     }
   }
 
@@ -114,7 +115,7 @@ export default function Tasks() {
       await apiDelete(`/tasks/${id}`);
       await loadTasks();
     } catch (err) {
-      setError(err.message || "Falha ao remover");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover a tarefa."));
     }
   }
 

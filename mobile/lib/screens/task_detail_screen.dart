@@ -10,6 +10,7 @@ import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/errors/app_exception.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../utils/formatters.dart';
@@ -766,7 +767,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         ? response['url']?.toString() ?? ''
         : '';
     if (url.isEmpty) {
-      throw Exception('Link publico nao retornado pela API');
+      throw AppException(
+        message: 'Nao foi possivel gerar o link publico agora.',
+        category: 'unexpected_error',
+        code: 'public_link_missing',
+        technicalMessage: 'Public link response without url.',
+      );
     }
     return url;
   }

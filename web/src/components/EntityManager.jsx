@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
+import { getFriendlyErrorMessage } from "../shared/errors/error-normalizer";
 import FormField from "./FormField";
 
 export default function EntityManager({
@@ -51,7 +52,7 @@ export default function EntityManager({
       const data = await apiGet(endpoint);
       setItems(data || []);
     } catch (err) {
-      setError(err.message || "Falha ao carregar");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel carregar os dados."));
     }
   }
 
@@ -80,7 +81,7 @@ export default function EntityManager({
       await loadItems();
       resetForm();
     } catch (err) {
-      setError(err.message || "Falha ao salvar");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar as informacoes."));
     }
   }
 
@@ -103,7 +104,7 @@ export default function EntityManager({
       }
       await loadItems();
     } catch (err) {
-      setError(err.message || "Falha ao remover");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover o registro."));
     }
   }
 

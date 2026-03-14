@@ -3,6 +3,7 @@ import { apiGet, apiPost } from "../api";
 import BudgetForm from "../components/BudgetForm";
 import { buildBudgetEmailText, buildBudgetPdfHtml, openPrintWindow } from "../utils/pdf";
 import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
+import { getFriendlyErrorMessage } from "../shared/errors/error-normalizer";
 import logo from "../assets/Logo.png";
 
 export default function Budgets() {
@@ -78,7 +79,7 @@ export default function Budgets() {
         window.prompt("Copie o link abaixo:", url);
       }
     } catch (error) {
-      alert(error.message || "Falha ao gerar link.");
+      alert(getFriendlyErrorMessage(error, "Nao foi possivel gerar o link publico."));
     }
   }
 
@@ -88,7 +89,7 @@ export default function Budgets() {
       if (!url) return;
       window.open(url, "_blank", "noopener");
     } catch (error) {
-      alert(error.message || "Falha ao abrir link.");
+      alert(getFriendlyErrorMessage(error, "Nao foi possivel abrir o link publico."));
     }
   }
 

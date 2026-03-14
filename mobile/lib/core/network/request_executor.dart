@@ -6,12 +6,23 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 
 class NetworkRequestException implements Exception {
-  NetworkRequestException(this.message);
+  NetworkRequestException({
+    required this.attemptedBaseUrls,
+    required this.cause,
+    required this.timedOut,
+  });
 
-  final String message;
+  final List<String> attemptedBaseUrls;
+  final Object? cause;
+  final bool timedOut;
+
+  String get technicalMessage => AppConfig.buildConnectivityDiagnostic(
+        attemptedBaseUrls: attemptedBaseUrls,
+        cause: cause,
+      );
 
   @override
-  String toString() => message;
+  String toString() => technicalMessage;
 }
 
 typedef HttpRequestBuilder = Future<http.Response> Function(Uri uri);
@@ -42,10 +53,9 @@ class RequestExecutor {
     }
 
     throw NetworkRequestException(
-      AppConfig.buildConnectivityErrorMessage(
-        attemptedBaseUrls: attemptedBaseUrls,
-        cause: lastError,
-      ),
+      attemptedBaseUrls: attemptedBaseUrls,
+      cause: lastError,
+      timedOut: lastError is TimeoutException,
     );
   }
 }

@@ -3,6 +3,7 @@ const express = require("express");
 const path = require("path");
 
 const { PERMISSIONS } = require("../config/contracts");
+const { asyncHandler } = require("../core/http/async-handler");
 const { errorHandler } = require("../core/http/error-handler");
 const { notFoundHandler } = require("../core/http/not-found-handler");
 const { send } = require("../core/http/response");
@@ -10,6 +11,7 @@ const { createAuthMiddleware, requirePermission } = require("../core/security/au
 const { createAuthRouter } = require("../modules/auth/auth.router");
 const { createBudgetsRouter } = require("../modules/budgets/budgets.router");
 const { createEquipmentsRouter } = require("../modules/equipments/equipments.router");
+const { createMonitoringRouter } = require("../modules/monitoring/monitoring.router");
 const { createPublicRouter } = require("../modules/public/public.router");
 const { createReportsRouter } = require("../modules/reports/reports.router");
 const { createResourceRouter } = require("../modules/resources/resource.router");
@@ -32,11 +34,12 @@ function createCorsOptions(env) {
   };
 }
 
-function createApp({ db, env, logger, publicService }) {
+function createApp({ db, env, logger, publicService, monitoringService }) {
   const app = express();
 
   app.use(cors(createCorsOptions(env)));
   app.use(express.json({ limit: "10mb" }));
+  app.use(monitoringService.createRequestTrackingMiddleware(db));
 
   app.get("/api/health", (req, res) => {
     send(res, { ok: true });
@@ -49,6 +52,14 @@ function createApp({ db, env, logger, publicService }) {
     return send(res, env.mobileUpdate);
   });
 
+  app.post(
+    "/api/monitoring/client-errors",
+    asyncHandler(async (req, res) => {
+      await monitoringService.recordClientError(db, req, req.body || {});
+      return send(res, { ok: true }, { statusCode: 202 });
+    })
+  );
+
   app.use("/api/auth", createAuthRouter({ db, env }));
   app.use("/api", createAuthMiddleware({ db, env, findUserWithRoleById }));
 
@@ -56,6 +67,7 @@ function createApp({ db, env, logger, publicService }) {
     return send(res, { user: req.user });
   });
 
+  app.use("/api/admin", createMonitoringRouter({ db, monitoringService }));
   app.use("/api/summary", requirePermission(PERMISSIONS.VIEW_DASHBOARD), createSummaryRouter({ db }));
   app.use(
     "/api/clients",
@@ -142,7 +154,7 @@ function createApp({ db, env, logger, publicService }) {
   }
 
   app.use(notFoundHandler);
-  app.use(errorHandler(logger));
+  app.use(errorHandler({ logger, monitoringService, db }));
 
   return app;
 }

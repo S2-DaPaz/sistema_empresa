@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import FormField from "../components/FormField";
 import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
+import { getFriendlyErrorMessage } from "../shared/errors/error-normalizer";
 
 const typeOptions = [
   { value: "text", label: "Texto curto" },
@@ -169,7 +170,7 @@ export default function Templates() {
       await loadItems();
       resetForm();
     } catch (err) {
-      setError(err.message || "Falha ao salvar");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar o modelo."));
     }
   }
 
@@ -182,7 +183,7 @@ export default function Templates() {
       }
       await loadItems();
     } catch (err) {
-      setError(err.message || "Falha ao remover");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel remover o modelo."));
     }
   }
 

@@ -1,34 +1,42 @@
 const { AppError } = require("../errors/app-error");
 
-function errorHandler(logger) {
-  return (error, req, res, next) => {
+function errorHandler({ logger, monitoringService, db }) {
+  return async (error, req, res, next) => {
     if (res.headersSent) {
       return next(error);
     }
 
-    if (error instanceof AppError) {
-      return res.status(error.statusCode).json({
-        error: {
-          code: error.code,
-          message: error.message,
-          details: error.details
+    try {
+      await monitoringService.recordError(db, req, error, {
+        severity: error instanceof AppError ? "warning" : "error",
+        payloadSummary: req.body,
+        context: {
+          responseLocals: {
+            meta: res.locals?.responseMeta || null
+          }
         }
+      });
+    } catch (logError) {
+      logger.error("error_capture_failed", {
+        requestId: req.requestId,
+        method: req.method,
+        path: req.originalUrl,
+        message: logError.message
       });
     }
 
-    logger.error("unexpected_error", {
-      method: req.method,
-      path: req.originalUrl,
-      message: error.message,
-      stack: error.stack
-    });
+    if (!(error instanceof AppError)) {
+      logger.error("unexpected_error", {
+        requestId: req.requestId,
+        method: req.method,
+        path: req.originalUrl,
+        message: error.message,
+        stack: error.stack
+      });
+    }
 
-    return res.status(500).json({
-      error: {
-        code: "internal_error",
-        message: "Falha interna ao processar a requisicao."
-      }
-    });
+    const response = monitoringService.buildErrorResponse(req, error);
+    return res.status(response.statusCode).json(response.payload);
   };
 }
 

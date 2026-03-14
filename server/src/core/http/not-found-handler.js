@@ -1,10 +1,7 @@
-function notFoundHandler(req, res) {
-  return res.status(404).json({
-    error: {
-      code: "route_not_found",
-      message: "Rota nao encontrada."
-    }
-  });
+const { NotFoundError } = require("../errors/app-error");
+
+function notFoundHandler(req, res, next) {
+  return next(new NotFoundError("Rota nao encontrada."));
 }
 
 module.exports = { notFoundHandler };

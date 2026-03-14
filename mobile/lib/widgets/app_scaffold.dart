@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/navigation/route_tracker.dart';
 import 'brand_logo.dart';
 
 class AppScaffold extends StatelessWidget {
@@ -26,6 +27,7 @@ class AppScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    RouteTracker.instance.update(title);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;

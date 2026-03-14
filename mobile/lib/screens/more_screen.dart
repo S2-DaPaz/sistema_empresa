@@ -7,6 +7,8 @@ import '../services/theme_service.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/section_header.dart';
+import 'error_logs_screen.dart';
+import 'event_logs_screen.dart';
 import 'products_screen.dart';
 import 'task_types_screen.dart';
 import 'templates_screen.dart';
@@ -32,6 +34,7 @@ class MoreScreen extends StatelessWidget {
               'visitante';
           final canViewUsers =
               AuthService.instance.hasPermission(Permissions.viewUsers);
+          final isAdmin = AuthService.instance.isAdmin;
 
           return ListView(
             children: [
@@ -56,7 +59,7 @@ class MoreScreen extends StatelessWidget {
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             const SizedBox(height: 10),
-                            Text('$name • $role'),
+                            Text('$name - $role'),
                           ],
                         ),
                       ),
@@ -115,6 +118,30 @@ class MoreScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              if (isAdmin) ...[
+                const SectionHeader(
+                  title: 'Monitoramento',
+                  subtitle: 'Investigacao de erros e trilha de auditoria',
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.error_outline),
+                    title: const Text('Logs de erro'),
+                    subtitle: const Text('Falhas tecnicas e erros reportados'),
+                    onTap: () => _open(context, const ErrorLogsScreen()),
+                  ),
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.history_toggle_off),
+                    title: const Text('Log de eventos'),
+                    subtitle: const Text('Rastreabilidade das acoes do sistema'),
+                    onTap: () => _open(context, const EventLogsScreen()),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               const SectionHeader(
                 title: 'Acesso rapido',
                 subtitle: 'Cadastros e configuracoes do sistema',

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiPost } from "../api";
+import { getFriendlyErrorMessage } from "../shared/errors/error-normalizer";
 import FormField from "./FormField";
 import SignaturePad from "./SignaturePad";
 
@@ -158,7 +159,7 @@ export default function BudgetForm({
       ]);
       onSaved?.();
     } catch (err) {
-      setError(err.message || "Falha ao salvar");
+      setError(getFriendlyErrorMessage(err, "Nao foi possivel salvar o orcamento."));
     }
   }
 

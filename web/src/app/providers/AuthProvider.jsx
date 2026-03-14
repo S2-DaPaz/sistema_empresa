@@ -1,5 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { apiGet, apiPost, setAuthToken } from "../../shared/api/http-client";
+import {
+  apiGet,
+  apiPost,
+  setAuthToken,
+  setUnauthorizedHandler
+} from "../../shared/api/http-client";
 import { PERMISSIONS } from "../../shared/contracts/permissions";
 import {
   getUserPermissions,
@@ -12,6 +17,19 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem("rv-token") || "");
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setToken("");
+      setUser(null);
+      localStorage.removeItem("rv-token");
+      setAuthToken("");
+    });
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
 
   useEffect(() => {
     setAuthToken(token);
