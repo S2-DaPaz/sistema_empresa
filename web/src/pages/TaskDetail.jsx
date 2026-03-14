@@ -442,6 +442,35 @@ export default function TaskDetail() {
     }
   }
 
+  async function saveTaskSignatures() {
+    setError("");
+    if (!canManage) {
+      setError("Sem permissÃ£o para editar assinaturas desta tarefa.");
+      return;
+    }
+    if (!taskId) {
+      setError("Salve a tarefa antes de configurar assinaturas.");
+      return;
+    }
+
+    try {
+      const task = await apiPut(`/tasks/${taskId}/signatures`, {
+        signature_mode: signatureMode,
+        signature_scope: signatureScope,
+        signature_client: signatureClient || null,
+        signature_tech: signatureTech || null,
+        signature_pages: signaturePages
+      });
+      setSignatureMode(task?.signature_mode || "none");
+      setSignatureScope(task?.signature_scope || "last_page");
+      setSignatureClient(task?.signature_client || "");
+      setSignatureTech(task?.signature_tech || "");
+      setSignaturePages(task?.signature_pages || {});
+    } catch (err) {
+      setError(err.message || "Falha ao salvar assinaturas");
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     await saveTask();
@@ -1452,7 +1481,7 @@ export default function TaskDetail() {
                     <button
                       className="btn primary"
                       type="button"
-                      onClick={saveTask}
+                      onClick={saveTaskSignatures}
                       disabled={!canManage}
                     >
                       Salvar assinaturas
