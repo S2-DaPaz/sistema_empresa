@@ -64,7 +64,10 @@ function createPublicRouter({ db, publicService }) {
         forceRefresh: req.query.refresh === "1"
       });
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="tarefa_${req.params.id}.pdf"`);
+      res.setHeader(
+        "Content-Disposition",
+        `${req.query.download === "1" ? "attachment" : "inline"}; filename="tarefa_${req.params.id}.pdf"`
+      );
       return res.send(pdf);
     })
   );
@@ -126,7 +129,10 @@ function createPublicRouter({ db, publicService }) {
         forceRefresh: req.query.refresh === "1"
       });
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="orcamento_${req.params.id}.pdf"`);
+      res.setHeader(
+        "Content-Disposition",
+        `${req.query.download === "1" ? "attachment" : "inline"}; filename="orcamento_${req.params.id}.pdf"`
+      );
       return res.send(pdf);
     })
   );

@@ -479,9 +479,27 @@ function createPublicService({ env, logger }) {
     }
   }
 
+  function escapeHtmlAttribute(value = "") {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
   function injectPublicToolbar(
     html,
-    { title, token, pdfUrl, refreshUrl, approveBudget = null, approveReport = null, statusLabel = null }
+    {
+      title,
+      token,
+      pdfUrl,
+      pdfDownloadUrl,
+      pdfFileName,
+      refreshUrl,
+      approveBudget = null,
+      approveReport = null,
+      statusLabel = null
+    }
   ) {
     const status = normalizePublicStatusLabel(statusLabel);
     const statusBadge = status
@@ -491,8 +509,11 @@ function createPublicService({ env, logger }) {
     const approveButton = approveBudget || approveReport
       ? `<button type="button" onclick="openApproval()">${actionLabel}</button>`
       : "";
-    const shareButton = pdfUrl
-      ? `<button type="button" onclick="window.open('${pdfUrl}', '_blank', 'noopener')">Abrir PDF</button>`
+    const sharePdfButton = pdfUrl
+      ? `<button type="button" onclick="sharePdf()">Compartilhar PDF</button>`
+      : "";
+    const downloadPdfButton = pdfDownloadUrl
+      ? `<button type="button" onclick="downloadPdf()">Baixar PDF</button>`
       : "";
     const modal = approveBudget || approveReport
       ? `<div class="overlay" id="approval-overlay"><div class="card"><h3>${actionLabel}</h3><input id="approval-name" type="text" placeholder="Nome (opcional)" /><input id="approval-document" type="text" placeholder="CPF/CNPJ (opcional)" /><canvas id="approval-canvas"></canvas><div class="actions"><button type="button" onclick="clearApproval()">Limpar</button><button type="button" onclick="removeApproval()">Remover assinatura</button><button type="button" onclick="closeApproval()">Cancelar</button><button type="button" onclick="submitApproval()">Salvar</button></div></div></div>`
@@ -524,6 +545,56 @@ function createPublicService({ env, logger }) {
   let canvas; let ctx; let drawing = false;
   function openApproval() { document.getElementById('approval-overlay')?.classList.add('active'); setupCanvas(); }
   function closeApproval() { document.getElementById('approval-overlay')?.classList.remove('active'); }
+  async function copyPdfLink(url) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      alert('Link direto do PDF copiado.');
+      return;
+    }
+    window.prompt('Copie o link do PDF abaixo:', url);
+  }
+  async function fetchPdfBlob(url) {
+    const response = await fetch(url, { credentials: 'same-origin' });
+    if (!response.ok) {
+      throw new Error('Falha ao carregar PDF.');
+    }
+    return response.blob();
+  }
+  async function sharePdf() {
+    const pdfUrl = document.body.dataset.publicPdfUrl;
+    const fileName = document.body.dataset.publicPdfFilename || 'documento.pdf';
+    if (!pdfUrl) return;
+    try {
+      if (navigator.share) {
+        const blob = await fetchPdfBlob(pdfUrl);
+        if (typeof File !== 'undefined') {
+          const file = new File([blob], fileName, { type: 'application/pdf' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: fileName });
+            return;
+          }
+        }
+        await navigator.share({ title: fileName, url: pdfUrl });
+        return;
+      }
+      await copyPdfLink(pdfUrl);
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      await copyPdfLink(pdfUrl);
+    }
+  }
+  function downloadPdf() {
+    const pdfUrl = document.body.dataset.publicPdfDownloadUrl || document.body.dataset.publicPdfUrl;
+    const fileName = document.body.dataset.publicPdfFilename || 'documento.pdf';
+    if (!pdfUrl) return;
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.download = fileName;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
   function setupCanvas() {
     canvas = document.getElementById('approval-canvas');
     if (!canvas) return;
@@ -558,12 +629,12 @@ function createPublicService({ env, logger }) {
   }
 </script>`;
 
-    const toolbar = `<div class="toolbar"><div class="title">${title}</div>${statusBadge}<button type="button" onclick="window.print()">Imprimir</button>${shareButton}${approveButton}<a href="${refreshUrl}">Atualizar</a><span>Link expira em ${env.publicLinkDefaultDays} dias.</span></div>`;
+    const toolbar = `<div class="toolbar"><div class="title">${title}</div>${statusBadge}<button type="button" onclick="window.print()">Imprimir</button>${sharePdfButton}${downloadPdfButton}${approveButton}<a href="${refreshUrl}">Atualizar</a><span>Link expira em ${env.publicLinkDefaultDays} dias.</span></div>`;
 
     let updated = html.replace("</head>", `${headExtra}</head>`);
     updated = updated.replace(
       "<body>",
-      `<body data-public-token="${token}" ${approveBudget ? `data-public-budget-id="${approveBudget.budgetId}"` : ""} ${approveReport ? `data-public-task-id="${approveReport.taskId}"` : ""}><div class="shell">${toolbar}${modal}<main class="content">`
+      `<body data-public-token="${escapeHtmlAttribute(token)}" data-public-pdf-url="${escapeHtmlAttribute(pdfUrl || "")}" data-public-pdf-download-url="${escapeHtmlAttribute(pdfDownloadUrl || pdfUrl || "")}" data-public-pdf-filename="${escapeHtmlAttribute(pdfFileName || "documento.pdf")}" ${approveBudget ? `data-public-budget-id="${escapeHtmlAttribute(approveBudget.budgetId)}"` : ""} ${approveReport ? `data-public-task-id="${escapeHtmlAttribute(approveReport.taskId)}"` : ""}><div class="shell">${toolbar}${modal}<main class="content">`
     );
     updated = updated.replace("</body>", "</main></div></body>");
     return updated;
@@ -634,6 +705,8 @@ function createPublicService({ env, logger }) {
       title: `Relatorio da tarefa #${taskId}`,
       token,
       pdfUrl: `${baseUrl}/public/tasks/${taskId}/pdf?token=${encodedToken}`,
+      pdfDownloadUrl: `${baseUrl}/public/tasks/${taskId}/pdf?token=${encodedToken}&download=1`,
+      pdfFileName: `relatorio_tarefa_${taskId}.pdf`,
       refreshUrl: `${baseUrl}/public/tasks/${taskId}?token=${encodedToken}`,
       approveReport: { taskId },
       statusLabel: data.task.status
@@ -675,6 +748,8 @@ function createPublicService({ env, logger }) {
       title: `Orcamento #${budgetId}`,
       token,
       pdfUrl: `${baseUrl}/public/budgets/${budgetId}/pdf?token=${encodedToken}`,
+      pdfDownloadUrl: `${baseUrl}/public/budgets/${budgetId}/pdf?token=${encodedToken}&download=1`,
+      pdfFileName: `orcamento_${budgetId}.pdf`,
       refreshUrl: `${baseUrl}/public/budgets/${budgetId}?token=${encodedToken}`,
       approveBudget: { budgetId },
       statusLabel: data.budget.status
