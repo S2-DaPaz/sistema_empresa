@@ -8,7 +8,6 @@ const { requirePermission } = require("../../core/security/auth");
 const { parseJsonFields } = require("../../core/utils/json");
 const { buildPayload, ensureRequiredFields, normalizeId } = require("../../core/utils/validation");
 const { createReportForTask, syncReportForTask, createReportForEquipment } = require("./task-report.service");
-const { updateTaskSignatures } = require("./task-signature.service");
 
 function createTasksRouter({ db, publicService }) {
   const router = express.Router();
@@ -160,20 +159,6 @@ function createTasksRouter({ db, publicService }) {
       await syncReportForTask(db, task);
       publicService.scheduleWarmTaskPdfCache(db, id);
       return send(res, parseJsonFields(task, ["signature_pages"]));
-    })
-  );
-
-  router.put(
-    "/:id/signatures",
-    requirePermission(PERMISSIONS.MANAGE_TASKS),
-    asyncHandler(async (req, res) => {
-      const id = normalizeId(req.params.id);
-      const task = await updateTaskSignatures(db, id, req.body || {});
-      if (!task) {
-        throw new NotFoundError("Tarefa nao encontrada.");
-      }
-      publicService.scheduleWarmTaskPdfCache(db, id);
-      return send(res, task);
     })
   );
 

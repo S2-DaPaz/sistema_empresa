@@ -455,36 +455,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     );
   }
 
-  Future<void> _saveTaskSignatures() async {
-    setState(() => _error = null);
-    if (_taskId == null) {
-      _showMessage('Salve a tarefa antes de configurar Assinaturas.');
-      return;
-    }
-
-    try {
-      final task = await _api.put('/tasks/$_taskId/signatures', {
-        'signature_mode': _signatureMode,
-        'signature_scope': _signatureScope,
-        'signature_client': _signatureClient.isEmpty ? null : _signatureClient,
-        'signature_tech': _signatureTech.isEmpty ? null : _signatureTech,
-        'signature_pages': _signaturePages,
-      }) as Map<String, dynamic>;
-
-      if (!mounted) return;
-      setState(() {
-        _signatureMode = task['signature_mode']?.toString() ?? 'none';
-        _signatureScope = task['signature_scope']?.toString() ?? 'last_page';
-        _signatureClient = task['signature_client']?.toString() ?? '';
-        _signatureTech = task['signature_tech']?.toString() ?? '';
-        _signaturePages = _safeMap(task['signature_pages']);
-      });
-      _showMessage('Assinaturas salvas com sucesso.');
-    } catch (error) {
-      _showMessage(error.toString());
-    }
-  }
-
   Map<String, dynamic> _normalizeReportAnswers() {
     final normalized = Map<String, dynamic>.from(_reportAnswers);
     for (final section in _reportSections) {
@@ -1560,8 +1530,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
           ],
           const SizedBox(height: 12),
           ElevatedButton(
-              onPressed: _saveTaskSignatures,
-              child: const Text('Salvar Assinaturas')),
+              onPressed: _saveTask, child: const Text('Salvar Assinaturas')),
         ],
       ],
     );
