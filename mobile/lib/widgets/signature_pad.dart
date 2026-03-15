@@ -90,7 +90,7 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
           borderRadius: BorderRadius.circular(12),
           child: Container(
             width: double.infinity,
-            height: 140,
+            height: 168,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -182,92 +182,92 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+          child: Column(
+            children: [
+              Row(
                 children: [
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
                   ),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (widget.signerName.isNotEmpty)
+                          Text(
+                            widget.signerName,
+                            style: Theme.of(context).textTheme.titleSmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        if (widget.signerCpf.isNotEmpty)
+                          Text(
+                            widget.signerCpf,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: Colors.black54),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
                   TextButton(
                     onPressed: _controller.clear,
                     child: const Text('Limpar'),
                   ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _saveSignature,
+                    child: const Text('Salvar'),
+                  ),
                 ],
               ),
-            ),
-            if (widget.signerName.isNotEmpty || widget.signerCpf.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.signerName,
-                        style: Theme.of(context).textTheme.titleSmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (widget.signerCpf.isNotEmpty)
-                      Text(
-                        widget.signerCpf,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.black54),
-                      ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+              const SizedBox(height: 8),
+              Expanded(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border:
                         Border.all(color: Colors.black.withValues(alpha: 0.12)),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Stack(
                     children: [
-                      Text('Assinatura',
-                          style: Theme.of(context).textTheme.labelLarge),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: Signature(
-                          controller: _controller,
-                          backgroundColor: Colors.white,
+                      Positioned.fill(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 36, 12, 18),
+                          child: Signature(
+                            controller: _controller,
+                            backgroundColor: Colors.white,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(height: 1, color: Colors.black26),
+                      Positioned(
+                        left: 12,
+                        top: 10,
+                        child: Text(
+                          'Assinatura',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                      ),
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        bottom: 12,
+                        child: Container(height: 1, color: Colors.black26),
+                      ),
                     ],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: SizedBox(
-                width: 180,
-                child: ElevatedButton(
-                  onPressed: _saveSignature,
-                  child: const Text('Salvar'),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
