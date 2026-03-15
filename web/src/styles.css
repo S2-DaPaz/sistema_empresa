@@ -829,6 +829,10 @@ img {
   border: 1px solid rgba(26, 167, 214, 0.12);
 }
 
+.auth-card-wide {
+  width: min(520px, 100%);
+}
+
 .auth-brand {
   display: flex;
   gap: 14px;
@@ -853,6 +857,16 @@ img {
   display: block;
   font-size: 12px;
   color: var(--muted);
+}
+
+.auth-copy {
+  margin-bottom: 8px;
+}
+
+.auth-copy h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-family: "Space Grotesk", sans-serif;
 }
 
 .auth-tabs {
@@ -902,6 +916,40 @@ img {
   margin-top: 12px;
   text-align: center;
   color: var(--muted);
+}
+
+.auth-helper {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-links {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.auth-link-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.link-button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--accent-3);
+  font-weight: 600;
+}
+
+.link-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .auth-loading {

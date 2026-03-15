@@ -8,6 +8,8 @@ import {
 
 let authToken = "";
 let unauthorizedHandler = null;
+let refreshHandler = null;
+let refreshPromise = null;
 
 function safeParseBody(body) {
   if (!body || typeof body !== "string") return null;
@@ -26,9 +28,35 @@ async function readPayload(response) {
   }
 }
 
+function shouldAttemptRefresh(path, status, skipAuthRefresh) {
+  if (skipAuthRefresh || status !== 401 || !authToken || !refreshHandler) {
+    return false;
+  }
+
+  if (path === "/auth/refresh") return false;
+  if (path === "/auth/login" || path === "/auth/register") return false;
+  if (path.startsWith("/auth/email/") || path.startsWith("/auth/password/")) {
+    return false;
+  }
+
+  return true;
+}
+
 function shouldHandleUnauthorized(path, status) {
-  if (status !== 401 || !authToken) return false;
-  return !["/auth/login", "/auth/register", "/auth/me"].includes(path);
+  return status === 401 && !["/auth/login", "/auth/register", "/auth/refresh"].includes(path);
+}
+
+async function attemptRefresh() {
+  if (!refreshHandler) return false;
+  if (!refreshPromise) {
+    refreshPromise = Promise.resolve(refreshHandler())
+      .then((result) => result !== false)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
 }
 
 function reportClientError(error, context) {
@@ -80,6 +108,7 @@ async function request(path, options = {}) {
   const {
     withMeta = false,
     reportError = true,
+    skipAuthRefresh = false,
     headers: customHeaders = {},
     ...fetchOptions
   } = options;
@@ -111,6 +140,16 @@ async function request(path, options = {}) {
       });
     }
     throw normalized;
+  }
+
+  if (!response.ok && shouldAttemptRefresh(path, response.status, skipAuthRefresh)) {
+    const refreshed = await attemptRefresh();
+    if (refreshed) {
+      return request(path, {
+        ...options,
+        skipAuthRefresh: true
+      });
+    }
   }
 
   if (response.status === 204) {
@@ -155,6 +194,10 @@ export function setAuthToken(token) {
 
 export function setUnauthorizedHandler(handler) {
   unauthorizedHandler = typeof handler === "function" ? handler : null;
+}
+
+export function setRefreshHandler(handler) {
+  refreshHandler = typeof handler === "function" ? handler : null;
 }
 
 export function createClientError(error, fallbackMessage) {

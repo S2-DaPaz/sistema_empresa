@@ -11,16 +11,20 @@ import '../network/request_executor.dart';
 import 'session_permissions.dart';
 
 class AuthSession {
-  AuthSession({required this.token, required this.user});
+  AuthSession({
+    required this.token,
+    required this.refreshToken,
+    required this.user,
+  });
 
   final String token;
+  final String refreshToken;
   final Map<String, dynamic> user;
 
   String get role => user['role']?.toString() ?? 'visitante';
   bool get roleIsAdmin =>
       user['role_is_admin'] == true || role == 'administracao';
-  List<String> get rolePermissions =>
-      parsePermissions(user['role_permissions']);
+  List<String> get rolePermissions => parsePermissions(user['role_permissions']);
   List<String> get permissions => parsePermissions(user['permissions']);
   List<String> get effectivePermissions => getEffectivePermissions(user);
 }
@@ -31,40 +35,66 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   static const _tokenKey = 'auth_token';
+  static const _refreshTokenKey = 'auth_refresh_token';
   static const _userKey = 'auth_user';
 
   final ValueNotifier<AuthSession?> session = ValueNotifier<AuthSession?>(null);
   final http.Client _client = http.Client();
 
   String? get token => session.value?.token;
+  String? get refreshToken => session.value?.refreshToken;
   Map<String, dynamic>? get user => session.value?.user;
   bool get isLoggedIn => session.value != null;
   bool get isAdmin => session.value?.roleIsAdmin == true;
+  bool get canRefreshSession =>
+      refreshToken != null && refreshToken!.isNotEmpty;
 
   Future<void> restore() async {
     final prefs = await SharedPreferences.getInstance();
     final storedToken = prefs.getString(_tokenKey);
+    final storedRefreshToken = prefs.getString(_refreshTokenKey);
     final storedUser = prefs.getString(_userKey);
-    if (storedToken == null || storedUser == null) {
+
+    if ((storedToken == null || storedToken.isEmpty) &&
+        (storedRefreshToken == null || storedRefreshToken.isEmpty)) {
       return;
     }
 
     try {
-      final userMap = jsonDecode(storedUser) as Map<String, dynamic>;
-      session.value = AuthSession(token: storedToken, user: userMap);
+      final userMap = storedUser == null
+          ? <String, dynamic>{}
+          : Map<String, dynamic>.from(jsonDecode(storedUser) as Map);
+
+      session.value = AuthSession(
+        token: storedToken ?? '',
+        refreshToken: storedRefreshToken ?? '',
+        user: userMap,
+      );
+
+      if (storedToken == null || storedToken.isEmpty) {
+        final refreshed = await tryRefreshSession();
+        if (!refreshed) {
+          await logout(localOnly: true);
+          return;
+        }
+      }
+
       await refreshUser();
     } on AppException catch (error) {
       if (error.category == 'authentication_error' ||
           error.category == 'permission_error') {
-        await logout();
+        final refreshed = await tryRefreshSession();
+        if (!refreshed) {
+          await logout(localOnly: true);
+        }
       }
     } catch (_) {
-      await logout();
+      await logout(localOnly: true);
     }
   }
 
   Future<void> refreshUser() async {
-    if (token == null) return;
+    if (token == null || token!.isEmpty) return;
 
     final response = await _send(
       '/auth/me',
@@ -82,15 +112,23 @@ class AuthService {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final userPayload = payload?['data']?['user'] ?? payload?['user'];
       if (userPayload is Map) {
-        final userMap = Map<String, dynamic>.from(userPayload);
-        session.value = AuthSession(token: token!, user: userMap);
+        session.value = AuthSession(
+          token: token!,
+          refreshToken: refreshToken ?? '',
+          user: Map<String, dynamic>.from(userPayload),
+        );
         await _persist();
         return;
       }
     }
 
+    if ((response.statusCode == 401 || response.statusCode == 403) &&
+        await tryRefreshSession()) {
+      return refreshUser();
+    }
+
     if (response.statusCode == 401 || response.statusCode == 403) {
-      await logout();
+      await logout(localOnly: true);
       throw normalizeApiError(
         payload: payload,
         statusCode: response.statusCode,
@@ -103,28 +141,125 @@ class AuthService {
     );
   }
 
-  Future<void> login(String email, String password) async {
+  Future<Map<String, dynamic>> login(String email, String password) async {
     final payload = await _post('/auth/login', {
       'email': email,
       'password': password,
     });
     await _applyAuthPayload(payload);
+    return payload;
   }
 
-  Future<void> register(String name, String email, String password) async {
-    final payload = await _post('/auth/register', {
+  Future<Map<String, dynamic>> register(
+    String name,
+    String email,
+    String password,
+  ) {
+    return _post('/auth/register', {
       'name': name,
       'email': email,
       'password': password,
     });
-    await _applyAuthPayload(payload);
   }
 
-  Future<void> logout() async {
-    session.value = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_userKey);
+  Future<Map<String, dynamic>> verifyEmail(String email, String code) async {
+    final payload = await _post('/auth/email/verify', {
+      'email': email,
+      'code': code,
+    });
+    await _applyAuthPayload(payload);
+    return payload;
+  }
+
+  Future<Map<String, dynamic>> resendVerificationCode(String email) {
+    return _post('/auth/email/resend-code', {'email': email});
+  }
+
+  Future<Map<String, dynamic>> requestPasswordReset(String email) {
+    return _post('/auth/password/forgot', {'email': email});
+  }
+
+  Future<Map<String, dynamic>> verifyPasswordResetCode(
+    String email,
+    String code,
+  ) {
+    return _post('/auth/password/verify-code', {
+      'email': email,
+      'code': code,
+    });
+  }
+
+  Future<Map<String, dynamic>> resetPassword(
+    String email,
+    String code,
+    String password,
+  ) {
+    return _post('/auth/password/reset', {
+      'email': email,
+      'code': code,
+      'password': password,
+    });
+  }
+
+  Future<bool> tryRefreshSession() async {
+    final storedRefreshToken = refreshToken;
+    if (storedRefreshToken == null || storedRefreshToken.isEmpty) {
+      return false;
+    }
+
+    try {
+      final response = await _send(
+        '/auth/refresh',
+        (uri) => _client.post(
+          uri,
+          headers: const {
+            'Content-Type': 'application/json',
+            'X-Client-Platform': 'mobile',
+          },
+          body: jsonEncode({'refreshToken': storedRefreshToken}),
+        ),
+      );
+
+      final payload = _tryDecode(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = payload?['data'] is Map
+            ? Map<String, dynamic>.from(payload!['data'] as Map)
+            : payload ?? <String, dynamic>{};
+        await _applyAuthPayload(data);
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+
+    return false;
+  }
+
+  Future<void> logout({bool localOnly = false}) async {
+    try {
+      if (!localOnly && token != null && token!.isNotEmpty) {
+        await _send(
+          '/auth/logout',
+          (uri) => _client.post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Client-Platform': 'mobile',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({}),
+          ),
+        );
+      }
+    } catch (_) {
+      // A limpeza local da sessão não depende do backend responder.
+    } finally {
+      session.value = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_tokenKey);
+      await prefs.remove(_refreshTokenKey);
+      await prefs.remove(_userKey);
+    }
   }
 
   bool hasPermission(String permission) {
@@ -167,7 +302,7 @@ class AuthService {
       payload: payload,
       statusCode: response.statusCode,
       technicalMessage: payload?['error']?.toString() ?? response.body,
-      fallbackMessage: 'Não foi possível autenticar com os dados informados.',
+      fallbackMessage: 'Não foi possível concluir a operação de autenticação.',
     );
     await _report(error, path: path, method: 'POST', payloadSummary: body);
     throw error;
@@ -199,9 +334,14 @@ class AuthService {
 
   Future<void> _applyAuthPayload(Map<String, dynamic> payload) async {
     final nextToken = payload['token']?.toString();
+    final nextRefreshToken = payload['refreshToken']?.toString();
     final userPayload = payload['user'];
 
-    if (nextToken == null || userPayload is! Map) {
+    if (nextToken == null ||
+        nextToken.isEmpty ||
+        nextRefreshToken == null ||
+        nextRefreshToken.isEmpty ||
+        userPayload is! Map) {
       final error = normalizeUnexpectedError(
         'Missing auth payload',
         fallbackMessage: 'Não foi possível concluir a autenticação.',
@@ -210,8 +350,11 @@ class AuthService {
       throw error;
     }
 
-    final userMap = Map<String, dynamic>.from(userPayload);
-    session.value = AuthSession(token: nextToken, user: userMap);
+    session.value = AuthSession(
+      token: nextToken,
+      refreshToken: nextRefreshToken,
+      user: Map<String, dynamic>.from(userPayload),
+    );
     await _persist();
   }
 
@@ -221,6 +364,7 @@ class AuthService {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, current.token);
+    await prefs.setString(_refreshTokenKey, current.refreshToken);
     await prefs.setString(_userKey, jsonEncode(current.user));
   }
 

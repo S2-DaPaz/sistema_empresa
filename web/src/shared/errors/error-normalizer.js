@@ -48,6 +48,7 @@ function inferCategoryFromStatus(status) {
   if (status === 401) return "authentication_error";
   if (status === 403) return "permission_error";
   if (status === 404) return "not_found";
+  if (status === 429) return "operation_invalid";
   if (status === 400 || status === 409 || status === 422) return "operation_invalid";
   if (status >= 500) return "server_error";
   return "unexpected_error";
@@ -72,7 +73,7 @@ export function normalizeError(error, fallbackMessage) {
     code: error?.code || "unexpected_error",
     status,
     requestId: error?.requestId || null,
-    details: Array.isArray(error?.details) ? error.details : null,
+    details: error?.details ?? null,
     technicalMessage: message || String(error || ""),
     retryable: category === "connection_error" || category === "server_error"
   });
@@ -93,7 +94,7 @@ export function normalizeApiError({ payload, status, fallbackMessage, technicalM
     code: apiError.code || "request_failed",
     status,
     requestId: apiError.requestId || null,
-    details: Array.isArray(apiError.details) ? apiError.details : null,
+    details: apiError.details ?? null,
     technicalMessage: rawMessage || `HTTP ${status}`,
     retryable: category === "connection_error" || category === "server_error"
   });

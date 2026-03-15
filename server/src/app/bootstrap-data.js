@@ -41,8 +41,28 @@ async function ensureAdminUser(db, env) {
 
   const hash = await bcrypt.hash(env.adminBootstrapPassword, 10);
   await db.run(
-    "INSERT INTO users (name, email, role, password_hash, permissions) VALUES (?, ?, ?, ?, ?)",
-    [env.adminName, env.adminEmail, "administracao", hash, JSON.stringify([])]
+    `INSERT INTO users (
+      name,
+      email,
+      role,
+      password_hash,
+      permissions,
+      status,
+      email_verified,
+      email_verified_at,
+      password_changed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      env.adminName,
+      env.adminEmail,
+      "administracao",
+      hash,
+      JSON.stringify([]),
+      "active",
+      1,
+      new Date().toISOString(),
+      new Date().toISOString()
+    ]
   );
 
   logger.warn("bootstrap_admin_created", {

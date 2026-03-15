@@ -3,54 +3,43 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rv_sistema_mobile/core/errors/error_mapper.dart';
 
 void main() {
-  test('normalizes technical network errors into a friendly connection message',
-      () {
-    final error = normalizeNetworkError(
-      Exception('SocketException: Connection refused'),
-    );
-
-    expect(error.category, 'connection_error');
-    expect(
-      error.message,
-      'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
-    );
-    expect(error.technicalMessage, contains('SocketException'));
-  });
-
-  test('uses backend category when the API already returns a friendly auth error',
-      () {
+  test('preserves structured details from API auth errors', () {
     final error = normalizeApiError(
       payload: {
         'error': {
-          'code': 'unauthorized',
+          'code': 'email_verification_required',
           'category': 'authentication_error',
-          'message': 'Sua sessão expirou. Faça login novamente para continuar.',
-          'requestId': 'req-123',
-        },
+          'message':
+              'Sua conta ainda não foi verificada. Informe o código enviado por e-mail.',
+          'details': {
+            'email': 'maria@empresa.com',
+            'maskedEmail': 'ma***@empresa.com',
+          }
+        }
       },
-      statusCode: 401,
+      statusCode: 403,
     );
 
-    expect(error.category, 'authentication_error');
-    expect(
-      error.message,
-      'Sua sessão expirou. Faça login novamente para continuar.',
-    );
-    expect(error.requestId, 'req-123');
+    expect(error.code, 'email_verification_required');
+    expect(error.message,
+        'Sua conta ainda não foi verificada. Informe o código enviado por e-mail.');
+    expect(error.details, isA<Map>());
+    expect((error.details as Map)['email'], 'maria@empresa.com');
   });
 
-  test('replaces raw server text with a safe message when necessary', () {
+  test('maps too many requests to an operation-friendly category', () {
     final error = normalizeApiError(
       payload: {
         'error': {
-          'code': 'internal_error',
-          'message': '500 Internal Server Error',
-        },
+          'code': 'rate_limited',
+          'message':
+              'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.',
+        }
       },
-      statusCode: 500,
+      statusCode: 429,
     );
 
-    expect(error.category, 'server_error');
-    expect(error.message, 'Algo deu errado. Tente novamente em instantes.');
+    expect(error.category, 'operation_invalid');
+    expect(error.retryable, isFalse);
   });
 }

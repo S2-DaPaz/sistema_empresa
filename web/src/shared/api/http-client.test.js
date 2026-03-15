@@ -4,6 +4,7 @@ import {
   apiGet,
   createClientError,
   setAuthToken,
+  setRefreshHandler,
   setUnauthorizedHandler
 } from "./http-client";
 
@@ -11,6 +12,7 @@ describe("http client", () => {
   beforeEach(() => {
     global.fetch = vi.fn();
     setAuthToken("");
+    setRefreshHandler(null);
     setUnauthorizedHandler(null);
   });
 
@@ -80,5 +82,36 @@ describe("http client", () => {
     expect(error.message).toBe(
       "Não foi possível conectar ao servidor. Verifique sua internet e tente novamente."
     );
+  });
+
+  it("refreshes the session and retries the request after a 401", async () => {
+    const refreshHandler = vi.fn().mockResolvedValue(true);
+    setAuthToken("token-expirado");
+    setRefreshHandler(refreshHandler);
+
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        json: async () => ({
+          error: {
+            code: "unauthorized",
+            category: "authentication_error",
+            message: "Sua sessão expirou. Faça login novamente para continuar."
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { ok: true } })
+      });
+
+    const payload = await apiGet("/tasks");
+
+    expect(payload).toEqual({ ok: true });
+    expect(refreshHandler).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 });

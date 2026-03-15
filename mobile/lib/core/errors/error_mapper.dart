@@ -42,6 +42,7 @@ String inferErrorCategory({int? statusCode, String? code}) {
   if (status == 401) return 'authentication_error';
   if (status == 403) return 'permission_error';
   if (status == 404) return 'not_found';
+  if (status == 429) return 'operation_invalid';
   if (status == 400 || status == 409 || status == 422) {
     return 'operation_invalid';
   }
@@ -77,7 +78,7 @@ AppException normalizeApiError({
     code: errorMap['code']?.toString() ?? 'request_failed',
     statusCode: statusCode,
     requestId: errorMap['requestId']?.toString(),
-    details: errorMap['details'] is List ? errorMap['details'] as List : null,
+    details: errorMap['details'],
     technicalMessage: rawMessage.isNotEmpty
         ? rawMessage
         : 'HTTP ${statusCode ?? 0}',

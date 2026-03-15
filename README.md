@@ -23,6 +23,7 @@ Monorepo para operacao tecnica com tarefas, relatorios customizados, orcamentos 
 - respostas e erros da API padronizados
 - contratos de permissao e enums centralizados
 - auth e cliente HTTP alinhados entre backend, web e mobile
+- gestao de conta completa com cadastro, verificacao por e-mail, recuperacao de senha e refresh token
 - launcher local passa a subir a API real, nao apenas arquivos estaticos
 - testes adicionados nas tres frentes
 - ambiente documentado com `.env.example`
@@ -61,6 +62,7 @@ Na raiz, o atalho equivalente e `npm run dev:mobile`.
 Importante:
 
 - em producao, `JWT_SECRET` e obrigatorio
+- para fluxo completo de autenticacao, configure `EMAIL_PROVIDER`, remetente e SMTP quando necessario
 - para o primeiro admin local, defina `ADMIN_PASSWORD`; se nao definir, o backend gera uma senha aleatoria e registra no log de bootstrap
 - para builds mobile de release, `API_URL` deve ser informado explicitamente
 
@@ -81,6 +83,7 @@ Importante:
 - `docs/web.md`
 - `docs/mobile.md`
 - `docs/auth-permissions.md`
+- `docs/authentication.md`
 - `docs/development.md`
 
 ## Roadmap tecnico recomendado

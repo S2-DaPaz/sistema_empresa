@@ -13,6 +13,16 @@ class ApiService {
 
   final http.Client _client;
 
+  bool _shouldAttemptRefresh(String path) {
+    if (!AuthService.instance.canRefreshSession) return false;
+    if (path == '/auth/refresh') return false;
+    if (path == '/auth/login' || path == '/auth/register') return false;
+    if (path.startsWith('/auth/email/') || path.startsWith('/auth/password/')) {
+      return false;
+    }
+    return true;
+  }
+
   Map<String, String> _headers({bool json = true}) {
     final headers = <String, String>{
       'X-Client-Platform': 'mobile',
@@ -127,7 +137,14 @@ class ApiService {
     Future<http.Response> Function(Uri uri) request,
   ) async {
     try {
-      return await RequestExecutor.send(path, request);
+      final response = await RequestExecutor.send(path, request);
+      if (response.statusCode == 401 && _shouldAttemptRefresh(path)) {
+        final refreshed = await AuthService.instance.tryRefreshSession();
+        if (refreshed) {
+          return RequestExecutor.send(path, request);
+        }
+      }
+      return response;
     } on NetworkRequestException catch (error) {
       final normalized = normalizeNetworkError(
         error,

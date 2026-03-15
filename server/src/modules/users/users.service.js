@@ -34,7 +34,12 @@ async function create(db, payload) {
     email: payload.email,
     role: payload.role,
     password_hash,
-    permissions: Array.isArray(payload.permissions) ? payload.permissions : []
+    permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+    status: "active",
+    email_verified: true,
+    email_verified_at: new Date().toISOString(),
+    last_login_at: null,
+    password_changed_at: new Date().toISOString()
   });
 
   return {
@@ -54,6 +59,13 @@ async function update(db, userId, payload) {
     email: payload.email,
     role: payload.role,
     permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+    status: current.status || "active",
+    email_verified: current.email_verified,
+    email_verified_at: current.email_verified_at,
+    last_login_at: current.last_login_at,
+    password_changed_at: payload.password
+      ? new Date().toISOString()
+      : current.password_changed_at || null,
     password_hash: payload.password ? await bcrypt.hash(payload.password, 10) : null
   });
 

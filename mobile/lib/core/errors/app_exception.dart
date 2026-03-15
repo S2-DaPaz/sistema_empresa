@@ -15,7 +15,7 @@ class AppException implements Exception {
   final String code;
   final int? statusCode;
   final String? requestId;
-  final List<dynamic>? details;
+  final dynamic details;
   final String technicalMessage;
   final bool retryable;
 

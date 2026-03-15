@@ -1,10 +1,14 @@
 class AppError extends Error {
-  constructor(message, { code = "app_error", statusCode = 500, details } = {}) {
+  constructor(
+    message,
+    { code = "app_error", statusCode = 500, details, exposeDetails = details !== undefined } = {}
+  ) {
     super(message);
     this.name = this.constructor.name;
     this.code = code;
     this.statusCode = statusCode;
     this.details = details;
+    this.exposeDetails = exposeDetails;
   }
 }
 
@@ -38,11 +42,18 @@ class ConflictError extends AppError {
   }
 }
 
+class TooManyRequestsError extends AppError {
+  constructor(message = "Muitas tentativas em pouco tempo. Aguarde alguns instantes.") {
+    super(message, { code: "rate_limited", statusCode: 429 });
+  }
+}
+
 module.exports = {
   AppError,
   ValidationError,
   UnauthorizedError,
   ForbiddenError,
   NotFoundError,
-  ConflictError
+  ConflictError,
+  TooManyRequestsError
 };

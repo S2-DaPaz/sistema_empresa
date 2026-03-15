@@ -34,7 +34,7 @@ function createCorsOptions(env) {
   };
 }
 
-function createApp({ db, env, logger, publicService, monitoringService }) {
+function createApp({ db, env, logger, publicService, monitoringService, emailService }) {
   const app = express();
 
   app.use(cors(createCorsOptions(env)));
@@ -60,12 +60,8 @@ function createApp({ db, env, logger, publicService, monitoringService }) {
     })
   );
 
-  app.use("/api/auth", createAuthRouter({ db, env }));
   app.use("/api", createAuthMiddleware({ db, env, findUserWithRoleById }));
-
-  app.get("/api/auth/me", (req, res) => {
-    return send(res, { user: req.user });
-  });
+  app.use("/api/auth", createAuthRouter({ db, env, emailService }));
 
   app.use("/api/admin", createMonitoringRouter({ db, monitoringService }));
   app.use("/api/summary", requirePermission(PERMISSIONS.VIEW_DASHBOARD), createSummaryRouter({ db }));

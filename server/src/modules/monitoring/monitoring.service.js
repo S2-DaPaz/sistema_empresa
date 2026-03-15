@@ -127,6 +127,62 @@ function createMonitoringService({ env, logger }) {
     const statusCode = Number(error?.statusCode || 500);
     const code = String(error?.code || "internal_error");
 
+    if (code === "invalid_credentials") {
+      return {
+        code,
+        category: "authentication_error",
+        severity: "warning",
+        message: "Não foi possível autenticar com os dados informados."
+      };
+    }
+
+    if (code === "email_verification_required") {
+      return {
+        code,
+        category: "authentication_error",
+        severity: "warning",
+        message:
+          error.message || "Sua conta ainda não foi verificada. Informe o código enviado por e-mail."
+      };
+    }
+
+    if (
+      [
+        "auth_code_invalid",
+        "auth_code_expired",
+        "auth_code_attempts_exceeded",
+        "password_reset_invalid",
+        "email_already_verified"
+      ].includes(code)
+    ) {
+      return {
+        code,
+        category: "operation_invalid",
+        severity: "warning",
+        message: error.message || "Não foi possível validar o código informado."
+      };
+    }
+
+    if (code === "rate_limited") {
+      return {
+        code,
+        category: "operation_invalid",
+        severity: "warning",
+        message:
+          error.message || "Muitas tentativas em pouco tempo. Aguarde alguns instantes e tente novamente."
+      };
+    }
+
+    if (code === "email_delivery_failed") {
+      return {
+        code,
+        category: "server_error",
+        severity: "error",
+        message:
+          error.message || "Não foi possível enviar o código por e-mail no momento."
+      };
+    }
+
     if (statusCode >= 500) {
       return {
         code,
@@ -333,7 +389,121 @@ function createMonitoringService({ env, logger }) {
               : "Falha ao registrar um novo usuário.",
           module: "auth",
           entityType: "user",
+          entityId: res.locals?.responseData?.account?.id || res.locals?.responseData?.user?.id || null
+        };
+      }
+
+      if (method === "POST" && segments[1] === "refresh") {
+        return {
+          action:
+            outcome === "success" ? "AUTH_REFRESH_TOKEN_ROTATED" : "AUTH_REFRESH_TOKEN_FAILURE",
+          description:
+            outcome === "success"
+              ? "Sessão renovada com sucesso."
+              : "Falha ao renovar a sessão.",
+          module: "auth",
+          entityType: "session",
+          entityId: res.locals?.responseData?.session?.id || null
+        };
+      }
+
+      if (method === "POST" && segments[1] === "logout") {
+        return {
+          action: "AUTH_LOGOUT",
+          description: "Sessão encerrada.",
+          module: "auth",
+          entityType: "session",
+          entityId: req.auth?.sessionId || null
+        };
+      }
+
+      if (method === "POST" && segments[1] === "logout-all") {
+        return {
+          action: "AUTH_LOGOUT_ALL",
+          description: "Todas as sessões do usuário foram encerradas.",
+          module: "auth",
+          entityType: "session",
+          entityId: req.auth?.sessionId || null
+        };
+      }
+
+      if (method === "POST" && segments[1] === "email" && segments[2] === "verify") {
+        return {
+          action:
+            outcome === "success"
+              ? "AUTH_EMAIL_VERIFIED"
+              : "AUTH_EMAIL_VERIFICATION_FAILED",
+          description:
+            outcome === "success"
+              ? "Endereço de e-mail confirmado."
+              : "Falha ao confirmar o endereço de e-mail.",
+          module: "auth",
+          entityType: "user",
           entityId: res.locals?.responseData?.user?.id || null
+        };
+      }
+
+      if (method === "POST" && segments[1] === "email" && segments[2] === "resend-code") {
+        return {
+          action:
+            outcome === "success"
+              ? "AUTH_EMAIL_VERIFICATION_RESENT"
+              : "AUTH_EMAIL_VERIFICATION_RESEND_FAILED",
+          description:
+            outcome === "success"
+              ? "Novo código de verificação enviado."
+              : "Falha ao reenviar o código de verificação.",
+          module: "auth",
+          entityType: "user",
+          entityId: null
+        };
+      }
+
+      if (method === "POST" && segments[1] === "password" && segments[2] === "forgot") {
+        return {
+          action:
+            outcome === "success"
+              ? "AUTH_PASSWORD_RESET_REQUESTED"
+              : "AUTH_PASSWORD_RESET_REQUEST_FAILED",
+          description:
+            outcome === "success"
+              ? "Solicitação de redefinição de senha registrada."
+              : "Falha ao solicitar a redefinição de senha.",
+          module: "auth",
+          entityType: "user",
+          entityId: null
+        };
+      }
+
+      if (method === "POST" && segments[1] === "password" && segments[2] === "verify-code") {
+        return {
+          action:
+            outcome === "success"
+              ? "AUTH_PASSWORD_RESET_CODE_VERIFIED"
+              : "AUTH_PASSWORD_RESET_CODE_FAILED",
+          description:
+            outcome === "success"
+              ? "Código de redefinição de senha validado."
+              : "Falha ao validar o código de redefinição de senha.",
+          module: "auth",
+          entityType: "user",
+          entityId: null
+        };
+      }
+
+      if (method === "POST" && segments[1] === "password" && segments[2] === "reset") {
+        return {
+          action:
+            outcome === "success"
+              ? "AUTH_PASSWORD_RESET_SUCCESS"
+              : "AUTH_PASSWORD_RESET_FAILURE",
+          description:
+            outcome === "success"
+              ? "Senha redefinida com sucesso."
+              : "Falha ao redefinir a senha.",
+          module: "auth",
+          entityType: "user",
+          entityId: null
         };
       }
 
@@ -512,9 +682,7 @@ function createMonitoringService({ env, logger }) {
   function buildErrorResponse(req, error) {
     const friendly = buildFriendlyMessage(req, error);
     const details =
-      error instanceof AppError && Array.isArray(error.details) && friendly.category === "validation_error"
-        ? sanitizeValue(error.details)
-        : undefined;
+      error instanceof AppError && error.exposeDetails ? sanitizeValue(error.details) : undefined;
 
     if (error instanceof AppError) {
       return {

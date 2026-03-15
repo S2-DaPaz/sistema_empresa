@@ -18,16 +18,44 @@ async function resetAdmin() {
   const existing = await db.get("SELECT id FROM users WHERE lower(email) = lower(?)", [email]);
   if (existing) {
     await db.run(
-      "UPDATE users SET name = ?, role = ?, password_hash = ? WHERE id = ?",
-      [name, "administracao", hash, existing.id]
+      `UPDATE users
+       SET name = ?,
+           role = ?,
+           password_hash = ?,
+           status = ?,
+           email_verified = ?,
+           email_verified_at = COALESCE(email_verified_at, ?),
+           password_changed_at = ?
+       WHERE id = ?`,
+      [name, "administracao", hash, "active", 1, new Date().toISOString(), new Date().toISOString(), existing.id]
     );
     console.log(`Admin atualizado: ${email}`);
     return;
   }
 
   await db.run(
-    "INSERT INTO users (name, email, role, password_hash, permissions) VALUES (?, ?, ?, ?, ?)",
-    [name, email, "administracao", hash, JSON.stringify([])]
+    `INSERT INTO users (
+      name,
+      email,
+      role,
+      password_hash,
+      permissions,
+      status,
+      email_verified,
+      email_verified_at,
+      password_changed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      name,
+      email,
+      "administracao",
+      hash,
+      JSON.stringify([]),
+      "active",
+      1,
+      new Date().toISOString(),
+      new Date().toISOString()
+    ]
   );
   console.log(`Admin criado: ${email}`);
 }

@@ -20,7 +20,12 @@ const SQLITE_SCHEMA = `
     email TEXT,
     role TEXT,
     password_hash TEXT,
-    permissions TEXT
+    permissions TEXT,
+    email_verified INTEGER DEFAULT 0,
+    email_verified_at TEXT,
+    status TEXT DEFAULT 'pending_verification',
+    last_login_at TEXT,
+    password_changed_at TEXT
   );
 
   CREATE TABLE IF NOT EXISTS roles (
@@ -194,6 +199,56 @@ const SQLITE_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_budget_public_links_budget_id
     ON budget_public_links (budget_id);
 
+  CREATE TABLE IF NOT EXISTS auth_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    purpose TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    consumed_at TEXT,
+    created_at TEXT NOT NULL,
+    last_sent_at TEXT NOT NULL,
+    resend_count INTEGER DEFAULT 0,
+    attempt_count INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_auth_codes_user_purpose
+    ON auth_codes (user_id, purpose, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS auth_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    last_used_at TEXT,
+    device_info TEXT,
+    ip_address TEXT,
+    platform TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_token_hash
+    ON auth_sessions (token_hash);
+  CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id
+    ON auth_sessions (user_id, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS auth_rate_limits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action_key TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    attempts INTEGER DEFAULT 0,
+    window_started_at TEXT NOT NULL,
+    blocked_until TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_rate_limits_scope
+    ON auth_rate_limits (action_key, scope_key);
+
   CREATE TABLE IF NOT EXISTS error_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL,
@@ -274,7 +329,12 @@ const POSTGRES_SCHEMA = `
     email TEXT,
     role TEXT,
     password_hash TEXT,
-    permissions TEXT
+    permissions TEXT,
+    email_verified BOOLEAN DEFAULT FALSE,
+    email_verified_at TEXT,
+    status TEXT DEFAULT 'pending_verification',
+    last_login_at TEXT,
+    password_changed_at TEXT
   );
 
   CREATE TABLE IF NOT EXISTS roles (
@@ -444,6 +504,56 @@ const POSTGRES_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_budget_public_links_budget_id
     ON budget_public_links (budget_id);
 
+  CREATE TABLE IF NOT EXISTS auth_codes (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    purpose TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    consumed_at TEXT,
+    created_at TEXT NOT NULL,
+    last_sent_at TEXT NOT NULL,
+    resend_count INTEGER DEFAULT 0,
+    attempt_count INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_auth_codes_user_purpose
+    ON auth_codes (user_id, purpose, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS auth_sessions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    token_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    last_used_at TEXT,
+    device_info TEXT,
+    ip_address TEXT,
+    platform TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_token_hash
+    ON auth_sessions (token_hash);
+  CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id
+    ON auth_sessions (user_id, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS auth_rate_limits (
+    id SERIAL PRIMARY KEY,
+    action_key TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    attempts INTEGER DEFAULT 0,
+    window_started_at TEXT NOT NULL,
+    blocked_until TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_rate_limits_scope
+    ON auth_rate_limits (action_key, scope_key);
+
   CREATE TABLE IF NOT EXISTS error_logs (
     id SERIAL PRIMARY KEY,
     created_at TEXT NOT NULL,
@@ -560,6 +670,17 @@ async function initSqlite() {
   await ensureColumn(database, DB_TYPES.SQLITE, "task_types", "report_template_id", "INTEGER");
   await ensureColumn(database, DB_TYPES.SQLITE, "users", "password_hash", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "users", "permissions", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "users", "email_verified", "INTEGER DEFAULT 0");
+  await ensureColumn(database, DB_TYPES.SQLITE, "users", "email_verified_at", "TEXT");
+  await ensureColumn(
+    database,
+    DB_TYPES.SQLITE,
+    "users",
+    "status",
+    "TEXT DEFAULT 'pending_verification'"
+  );
+  await ensureColumn(database, DB_TYPES.SQLITE, "users", "last_login_at", "TEXT");
+  await ensureColumn(database, DB_TYPES.SQLITE, "users", "password_changed_at", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_mode", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_scope", "TEXT");
   await ensureColumn(database, DB_TYPES.SQLITE, "tasks", "signature_client", "TEXT");
@@ -610,6 +731,17 @@ async function initPostgres() {
   await ensureColumn(database, DB_TYPES.POSTGRES, "task_types", "report_template_id", "INTEGER");
   await ensureColumn(database, DB_TYPES.POSTGRES, "users", "password_hash", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "users", "permissions", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "users", "email_verified", "BOOLEAN DEFAULT FALSE");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "users", "email_verified_at", "TEXT");
+  await ensureColumn(
+    database,
+    DB_TYPES.POSTGRES,
+    "users",
+    "status",
+    "TEXT DEFAULT 'pending_verification'"
+  );
+  await ensureColumn(database, DB_TYPES.POSTGRES, "users", "last_login_at", "TEXT");
+  await ensureColumn(database, DB_TYPES.POSTGRES, "users", "password_changed_at", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_mode", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_scope", "TEXT");
   await ensureColumn(database, DB_TYPES.POSTGRES, "tasks", "signature_client", "TEXT");
