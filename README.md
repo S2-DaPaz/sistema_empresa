@@ -62,7 +62,7 @@ Na raiz, o atalho equivalente e `npm run dev:mobile`.
 Importante:
 
 - em producao, `JWT_SECRET` e obrigatorio
-- para fluxo completo de autenticacao, configure `EMAIL_PROVIDER`, remetente e SMTP quando necessario
+- para fluxo completo de autenticacao, configure `EMAIL_PROVIDER`, remetente e o provider de e-mail; em Render, a API HTTP da Brevo e a opcao recomendada
 - para o primeiro admin local, defina `ADMIN_PASSWORD`; se nao definir, o backend gera uma senha aleatoria e registra no log de bootstrap
 - para builds mobile de release, `API_URL` deve ser informado explicitamente
 

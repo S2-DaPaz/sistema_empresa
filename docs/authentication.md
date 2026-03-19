@@ -75,9 +75,11 @@ Regras aplicadas:
 
 Variáveis principais:
 
-- `EMAIL_PROVIDER=console|smtp`
+- `EMAIL_PROVIDER=console|brevo|smtp`
 - `EMAIL_FROM_NAME`
 - `EMAIL_FROM_ADDRESS`
+- `BREVO_API_KEY`
+- `BREVO_API_BASE_URL`
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_SECURE`
@@ -87,6 +89,7 @@ Variáveis principais:
 Ambientes:
 
 - `console`: não envia e-mail real; registra a mensagem no log do servidor
+- `brevo`: envia e-mail pela API HTTP da Brevo, recomendada para deploys em Render
 - `smtp`: usa o servidor SMTP configurado
 
 ## Auditoria

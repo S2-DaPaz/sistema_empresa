@@ -52,6 +52,10 @@ function getEmailConfig() {
     fromName: (process.env.EMAIL_FROM_NAME || "RV Sistema Empresa").trim(),
     fromAddress: (process.env.EMAIL_FROM_ADDRESS || "noreply@local.dev").trim(),
     replyTo: (process.env.EMAIL_REPLY_TO || "").trim(),
+    brevo: {
+      apiKey: (process.env.BREVO_API_KEY || "").trim(),
+      apiBaseUrl: (process.env.BREVO_API_BASE_URL || "https://api.brevo.com/v3").trim()
+    },
     smtp: {
       host: (process.env.SMTP_HOST || "").trim(),
       port: toPositiveNumber(process.env.SMTP_PORT, 587),
