@@ -47,13 +47,13 @@ Web: `http://localhost:5173`
 
 Na raiz, o atalho equivalente e `npm run dev:mobile`.
 
-## Testes e validacao
+## Testes e validação
 
 - `npm test`
 - `npm run build --prefix web`
 - `cd mobile && flutter analyze`
 
-## Configuracao
+## Configuração
 
 - backend: copie `server/.env.example` para `server/.env`
 - web: opcionalmente copie `web/.env.example` para `web/.env`
@@ -75,7 +75,7 @@ Importante:
 - `npm run package:local`
 - `npm run installer:local`
 
-## Documentacao
+## Documentação
 
 - `docs/architecture/audit.md`
 - `docs/architecture/target-architecture.md`
