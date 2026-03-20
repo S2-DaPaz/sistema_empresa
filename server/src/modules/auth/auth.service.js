@@ -62,7 +62,7 @@ function buildVerificationContext(user, env, activeCode = null) {
 
 function ensureEmail(value) {
   const normalized = normalizeEmail(value);
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailPattern = /^[^\s@]+@([^\s@]+\.[^\s@]+|local|localhost)$/i;
   if (!normalized || !emailPattern.test(normalized)) {
     throw new ValidationError("Informe um endereço de e-mail válido.");
   }

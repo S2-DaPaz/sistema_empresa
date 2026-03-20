@@ -12,12 +12,9 @@ export default function Dashboard() {
     if (!canView) return;
     async function load() {
       try {
-        const [summaryData, reports] = await Promise.all([
-          apiGet("/summary"),
-          apiGet("/reports")
-        ]);
-        setSummary(summaryData);
-        setRecentReports((reports || []).slice(0, 4));
+        const payload = await apiGet("/summary");
+        setSummary(payload?.summary || {});
+        setRecentReports((payload?.recentReports || []).slice(0, 4));
       } catch (err) {
         setSummary(null);
         setRecentReports([]);

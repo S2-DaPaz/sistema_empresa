@@ -131,7 +131,7 @@ function createEmailService() {
   };
 }
 
-async function createVerifiedUser(db, password = "Senha123") {
+async function createVerifiedUser(db, password = "Senha123", email = "teste@empresa.com") {
   const passwordHash = await bcrypt.hash(password, 10);
   const result = await db.run(
     `INSERT INTO users (
@@ -147,7 +147,7 @@ async function createVerifiedUser(db, password = "Senha123") {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       "Usuário de Teste",
-      "teste@empresa.com",
+      email,
       "visitante",
       passwordHash,
       JSON.stringify([]),
@@ -160,6 +160,22 @@ async function createVerifiedUser(db, password = "Senha123") {
 
   return result.lastID;
 }
+
+test("login accepts local development addresses such as admin@local", async () => {
+  const db = await createDb();
+  await createVerifiedUser(db, "Senha123", "admin@local");
+
+  const loginResult = await authService.login(
+    db,
+    TEST_ENV,
+    { email: "admin@local", password: "Senha123" },
+    TEST_REQUEST
+  );
+
+  assert.ok(loginResult.token);
+  assert.ok(loginResult.refreshToken);
+  assert.equal(loginResult.user.email, "admin@local");
+});
 
 test("register creates a pending account and verifyEmail activates the user session", async () => {
   const db = await createDb();

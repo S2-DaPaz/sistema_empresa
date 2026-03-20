@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/errors/app_exception.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
+import '../services/permissions.dart';
 import '../utils/formatters.dart';
 import '../utils/report_text.dart';
 import '../widgets/app_scaffold.dart';
@@ -143,7 +144,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     });
     try {
       final clients = await _api.get('/clients') as List<dynamic>;
-      final users = AuthService.instance.isAdmin
+      final users = AuthService.instance.hasPermission(Permissions.viewUsers)
           ? await _api.get('/users') as List<dynamic>
           : <dynamic>[];
       final types = await _api.get('/task-types') as List<dynamic>;
@@ -490,6 +491,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       setState(() => _reportMessage = 'Salve a tarefa para gerar o Relatório.');
       return;
     }
+    final previousActiveReportId = _activeReportId;
 
     final templateId =
         _activeReport?['template_id'] ?? _selectedTemplate?['id'];
@@ -516,7 +518,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         return;
       }
       setState(() => _reportMessage = 'Relatório salvo com sucesso.');
-      await _loadReports(_taskTypeId);
+      await _loadReports(
+        _taskTypeId,
+        preferredReportId: previousActiveReportId,
+      );
     } catch (error) {
       if (silent) return;
       setState(() => _reportMessage = error.toString());

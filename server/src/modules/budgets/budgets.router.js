@@ -227,6 +227,10 @@ function createBudgetsRouter({ db, publicService }) {
     requirePermission(PERMISSIONS.MANAGE_BUDGETS),
     asyncHandler(async (req, res) => {
       const id = normalizeId(req.params.id);
+      const existing = await db.get("SELECT * FROM budgets WHERE id = ?", [id]);
+      if (!existing) {
+        throw new NotFoundError("OrÃ§amento nÃ£o encontrado.");
+      }
       const items = normalizeBudgetItems(req.body.items);
       const totals = calcBudgetTotals(items, req.body.discount, req.body.tax);
       const fields = [
@@ -257,7 +261,7 @@ function createBudgetsRouter({ db, publicService }) {
         {
           ...req.body,
           ...totals,
-          created_at: req.body.created_at || new Date().toISOString()
+          created_at: req.body.created_at || existing.created_at
         },
         fields,
         ["signature_pages"]

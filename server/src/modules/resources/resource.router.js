@@ -62,6 +62,9 @@ function createResourceRouter({ db, config }) {
       const id = normalizeId(req.params.id);
       const payload = buildPayload(req.body, fields, jsonFields);
       const row = await updateRow(db, table, id, fields, payload);
+      if (!row) {
+        throw new NotFoundError();
+      }
       return send(res, parseJsonFields(row, jsonFields));
     })
   );

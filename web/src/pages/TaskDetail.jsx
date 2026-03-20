@@ -100,13 +100,14 @@ function buildReportText({ reportTitle, taskTitle, clientName, equipmentName, se
 export default function TaskDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const isNew = id === "nova";
   const [taskId, setTaskId] = useState(isNew ? null : Number(id));
   const [activeTab, setActiveTab] = useState("detalhes");
   const canView = hasPermission(PERMISSIONS.VIEW_TASKS);
   const canManage = hasPermission(PERMISSIONS.MANAGE_TASKS);
   const canManageBudgets = hasPermission(PERMISSIONS.MANAGE_BUDGETS);
+  const canViewUsers = hasPermission(PERMISSIONS.VIEW_USERS);
 
   const [clients, setClients] = useState([]);
   const [users, setUsers] = useState([]);
@@ -211,7 +212,7 @@ export default function TaskDetail() {
       const [clientsData, usersData, typesData, templatesData, productsData] =
         await Promise.all([
           apiGet("/clients"),
-          user?.role === "administracao" ? apiGet("/users") : Promise.resolve([]),
+          canViewUsers ? apiGet("/users") : Promise.resolve([]),
           apiGet("/task-types"),
           apiGet("/report-templates"),
           apiGet("/products")
@@ -253,7 +254,7 @@ export default function TaskDetail() {
     }
 
     loadPage();
-  }, [taskId, canManage, user?.role, canView]);
+  }, [taskId, canManage, canView, canViewUsers]);
 
   useEffect(() => {
     async function loadClientEquipments() {
@@ -267,13 +268,20 @@ export default function TaskDetail() {
     loadClientEquipments();
   }, [form.client_id]);
 
-  async function loadReports(taskTypeId, typesData = types, templatesData = templates) {
+  async function loadReports(
+    taskTypeId,
+    typesData = types,
+    templatesData = templates,
+    preferredReportId = activeReportId
+  ) {
     if (!taskId) return [];
     const data = await apiGet(`/reports?taskId=${taskId}`);
     const list = data || [];
     setReports(list);
+    const preservedReport =
+      list.find((item) => item.id === Number(preferredReportId)) || null;
     const defaultReport =
-      list.find((item) => !item.equipment_id) || list[0] || null;
+      preservedReport || list.find((item) => !item.equipment_id) || list[0] || null;
     if (defaultReport) {
       setActiveReportId(defaultReport.id);
       applyReportData(defaultReport, taskTypeId, typesData, templatesData);
@@ -412,6 +420,7 @@ export default function TaskDetail() {
       setError("Sem permissão para editar esta tarefa.");
       return;
     }
+    const previousActiveReportId = activeReportId;
 
     const payload = {
       ...form,
@@ -435,7 +444,7 @@ export default function TaskDetail() {
         navigate(`/tarefas/${savedTask.id}`);
       }
       if (savedTask?.id) {
-        await loadReports(savedTask.task_type_id);
+        await loadReports(savedTask.task_type_id, types, templates, previousActiveReportId);
         await loadBudgets();
       }
     } catch (err) {
@@ -478,7 +487,7 @@ export default function TaskDetail() {
     try {
       await apiPut(`/reports/${activeReport.id}`, payload);
       setReportMessage("Relatório salvo com sucesso.");
-      await loadReports(form.task_type_id);
+      await loadReports(form.task_type_id, types, templates, activeReport.id);
     } catch (err) {
       setReportMessage(getFriendlyErrorMessage(err, "Não foi possível salvar o relatório."));
     }

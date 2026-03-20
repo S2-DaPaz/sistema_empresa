@@ -109,6 +109,10 @@ function createReportsRouter({ db, publicService }) {
     requirePermission(PERMISSIONS.MANAGE_TASKS),
     asyncHandler(async (req, res) => {
       const id = normalizeId(req.params.id);
+      const existing = await db.get("SELECT * FROM reports WHERE id = ?", [id]);
+      if (!existing) {
+        throw new NotFoundError("RelatÃ³rio nÃ£o encontrado.");
+      }
       const fields = [
         "title",
         "task_id",
@@ -120,7 +124,11 @@ function createReportsRouter({ db, publicService }) {
         "created_at"
       ];
       const payload = buildPayload(
-        { ...req.body, created_at: req.body.created_at || new Date().toISOString() },
+        {
+          ...parseJsonFields(existing, ["content"]),
+          ...req.body,
+          created_at: req.body.created_at || existing.created_at
+        },
         fields,
         ["content"]
       );
