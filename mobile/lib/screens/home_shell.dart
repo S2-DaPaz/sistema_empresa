@@ -5,6 +5,7 @@ import 'clients_screen.dart';
 import 'dashboard_screen.dart';
 import 'equipments_screen.dart';
 import 'more_screen.dart';
+import 'products_screen.dart';
 import 'tasks_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -18,13 +19,32 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
   late final List<Widget> _screens = [
-    const DashboardScreen(),
+    DashboardScreen(onOpenShortcut: _handleDashboardShortcut),
     const TasksScreen(),
     const EquipmentsScreen(),
     const BudgetsScreen(),
     ClientsScreen(),
     const MoreScreen(),
   ];
+
+  void _handleDashboardShortcut(DashboardShortcut shortcut) {
+    switch (shortcut) {
+      case DashboardShortcut.clients:
+        setState(() => _index = 4);
+        break;
+      case DashboardShortcut.tasks:
+        setState(() => _index = 1);
+        break;
+      case DashboardShortcut.budgets:
+        setState(() => _index = 3);
+        break;
+      case DashboardShortcut.products:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ProductsScreen()),
+        );
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,15 +56,29 @@ class _HomeShellState extends State<HomeShell> {
         onDestinationSelected: (value) => setState(() => _index = value),
         destinations: const [
           NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined), label: 'Painel'),
-          NavigationDestination(icon: Icon(Icons.task_alt), label: 'Tarefas'),
+            icon: Icon(Icons.dashboard_outlined),
+            label: 'Painel',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.handyman_outlined), label: 'Equipamentos'),
+            icon: Icon(Icons.task_alt),
+            label: 'Tarefas',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.receipt_long), label: 'Orçamentos'),
+            icon: Icon(Icons.handyman_outlined),
+            label: 'Equipamentos',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.people_alt_outlined), label: 'Clientes'),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Mais'),
+            icon: Icon(Icons.receipt_long),
+            label: 'Orçamentos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_alt_outlined),
+            label: 'Clientes',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.more_horiz),
+            label: 'Mais',
+          ),
         ],
       ),
     );

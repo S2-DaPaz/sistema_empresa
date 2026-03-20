@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -216,15 +216,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     }
   }
 
-  Future<void> _loadReports(int? taskTypeId) async {
+  Future<void> _loadReports(int? taskTypeId, {int? preferredReportId}) async {
     if (_taskId == null) return;
     final data = await _api.get('/reports?taskId=$_taskId') as List<dynamic>;
     final nextReports = data.cast<Map<String, dynamic>>();
-    final defaultReport = nextReports.firstWhere(
-      (item) => item['equipment_id'] == null,
-      orElse: () =>
-          nextReports.isNotEmpty ? nextReports.first : <String, dynamic>{},
+    final preservedReport = nextReports.firstWhere(
+      (item) => item['id'] == (preferredReportId ?? _activeReportId),
+      orElse: () => <String, dynamic>{},
     );
+    final defaultReport = preservedReport.isNotEmpty
+        ? preservedReport
+        : nextReports.firstWhere(
+            (item) => item['equipment_id'] == null,
+            orElse: () =>
+                nextReports.isNotEmpty ? nextReports.first : <String, dynamic>{},
+          );
     final nextActiveId = defaultReport['id'] as int?;
     setState(() {
       _reports = nextReports;
@@ -395,6 +401,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   Future<void> _saveTask() async {
     setState(() => _error = null);
+    final previousActiveReportId = _activeReportId;
     final payload = {
       'title': _title.text,
       'description': _description.text,
@@ -434,7 +441,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     Object? refreshError;
     try {
       await _loadClientEquipments();
-      await _loadReports(_taskTypeId);
+      await _loadReports(
+        _taskTypeId,
+        preferredReportId: previousActiveReportId,
+      );
       await _loadBudgets(_reports);
     } catch (error) {
       refreshError = error;

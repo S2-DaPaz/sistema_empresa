@@ -53,22 +53,32 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
       if (_searchController.text.trim().isNotEmpty) {
         query['search'] = _searchController.text.trim();
       }
-      if (_outcome.isNotEmpty) query['outcome'] = _outcome;
-      if (_platform.isNotEmpty) query['platform'] = _platform;
+      if (_outcome.isNotEmpty) {
+        query['outcome'] = _outcome;
+      }
+      if (_platform.isNotEmpty) {
+        query['platform'] = _platform;
+      }
 
       final envelope = await _api.getEnvelope(
         '/admin/event-logs?${Uri(queryParameters: query).query}',
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _items = List<dynamic>.from(envelope['data'] as List? ?? const []);
         _loading = false;
       });
-    } catch (error) {
-      if (!mounted) return;
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
-        _error = error.toString();
+        _error = 'Não foi possível carregar o log de eventos.';
         _loading = false;
       });
     }
@@ -77,7 +87,9 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
   Future<void> _openDetail(Map<String, dynamic> item) async {
     try {
       final detail = await _api.get('/admin/event-logs/${item['id']}');
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       await showModalBottomSheet<void>(
         context: context,
@@ -86,6 +98,7 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
         builder: (context) {
           final map = Map<String, dynamic>.from(detail as Map);
           final textTheme = Theme.of(context).textTheme;
+
           return SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
@@ -93,12 +106,12 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    map['action']?.toString() ?? 'Evento',
+                    _friendlyActionTitle(map),
                     style: textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    map['description']?.toString() ?? 'Sem descrição.',
+                    _friendlyDescription(map),
                     style: textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 16),
@@ -106,18 +119,21 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      Chip(
-                        label: Text(map['outcome']?.toString() ?? 'resultado'),
-                      ),
-                      Chip(
-                        label: Text(map['platform']?.toString() ?? 'plataforma'),
-                      ),
-                      Chip(
-                        label: Text(map['module']?.toString() ?? 'sistema'),
-                      ),
+                      Chip(label: Text(_outcomeLabel(map['outcome']))),
+                      Chip(label: Text(_platformLabel(map['platform']))),
+                      Chip(label: Text(_moduleLabel(map['module']))),
                     ],
                   ),
                   const SizedBox(height: 16),
+                  _EventDetailBlock(
+                    title: 'Resumo',
+                    value: [
+                      'Usuário: ${_formatUser(map)}',
+                      'Data e hora: ${_formatDate(map['created_at'])}',
+                      'Resultado: ${_outcomeLabel(map['outcome'])}',
+                      'Plataforma: ${_platformLabel(map['platform'])}',
+                    ].join('\n'),
+                  ),
                   _EventDetailBlock(
                     title: 'Metadados',
                     value: _prettyJson(map['metadata_json']),
@@ -135,7 +151,11 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                       await Clipboard.setData(
                         ClipboardData(text: _buildSnapshot(map)),
                       );
-                      if (!context.mounted) return;
+
+                      if (!context.mounted) {
+                        return;
+                      }
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
@@ -152,31 +172,186 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
           );
         },
       );
-    } catch (error) {
-      if (!mounted) return;
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        const SnackBar(
+          content: Text('Não foi possível carregar os detalhes do evento.'),
+        ),
       );
     }
   }
 
   String _formatDate(dynamic value) {
-    if (value == null || value.toString().isEmpty) return '-';
+    if (value == null || value.toString().isEmpty) {
+      return '-';
+    }
+
     final date = DateTime.tryParse(value.toString());
-    if (date == null) return value.toString();
+    if (date == null) {
+      return value.toString();
+    }
+
     return DateFormat('dd/MM/yyyy HH:mm').format(date.toLocal());
+  }
+
+  String _friendlyActionTitle(Map<String, dynamic> item) {
+    final action = item['action']?.toString() ?? '';
+    final entity = item['entity_type']?.toString().toLowerCase() ?? '';
+
+    const explicitTitles = <String, String>{
+      'AUTH_LOGIN_SUCCESS': 'Login realizado',
+      'AUTH_LOGIN_FAILURE': 'Falha de login',
+      'AUTH_LOGOUT': 'Sessão encerrada',
+      'AUTH_LOGOUT_ALL': 'Sessões encerradas',
+      'AUTH_REGISTER_SUCCESS': 'Conta criada',
+      'AUTH_REGISTER_FAILURE': 'Falha no cadastro',
+      'AUTH_EMAIL_VERIFICATION_SENT': 'Código de verificação enviado',
+      'AUTH_EMAIL_VERIFICATION_RESENT': 'Código de verificação reenviado',
+      'AUTH_EMAIL_VERIFICATION_RESEND_FAILED':
+          'Falha ao reenviar o código de verificação',
+      'AUTH_EMAIL_VERIFIED': 'E-mail confirmado',
+      'AUTH_EMAIL_VERIFICATION_FAILED': 'Falha na confirmação do e-mail',
+      'AUTH_PASSWORD_RESET_REQUESTED': 'Recuperação de senha solicitada',
+      'AUTH_PASSWORD_RESET_REQUEST_FAILED':
+          'Falha na solicitação de recuperação de senha',
+      'AUTH_PASSWORD_RESET_CODE_VERIFIED': 'Código de recuperação validado',
+      'AUTH_PASSWORD_RESET_CODE_FAILED':
+          'Falha na validação do código de recuperação',
+      'AUTH_PASSWORD_RESET_SUCCESS': 'Senha redefinida',
+      'AUTH_PASSWORD_RESET_FAILURE': 'Falha na redefinição de senha',
+      'AUTH_REFRESH_TOKEN_ROTATED': 'Sessão renovada',
+      'AUTH_REFRESH_TOKEN_FAILURE': 'Falha na renovação da sessão',
+      'TASK_EQUIPMENT_ATTACHED': 'Equipamento vinculado à tarefa',
+      'TASK_EQUIPMENT_DETACHED': 'Equipamento removido da tarefa',
+      'ERROR_LOG_RESOLVED': 'Log de erro atualizado',
+    };
+
+    if (explicitTitles.containsKey(action)) {
+      return explicitTitles[action]!;
+    }
+
+    const entityLabels = <String, String>{
+      'task': 'Tarefa',
+      'report': 'Relatório',
+      'budget': 'Orçamento',
+      'user': 'Usuário',
+      'client': 'Cliente',
+      'equipment': 'Equipamento',
+      'product': 'Produto',
+      'role': 'Perfil',
+      'task_type': 'Tipo de tarefa',
+      'report_template': 'Modelo de relatório',
+      'error_log': 'Log de erro',
+    };
+
+    final label = entityLabels[entity];
+    if (label != null) {
+      if (action.endsWith('_CREATED')) {
+        return '$label criado';
+      }
+      if (action.endsWith('_UPDATED')) {
+        return '$label atualizado';
+      }
+      if (action.endsWith('_DELETED')) {
+        return '$label removido';
+      }
+      if (action.endsWith('_STATUS_CHANGED')) {
+        return 'Status de $label atualizado';
+      }
+      if (action.endsWith('_GENERATED')) {
+        return '$label gerado';
+      }
+      if (action.endsWith('_APPROVED')) {
+        return '$label aprovado';
+      }
+      if (action.endsWith('_REJECTED')) {
+        return '$label rejeitado';
+      }
+    }
+
+    final description = item['description']?.toString().trim() ?? '';
+    if (description.isNotEmpty) {
+      return description.endsWith('.')
+          ? description.substring(0, description.length - 1)
+          : description;
+    }
+
+    return 'Evento registrado';
+  }
+
+  String _friendlyDescription(Map<String, dynamic> item) {
+    final description = item['description']?.toString().trim() ?? '';
+    if (description.isNotEmpty) {
+      return description;
+    }
+
+    return 'Ação registrada no histórico do sistema.';
+  }
+
+  String _formatUser(Map<String, dynamic> item) {
+    final name = item['user_name']?.toString().trim() ?? '';
+    if (name.isNotEmpty) {
+      return name;
+    }
+
+    final email = item['user_email']?.toString().trim() ?? '';
+    if (email.isNotEmpty) {
+      return email;
+    }
+
+    return 'Sistema';
+  }
+
+  String _platformLabel(dynamic value) {
+    switch (value?.toString()) {
+      case 'web':
+        return 'Web';
+      case 'mobile':
+        return 'Mobile';
+      case 'backend':
+        return 'Backend';
+      default:
+        return 'Sistema';
+    }
+  }
+
+  String _moduleLabel(dynamic value) {
+    final module = value?.toString().trim() ?? '';
+    if (module.isEmpty) {
+      return 'Sistema';
+    }
+
+    const labels = <String, String>{
+      'auth': 'Autenticação',
+      'users': 'Usuários',
+      'tasks': 'Tarefas',
+      'reports': 'Relatórios',
+      'budgets': 'Orçamentos',
+      'monitoring': 'Monitoramento',
+      'public': 'Páginas públicas',
+      'system': 'Sistema',
+    };
+
+    return labels[module] ?? module;
+  }
+
+  String _outcomeLabel(dynamic value) {
+    return value?.toString() == 'success' ? 'Sucesso' : 'Falha';
   }
 
   String _buildSnapshot(Map<String, dynamic> map) {
     return [
       'ID: ${map['id']}',
-      'Data: ${map['created_at']}',
-      'Ação: ${map['action']}',
-      'Resultado: ${map['outcome']}',
-      'Usuário: ${map['user_name'] ?? map['user_email'] ?? '-'}',
-      '',
-      'Descrição:',
-      map['description']?.toString() ?? '-',
+      'Evento: ${_friendlyActionTitle(map)}',
+      'Descrição: ${_friendlyDescription(map)}',
+      'Usuário: ${_formatUser(map)}',
+      'Data e hora: ${_formatDate(map['created_at'])}',
+      'Resultado: ${_outcomeLabel(map['outcome'])}',
+      'Plataforma: ${_platformLabel(map['platform'])}',
       '',
       'Metadados:',
       _prettyJson(map['metadata_json']),
@@ -235,7 +410,7 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                       controller: _searchController,
                       onSubmitted: (_) => _load(),
                       decoration: InputDecoration(
-                        labelText: 'Buscar por ação, descrição ou usuário',
+                        labelText: 'Buscar por evento, descrição ou usuário',
                         suffixIcon: IconButton(
                           onPressed: _load,
                           icon: const Icon(Icons.search),
@@ -260,8 +435,9 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                                 child: Text('Falha'),
                               ),
                             ],
-                            onChanged: (value) =>
-                                setState(() => _outcome = value ?? ''),
+                            onChanged: (value) {
+                              setState(() => _outcome = value ?? '');
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -284,8 +460,9 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                                 child: Text('Backend'),
                               ),
                             ],
-                            onChanged: (value) =>
-                                setState(() => _platform = value ?? ''),
+                            onChanged: (value) {
+                              setState(() => _platform = value ?? '');
+                            },
                           ),
                         ),
                       ],
@@ -303,7 +480,7 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                       : _items.isEmpty
                           ? const Center(
                               child: Text(
-                                'Nenhum evento encontrado com os filtros atuais.',
+                                'Nenhum evento foi encontrado com os filtros atuais.',
                               ),
                             )
                           : ListView.builder(
@@ -311,21 +488,18 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                               itemBuilder: (context, index) {
                                 final item =
                                     Map<String, dynamic>.from(_items[index] as Map);
+
                                 return Card(
                                   child: ListTile(
                                     onTap: () => _openDetail(item),
-                                    title: Text(
-                                      item['action']?.toString() ?? 'Evento',
-                                    ),
+                                    title: Text(_friendlyActionTitle(item)),
                                     subtitle: Text(
-                                      '${item['description'] ?? 'Sem descrição'}\n${_formatDate(item['created_at'])}',
+                                      '${_friendlyDescription(item)}\n${_formatDate(item['created_at'])} • ${_formatUser(item)}',
                                     ),
                                     isThreeLine: true,
                                     trailing: Chip(
                                       label: Text(
-                                        item['outcome'] == 'success'
-                                            ? 'Sucesso'
-                                            : 'Falha',
+                                        _outcomeLabel(item['outcome']),
                                       ),
                                     ),
                                   ),

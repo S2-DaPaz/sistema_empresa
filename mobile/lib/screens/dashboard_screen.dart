@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/formatters.dart';
@@ -8,8 +8,15 @@ import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
 import '../widgets/section_header.dart';
 
+enum DashboardShortcut { clients, tasks, products, budgets }
+
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({
+    super.key,
+    this.onOpenShortcut,
+  });
+
+  final ValueChanged<DashboardShortcut>? onOpenShortcut;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -33,17 +40,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _loading = true;
       _error = null;
     });
+
     try {
-      final summary = await _api.get('/summary') as Map<String, dynamic>;
-      final reports = await _api.get('/reports') as List<dynamic>;
+      final payload = Map<String, dynamic>.from(
+        await _api.get('/summary') as Map,
+      );
+      final summary = Map<String, dynamic>.from(
+        payload['summary'] as Map? ?? const {},
+      );
+      final recentReports = List<dynamic>.from(
+        payload['recentReports'] as List? ?? const [],
+      );
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _summary = summary;
-        _reports = reports.take(4).toList();
+        _reports = recentReports.take(4).toList();
+        _loading = false;
       });
-    } catch (error) {
-      setState(() => _error = error.toString());
-    } finally {
-      setState(() => _loading = false);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = 'Não foi possível carregar os dados do painel.';
+        _loading = false;
+      });
     }
   }
 
@@ -52,6 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_loading) {
       return const AppScaffold(title: 'Painel', body: LoadingView());
     }
+
     if (_error != null) {
       return AppScaffold(
         title: 'Painel',
@@ -109,21 +136,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 title: 'Clientes',
                 value: _summary['clients'],
                 icon: Icons.people_alt_outlined,
+                onTap: () =>
+                    widget.onOpenShortcut?.call(DashboardShortcut.clients),
               ),
               _SummaryCard(
                 title: 'Tarefas',
                 value: _summary['tasks'],
                 icon: Icons.task_alt,
+                onTap: () => widget.onOpenShortcut?.call(DashboardShortcut.tasks),
               ),
               _SummaryCard(
-                title: 'Relatórios',
-                value: _summary['reports'],
-                icon: Icons.description_outlined,
+                title: 'Produtos',
+                value: _summary['products'],
+                icon: Icons.inventory_2_outlined,
+                onTap: () =>
+                    widget.onOpenShortcut?.call(DashboardShortcut.products),
               ),
               _SummaryCard(
                 title: 'Orçamentos',
                 value: _summary['budgets'],
                 icon: Icons.receipt_long,
+                onTap: () =>
+                    widget.onOpenShortcut?.call(DashboardShortcut.budgets),
               ),
             ],
           ),
@@ -141,9 +175,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ..._reports.map((report) {
-            final map = report as Map<String, dynamic>;
+            final map = Map<String, dynamic>.from(report as Map);
             final title = map['title'] ?? map['template_name'] ?? 'Relatório';
             final created = map['created_at']?.toString() ?? '';
+
             return Card(
               child: ListTile(
                 leading: const Icon(Icons.description_outlined),
@@ -165,44 +200,58 @@ class _SummaryCard extends StatelessWidget {
     required this.title,
     required this.value,
     required this.icon,
+    this.onTap,
   });
 
   final String title;
   final dynamic value;
   final IconData icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return SizedBox(
       width: 164,
       child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, color: theme.colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: theme.textTheme.titleSmall,
-                      overflow: TextOverflow.ellipsis,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleSmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Total cadastrado',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                Chip(label: Text('${value ?? 0}')),
+                const SizedBox(height: 10),
+                Text(
+                  'Toque para abrir',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Total cadastrado',
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: 8),
-              Chip(label: Text('${value ?? 0}')),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -50,7 +50,7 @@ async function syncReportForTask(db, task) {
     [task.id]
   );
   if (!report) {
-    return createReportForTask(db, task);
+    return null;
   }
 
   const typeRow = task.task_type_id
