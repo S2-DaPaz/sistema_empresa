@@ -6,7 +6,9 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "test": "node --test",
+    "migrate": "node scripts/run-migrations.js",
     "migrate:neon": "node scripts/migrate-neon.js",
+    "seed:base": "node scripts/seed-base.js",
     "admin:reset": "node scripts/reset-admin.js"
   },
   "dependencies": {

@@ -4,9 +4,11 @@ import { getFriendlyErrorMessage } from "../../shared/errors/error-normalizer";
 import {
   buildQueryString,
   copyToClipboard,
+  downloadTextFile,
   formatDateTime,
   formatUser,
-  safeJson
+  safeJson,
+  toCsv
 } from "../../features/admin/logs/utils";
 
 const DEFAULT_FILTERS = {
@@ -23,12 +25,12 @@ function buildEventSnapshot(log) {
   return [
     `ID: ${log.id}`,
     `Data: ${log.created_at}`,
-    `Ação: ${log.action}`,
+    `Acao: ${log.action}`,
     `Resultado: ${log.outcome}`,
-    `Usuário: ${formatUser(log)}`,
+    `Usuario: ${formatUser(log)}`,
     `Rota: ${log.http_method || "-"} ${log.route_path || "-"}`,
     "",
-    "Descrição:",
+    "Descricao:",
     log.description || "-",
     "",
     "Metadados:",
@@ -40,6 +42,21 @@ function buildEventSnapshot(log) {
     "Depois:",
     safeJson(log.after_json)
   ].join("\n");
+}
+
+function buildExportRows(items) {
+  return items.map((item) => ({
+    id: item.id,
+    data_hora: formatDateTime(item.created_at),
+    acao: item.action || "",
+    descricao: item.description || "",
+    usuario: formatUser(item),
+    modulo: item.module || "",
+    plataforma: item.platform || "",
+    resultado: item.outcome === "success" ? "Sucesso" : "Falha",
+    rota: `${item.http_method || ""} ${item.route_path || ""}`.trim(),
+    request_id: item.request_id || ""
+  }));
 }
 
 export default function EventLogs() {
@@ -59,27 +76,26 @@ export default function EventLogs() {
     notice: ""
   });
 
-  const queryString = useMemo(
-    () => buildQueryString(filters, page, 20),
-    [filters, page]
-  );
+  const queryString = useMemo(() => buildQueryString(filters, page, 20), [filters, page]);
 
   useEffect(() => {
     let active = true;
 
-    async function load() {
+    async function loadList() {
       setListState((prev) => ({ ...prev, loading: true, error: "" }));
       try {
         const result = await apiGet(`/admin/event-logs?${queryString}`, {
           withMeta: true
         });
         if (!active) return;
+
         setListState({
           items: result.data || [],
           meta: result.meta || { total: 0, page: 1, pageSize: 20 },
           loading: false,
           error: ""
         });
+
         setSelectedId((current) =>
           current && result.data.some((item) => item.id === current)
             ? current
@@ -90,12 +106,12 @@ export default function EventLogs() {
         setListState((prev) => ({
           ...prev,
           loading: false,
-          error: getFriendlyErrorMessage(error, "Não foi possível carregar o log de eventos.")
+          error: getFriendlyErrorMessage(error, "Nao foi possivel carregar o log de eventos.")
         }));
       }
     }
 
-    load();
+    loadList();
 
     return () => {
       active = false;
@@ -121,7 +137,7 @@ export default function EventLogs() {
         setDetailState({
           item: null,
           loading: false,
-          error: getFriendlyErrorMessage(error, "Não foi possível carregar o evento."),
+          error: getFriendlyErrorMessage(error, "Nao foi possivel carregar o evento."),
           notice: ""
         });
       }
@@ -145,9 +161,27 @@ export default function EventLogs() {
     setDetailState((prev) => ({
       ...prev,
       notice: copied
-        ? "Detalhes copiados para a área de transferência."
-        : "Não foi possível copiar os detalhes."
+        ? "Detalhes copiados para a area de transferencia."
+        : "Nao foi possivel copiar os detalhes."
     }));
+  }
+
+  async function handleExport() {
+    try {
+      const result = await apiGet(`/admin/event-logs?${buildQueryString(filters, 1, 500)}`, {
+        withMeta: true
+      });
+      downloadTextFile(
+        "log-de-eventos.csv",
+        toCsv(buildExportRows(result.data || [])),
+        "text/csv;charset=utf-8"
+      );
+    } catch (error) {
+      setListState((prev) => ({
+        ...prev,
+        error: getFriendlyErrorMessage(error, "Nao foi possivel exportar o log de eventos.")
+      }));
+    }
   }
 
   const totalPages = Math.max(
@@ -161,12 +195,17 @@ export default function EventLogs() {
         <div>
           <h2 className="section-title">Log de eventos</h2>
           <p className="muted">
-            Auditoria operacional com rastreio de usuário, entidade afetada e resultado.
+            Auditoria operacional com rastreio de usuario, entidade afetada e resultado.
           </p>
         </div>
-        <span className="badge neutral">
-          {listState.meta.total || 0} evento{listState.meta.total === 1 ? "" : "s"}
-        </span>
+        <div className="inline">
+          <button className="btn secondary" type="button" onClick={handleExport}>
+            Exportar CSV
+          </button>
+          <span className="badge neutral">
+            {listState.meta.total || 0} evento{listState.meta.total === 1 ? "" : "s"}
+          </span>
+        </div>
       </div>
 
       <div className="monitoring-filters">
@@ -176,12 +215,12 @@ export default function EventLogs() {
             type="search"
             value={filters.search}
             onChange={(event) => updateFilter("search", event.target.value)}
-            placeholder="Ação, usuário, descrição ou entidade"
+            placeholder="Acao, usuario, descricao ou entidade"
           />
         </label>
 
         <label className="form-field">
-          <span>Ação</span>
+          <span>Acao</span>
           <input
             type="text"
             value={filters.action}
@@ -191,7 +230,7 @@ export default function EventLogs() {
         </label>
 
         <label className="form-field">
-          <span>Módulo</span>
+          <span>Modulo</span>
           <input
             type="text"
             value={filters.module}
@@ -235,7 +274,7 @@ export default function EventLogs() {
         </label>
 
         <label className="form-field">
-          <span>Até</span>
+          <span>Ate</span>
           <input
             type="date"
             value={filters.dateTo}
@@ -253,10 +292,10 @@ export default function EventLogs() {
               <thead>
                 <tr>
                   <th>Data</th>
-                  <th>Ação</th>
-                  <th>Descrição</th>
-                  <th>Usuário</th>
-                  <th>Módulo</th>
+                  <th>Acao</th>
+                  <th>Descricao</th>
+                  <th>Usuario</th>
+                  <th>Modulo</th>
                   <th>Plataforma</th>
                   <th>Resultado</th>
                 </tr>
@@ -301,7 +340,7 @@ export default function EventLogs() {
 
           <div className="pagination-row">
             <span className="muted">
-              Página {listState.meta.page || 1} de {totalPages}
+              Pagina {listState.meta.page || 1} de {totalPages}
             </span>
             <div className="inline">
               <button
@@ -318,7 +357,7 @@ export default function EventLogs() {
                 onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                 disabled={page >= totalPages}
               >
-                Próxima
+                Proxima
               </button>
             </div>
           </div>
@@ -328,72 +367,70 @@ export default function EventLogs() {
           {!selectedId ? (
             <div className="empty-state">
               <h3>Selecione um evento</h3>
-              <p className="muted">Abra um registro para ver a trilha de auditoria completa.</p>
+              <p>Escolha um item da lista para ver os detalhes completos da auditoria.</p>
             </div>
           ) : detailState.loading ? (
             <div className="empty-state">
               <h3>Carregando detalhes</h3>
-              <p className="muted">Buscando metadados, antes/depois e resultado da operação.</p>
+              <p>Aguarde enquanto os dados do evento sao recuperados.</p>
             </div>
           ) : detailState.error ? (
-            <div className="banner banner-error">{detailState.error}</div>
-          ) : (
-            detailState.item && (
-              <>
-                <div className="section-header">
-                  <div>
-                    <h3 className="section-title">{detailState.item.action}</h3>
-                    <p className="muted">{detailState.item.description}</p>
-                  </div>
-                  <button className="btn secondary" type="button" onClick={handleCopy}>
-                    Copiar detalhes
-                  </button>
+            <div className="empty-state">
+              <h3>Falha ao carregar</h3>
+              <p>{detailState.error}</p>
+            </div>
+          ) : detailState.item ? (
+            <>
+              <div className="section-header">
+                <div>
+                  <h3 className="section-title">{detailState.item.action}</h3>
+                  <p className="muted">{detailState.item.description || "Sem descricao."}</p>
                 </div>
+                <button className="btn ghost" type="button" onClick={handleCopy}>
+                  Copiar detalhes
+                </button>
+              </div>
 
-                {detailState.notice && <div className="banner banner-info">{detailState.notice}</div>}
+              {detailState.notice && <div className="banner banner-info">{detailState.notice}</div>}
 
-                <div className="detail-grid">
-                  <div className="card soft">
-                    <small className="muted">Data</small>
-                    <strong>{formatDateTime(detailState.item.created_at)}</strong>
-                  </div>
-                  <div className="card soft">
-                    <small className="muted">Usuário</small>
-                    <strong>{formatUser(detailState.item)}</strong>
-                  </div>
-                  <div className="card soft">
-                    <small className="muted">Entidade</small>
-                    <strong>
-                      {detailState.item.entity_type || "-"} #{detailState.item.entity_id || "-"}
-                    </strong>
-                  </div>
-                  <div className="card soft">
-                    <small className="muted">Rota</small>
-                    <strong>
-                      {detailState.item.http_method || "-"} {detailState.item.route_path || "-"}
-                    </strong>
-                  </div>
+              <div className="detail-grid">
+                <div>
+                  <strong>Data e hora</strong>
+                  <p>{formatDateTime(detailState.item.created_at)}</p>
                 </div>
-
-                <div className="form-grid">
-                  <label className="form-field full">
-                    <span>Metadados</span>
-                    <textarea readOnly value={safeJson(detailState.item.metadata_json)} />
-                  </label>
-
-                  <label className="form-field full">
-                    <span>Antes</span>
-                    <textarea readOnly value={safeJson(detailState.item.before_json)} />
-                  </label>
-
-                  <label className="form-field full">
-                    <span>Depois</span>
-                    <textarea readOnly value={safeJson(detailState.item.after_json)} />
-                  </label>
+                <div>
+                  <strong>Usuario</strong>
+                  <p>{formatUser(detailState.item)}</p>
                 </div>
-              </>
-            )
-          )}
+                <div>
+                  <strong>Modulo</strong>
+                  <p>{detailState.item.module || "-"}</p>
+                </div>
+                <div>
+                  <strong>Plataforma</strong>
+                  <p>{detailState.item.platform || "-"}</p>
+                </div>
+                <div>
+                  <strong>Resultado</strong>
+                  <p>{detailState.item.outcome === "success" ? "Sucesso" : "Falha"}</p>
+                </div>
+                <div>
+                  <strong>Request ID</strong>
+                  <p>{detailState.item.request_id || "-"}</p>
+                </div>
+              </div>
+
+              <div className="section-divider" />
+              <strong>Metadados</strong>
+              <pre className="code-block">{safeJson(detailState.item.metadata_json)}</pre>
+
+              <strong>Antes</strong>
+              <pre className="code-block">{safeJson(detailState.item.before_json)}</pre>
+
+              <strong>Depois</strong>
+              <pre className="code-block">{safeJson(detailState.item.after_json)}</pre>
+            </>
+          ) : null}
         </div>
       </div>
     </section>

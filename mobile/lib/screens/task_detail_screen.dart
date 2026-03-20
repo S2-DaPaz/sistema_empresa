@@ -11,8 +11,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/errors/app_exception.dart';
+import 'task_detail/budgets_tab.dart';
+import 'task_detail/details_tab.dart';
+import 'task_detail/report_tab.dart';
+import 'task_detail/signatures_tab.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
+import '../services/offline_task_draft_service.dart';
 import '../services/permissions.dart';
 import '../utils/formatters.dart';
 import '../utils/report_text.dart';
@@ -21,14 +26,18 @@ import '../widgets/budget_form.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/form_fields.dart';
 import '../widgets/loading_view.dart';
-import '../widgets/signature_pad.dart';
-import 'task_detail_options.dart';
 
 enum _PhotoSourceOption { camera, gallery }
 
 const int _maxPhotoDimension = 1024;
 const int _photoJpegQuality = 60;
 
+/// Tela de detalhe da tarefa.
+///
+/// Além dos campos principais da tarefa, ela também coordena relatórios,
+/// orçamentos, assinaturas e equipamentos relacionados. Concentramos esse
+/// fluxo aqui porque as operações compartilham o mesmo contexto de tarefa e
+/// exigem sincronização de estado após cada alteração.
 class TaskDetailScreen extends StatefulWidget {
   const TaskDetailScreen({super.key, this.taskId});
 
@@ -42,6 +51,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     with TickerProviderStateMixin {
   final ApiService _api = ApiService();
   final ImagePicker _picker = ImagePicker();
+  final TaskOfflineDraftStore _offlineDraftStore = TaskOfflineDraftStore.instance;
   late final TabController _tabController;
 
   bool _loading = true;
@@ -88,6 +98,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   String _signatureClient = '';
   String _signatureTech = '';
   Map<String, dynamic> _signaturePages = {};
+  late String _offlineDraftId;
+  Timer? _offlineDraftTimer;
+  bool _offlineSyncPending = false;
+  bool _loadingFromOfflineDraft = false;
+  bool _syncingOfflineDraft = false;
+  bool _taskDraftDirty = false;
+  bool _reportDraftDirty = false;
+  bool _trackingPaused = false;
 
   void _showMessage(String message) {
     if (!mounted) return;
@@ -111,17 +129,27 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   void initState() {
     super.initState();
     _taskId = widget.taskId;
+    _offlineDraftId = TaskOfflineDraftStore.buildDraftId(_taskId);
     _tabController = TabController(length: 4, vsync: this);
+    _title.addListener(_handleTaskFieldEdited);
+    _description.addListener(_handleTaskFieldEdited);
+    _startDate.addListener(_handleTaskFieldEdited);
+    _dueDate.addListener(_handleTaskFieldEdited);
     _loadAll();
   }
 
   @override
   void dispose() {
     _reportAutosaveTimer?.cancel();
+    _offlineDraftTimer?.cancel();
     _tabController.dispose();
+    _title.removeListener(_handleTaskFieldEdited);
     _title.dispose();
+    _description.removeListener(_handleTaskFieldEdited);
     _description.dispose();
+    _startDate.removeListener(_handleTaskFieldEdited);
     _startDate.dispose();
+    _dueDate.removeListener(_handleTaskFieldEdited);
     _dueDate.dispose();
     super.dispose();
   }
@@ -137,11 +165,223 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     return {};
   }
 
+  dynamic _cloneJson(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    return jsonDecode(jsonEncode(value));
+  }
+
+  void _handleTaskFieldEdited() {
+    _markTaskDraftDirty();
+  }
+
+  void _markTaskDraftDirty() {
+    if (_trackingPaused) return;
+    _taskDraftDirty = true;
+    _scheduleOfflineDraftSave();
+  }
+
+  void _markTaskDraftSynced() {
+    _taskDraftDirty = false;
+  }
+
+  void _markReportDraftSynced() {
+    _reportDraftDirty = false;
+  }
+
+  void _markReportDraftDirty({
+    Duration localDelay = const Duration(milliseconds: 500),
+    Duration autosaveDelay = const Duration(milliseconds: 1500),
+  }) {
+    if (_trackingPaused) return;
+    _reportDraftDirty = true;
+    _scheduleOfflineDraftSave(delay: localDelay);
+    _markReportDirty(delay: autosaveDelay);
+  }
+
+  void _syncActiveReportIntoCollection() {
+    if (_activeReportId == null) {
+      return;
+    }
+
+    final templateId = _activeReport?['template_id'] ?? _selectedTemplate?['id'];
+    final reportSnapshot = {
+      ..._safeMap(_activeReport),
+      'id': _activeReportId,
+      'title': _activeReport?['title']?.toString() ?? _title.text,
+      'task_id': _taskId,
+      'client_id': _clientId,
+      'template_id': templateId,
+      'equipment_id': _reportEquipmentId,
+      'status': _reportStatus,
+      'content': {
+        'sections': _cloneJson(_reportSections),
+        'layout': _cloneJson(
+          _activeReport?['content']?['layout'] ??
+              _selectedTemplate?['structure']?['layout'],
+        ),
+        'answers': _cloneJson(_normalizeReportAnswers()),
+        'photos': _cloneJson(_reportPhotos),
+      },
+    };
+
+    final index = _reports.indexWhere((item) => item['id'] == _activeReportId);
+    if (index == -1) {
+      _reports = [..._reports, Map<String, dynamic>.from(reportSnapshot)];
+      return;
+    }
+
+    _reports[index] = Map<String, dynamic>.from(reportSnapshot);
+  }
+
+  TaskOfflineDraft _buildOfflineDraft({bool? pendingSync}) {
+    _syncActiveReportIntoCollection();
+
+    return TaskOfflineDraft(
+      draftId: _offlineDraftId,
+      taskId: _taskId,
+      activeReportId: _activeReportId,
+      reportEquipmentId: _reportEquipmentId,
+      updatedAt: DateTime.now().toIso8601String(),
+      pendingSync: pendingSync ?? _offlineSyncPending,
+      lookups: {
+        'clients': _cloneJson(_clients),
+        'users': _cloneJson(_users),
+        'types': _cloneJson(_types),
+        'templates': _cloneJson(_templates),
+        'products': _cloneJson(_products),
+        'equipments': _cloneJson(_equipments),
+      },
+      task: {
+        'title': _title.text,
+        'description': _description.text,
+        'client_id': _clientId,
+        'user_id': _userId,
+        'task_type_id': _taskTypeId,
+        'status': _status,
+        'priority': _priority,
+        'start_date': _startDate.text,
+        'due_date': _dueDate.text,
+        'signature_mode': _signatureMode,
+        'signature_scope': _signatureScope,
+        'signature_client': _signatureClient,
+        'signature_tech': _signatureTech,
+        'signature_pages': _cloneJson(_signaturePages),
+      },
+      reports: _reports.map((item) => Map<String, dynamic>.from(_cloneJson(item) as Map)).toList(),
+      budgets: _budgets.map((item) => Map<String, dynamic>.from(_cloneJson(item) as Map)).toList(),
+    );
+  }
+
+  Future<void> _persistOfflineDraft({bool? pendingSync}) async {
+    final draft = _buildOfflineDraft(pendingSync: pendingSync);
+    await _offlineDraftStore.save(draft);
+    if (!mounted) return;
+    setState(() {
+      _offlineSyncPending = draft.pendingSync;
+    });
+  }
+
+  void _scheduleOfflineDraftSave({
+    Duration delay = const Duration(milliseconds: 500),
+    bool? pendingSync,
+  }) {
+    if (_trackingPaused) return;
+    _offlineDraftTimer?.cancel();
+    _offlineDraftTimer = Timer(delay, () {
+      _persistOfflineDraft(pendingSync: pendingSync).catchError((_) {});
+    });
+  }
+
+  Future<void> _clearOfflineDraft() async {
+    await _offlineDraftStore.delete(_offlineDraftId);
+    if (!mounted) return;
+    setState(() {
+      _offlineSyncPending = false;
+      _loadingFromOfflineDraft = false;
+    });
+  }
+
+  Future<void> _reconcileOfflineDraftAfterSync() async {
+    if (_taskDraftDirty || _reportDraftDirty) {
+      await _persistOfflineDraft(pendingSync: false);
+      return;
+    }
+    await _clearOfflineDraft();
+  }
+
+  void _applyOfflineDraft(
+    TaskOfflineDraft draft, {
+    required bool replaceLookups,
+  }) {
+    _runWithoutDraftTracking(() {
+      if (replaceLookups) {
+        _clients = (draft.lookups['clients'] as List<dynamic>? ?? const [])
+            .cast<Map<String, dynamic>>();
+        _users = (draft.lookups['users'] as List<dynamic>? ?? const [])
+            .cast<Map<String, dynamic>>();
+        _types = (draft.lookups['types'] as List<dynamic>? ?? const [])
+            .cast<Map<String, dynamic>>();
+        _templates = (draft.lookups['templates'] as List<dynamic>? ?? const [])
+            .cast<Map<String, dynamic>>();
+        _products = (draft.lookups['products'] as List<dynamic>? ?? const [])
+            .cast<Map<String, dynamic>>();
+        _equipments = (draft.lookups['equipments'] as List<dynamic>? ?? const [])
+            .cast<Map<String, dynamic>>();
+      }
+
+      final task = draft.task;
+      _taskId = draft.taskId ?? _taskId;
+      _title.text = task['title']?.toString() ?? '';
+      _description.text = task['description']?.toString() ?? '';
+      _clientId = task['client_id'] as int?;
+      _userId = task['user_id'] as int?;
+      _taskTypeId = task['task_type_id'] as int?;
+      _status = task['status']?.toString() ?? 'aberta';
+      _priority = task['priority']?.toString() ?? 'media';
+      _startDate.text = task['start_date']?.toString() ?? '';
+      _dueDate.text = task['due_date']?.toString() ?? '';
+      _signatureMode = task['signature_mode']?.toString() ?? 'none';
+      _signatureScope = task['signature_scope']?.toString() ?? 'last_page';
+      _signatureClient = task['signature_client']?.toString() ?? '';
+      _signatureTech = task['signature_tech']?.toString() ?? '';
+      _signaturePages = _safeMap(task['signature_pages']);
+
+      _reports = draft.reports.map(Map<String, dynamic>.from).toList();
+      _budgets = draft.budgets.map(Map<String, dynamic>.from).toList();
+      _activeReportId = draft.activeReportId;
+      _reportEquipmentId = draft.reportEquipmentId;
+
+      final report = _reports.firstWhere(
+        (item) => item['id'] == _activeReportId,
+        orElse: () => _reports.isNotEmpty ? _reports.first : <String, dynamic>{},
+      );
+
+      if (report.isNotEmpty) {
+        _activeReportId = report['id'] as int?;
+        _applyReportData(report, _taskTypeId);
+      } else {
+        _reportSections = [];
+        _reportAnswers = {};
+        _reportPhotos = [];
+        _reportStatus = 'rascunho';
+      }
+    });
+
+    _offlineSyncPending = draft.pendingSync;
+    _loadingFromOfflineDraft = draft.pendingSync;
+  }
+
+  // Carrega o contexto completo necessário para editar uma tarefa. A chamada
+  // para `/users` respeita a permissão do usuário logado para não depender
+  // apenas do backend na experiência da interface.
   Future<void> _loadAll() async {
     setState(() {
       _loading = true;
       _error = null;
     });
+    final offlineDraft = await _offlineDraftStore.read(_offlineDraftId);
     try {
       final clients = await _api.get('/clients') as List<dynamic>;
       final users = AuthService.instance.hasPermission(Permissions.viewUsers)
@@ -151,36 +391,51 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       final templates = await _api.get('/report-templates') as List<dynamic>;
       final products = await _api.get('/products') as List<dynamic>;
 
-      _clients = clients.cast<Map<String, dynamic>>();
-      _users = users.cast<Map<String, dynamic>>();
-      _types = types.cast<Map<String, dynamic>>();
-      _templates = templates.cast<Map<String, dynamic>>();
-      _products = products.cast<Map<String, dynamic>>();
+      _runWithoutDraftTracking(() {
+        _clients = clients.cast<Map<String, dynamic>>();
+        _users = users.cast<Map<String, dynamic>>();
+        _types = types.cast<Map<String, dynamic>>();
+        _templates = templates.cast<Map<String, dynamic>>();
+        _products = products.cast<Map<String, dynamic>>();
+      });
 
       if (_taskId != null) {
         final task = await _api.get('/tasks/$_taskId') as Map<String, dynamic>;
-        _title.text = task['title']?.toString() ?? '';
-        _description.text = task['description']?.toString() ?? '';
-        _clientId = task['client_id'] as int?;
-        _userId = task['user_id'] as int?;
-        _taskTypeId = task['task_type_id'] as int?;
-        _status = task['status']?.toString() ?? 'aberta';
-        _priority = task['priority']?.toString() ?? 'media';
-        _startDate.text = formatDateInput(task['start_date']?.toString());
-        _dueDate.text = formatDateInput(task['due_date']?.toString());
-        _signatureMode = task['signature_mode']?.toString() ?? 'none';
-        _signatureScope = task['signature_scope']?.toString() ?? 'last_page';
-        _signatureClient = task['signature_client']?.toString() ?? '';
-        _signatureTech = task['signature_tech']?.toString() ?? '';
-        _signaturePages = _safeMap(task['signature_pages']);
+        _runWithoutDraftTracking(() {
+          _title.text = task['title']?.toString() ?? '';
+          _description.text = task['description']?.toString() ?? '';
+          _clientId = task['client_id'] as int?;
+          _userId = task['user_id'] as int?;
+          _taskTypeId = task['task_type_id'] as int?;
+          _status = task['status']?.toString() ?? 'aberta';
+          _priority = task['priority']?.toString() ?? 'media';
+          _startDate.text = formatDateInput(task['start_date']?.toString());
+          _dueDate.text = formatDateInput(task['due_date']?.toString());
+          _signatureMode = task['signature_mode']?.toString() ?? 'none';
+          _signatureScope = task['signature_scope']?.toString() ?? 'last_page';
+          _signatureClient = task['signature_client']?.toString() ?? '';
+          _signatureTech = task['signature_tech']?.toString() ?? '';
+          _signaturePages = _safeMap(task['signature_pages']);
+        });
 
         await _loadReports(_taskTypeId);
         await _loadBudgets(_reports);
       }
 
       await _loadClientEquipments();
+
+      if (offlineDraft != null) {
+        _applyOfflineDraft(offlineDraft, replaceLookups: false);
+      }
+
+      _taskDraftDirty = false;
+      _reportDraftDirty = false;
     } catch (error) {
-      _error = error.toString();
+      if (_isConnectionError(error) && offlineDraft != null) {
+        _applyOfflineDraft(offlineDraft, replaceLookups: true);
+      } else {
+        _error = error.toString();
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -217,6 +472,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     }
   }
 
+  // Sempre tentamos manter o relatório ativo selecionado após reload. Isso
+  // evita a sensação de que o app "trocou" de relatório sozinho depois de um
+  // save ou de uma atualização de tarefa.
   Future<void> _loadReports(int? taskTypeId, {int? preferredReportId}) async {
     if (_taskId == null) return;
     final data = await _api.get('/reports?taskId=$_taskId') as List<dynamic>;
@@ -376,6 +634,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     _reportStatus = report['status']?.toString() ?? 'rascunho';
     _reportEquipmentId = report['equipment_id'] as int?;
     _reportDirty = false;
+    _reportDraftDirty = false;
     _reportAutosaveTimer?.cancel();
     _reportAutosaveTimer = null;
   }
@@ -400,10 +659,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     );
   }
 
-  Future<void> _saveTask() async {
-    setState(() => _error = null);
-    final previousActiveReportId = _activeReportId;
-    final payload = {
+  // Salvar a tarefa pode atualizar o relatório geral no backend. Guardamos o
+  // relatório ativo antes do PUT para conseguir reconstruir a aba de relatório
+  // sem perder o contexto do usuário.
+  Map<String, dynamic> _buildTaskPayload() {
+    return {
       'title': _title.text,
       'description': _description.text,
       'client_id': _clientId,
@@ -419,23 +679,81 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       'signature_tech': _signatureTech.isEmpty ? null : _signatureTech,
       'signature_pages': _signaturePages,
     };
+  }
 
+  Map<String, dynamic> _buildReportPayloadFromReport(
+    Map<String, dynamic> report, {
+    int? taskIdOverride,
+  }) {
+    final content = _safeMap(report['content']);
+    final templateId = report['template_id'] ?? _selectedTemplate?['id'];
+    return {
+      'title': report['title']?.toString() ?? _title.text,
+      'task_id': taskIdOverride ?? report['task_id'] ?? _taskId,
+      'client_id': report['client_id'] ?? _clientId,
+      'template_id': templateId,
+      'equipment_id': report['equipment_id'],
+      'status': report['status']?.toString() ?? 'rascunho',
+      'content': {
+        'sections': _cloneJson(content['sections'] ?? const []),
+        'layout': _cloneJson(
+          content['layout'] ?? _selectedTemplate?['structure']?['layout'],
+        ),
+        'answers': _cloneJson(content['answers'] ?? const {}),
+        'photos': _cloneJson(content['photos'] ?? const []),
+      },
+    };
+  }
+
+  Future<int?> _pushTaskToServer() async {
+    final payload = _buildTaskPayload();
+    if (_taskId == null) {
+      final saved = await _api.post('/tasks', payload) as Map<String, dynamic>;
+      final createdId = saved['id'] as int?;
+      final previousDraftId = _offlineDraftId;
+      _taskId = createdId;
+      _offlineDraftId = TaskOfflineDraftStore.buildDraftId(createdId);
+      if (previousDraftId != _offlineDraftId) {
+        await _offlineDraftStore.delete(previousDraftId);
+      }
+      return createdId;
+    }
+
+    await _api.put('/tasks/$_taskId', payload);
+    return _taskId;
+  }
+
+  Future<void> _saveTaskOffline() async {
+    await _persistOfflineDraft(pendingSync: true);
+    if (!mounted) return;
+    setState(() {
+      _offlineSyncPending = true;
+      _loadingFromOfflineDraft = true;
+    });
+    _showMessage(
+      _taskId == null
+          ? 'Sem conexão. A nova tarefa foi salva como rascunho local.'
+          : 'Sem conexão. As alterações da tarefa foram salvas neste aparelho.',
+    );
+  }
+
+  Future<void> _saveTask() async {
+    setState(() => _error = null);
+    final previousActiveReportId = _activeReportId;
     final isEditing = _taskId != null;
 
     try {
-      if (_taskId == null) {
-        final saved =
-            await _api.post('/tasks', payload) as Map<String, dynamic>;
-        setState(() {
-          _taskId = saved['id'] as int?;
-        });
-        _openReportTab();
-      } else {
-        await _api.put('/tasks/$_taskId', payload);
-        _openReportTab();
+      final createdId = await _pushTaskToServer();
+      if (createdId != null && mounted) {
+        setState(() => _taskId = createdId);
       }
+      _markTaskDraftSynced();
     } catch (error) {
-      _showMessage(error.toString());
+      if (_isConnectionError(error)) {
+        await _saveTaskOffline();
+      } else {
+        _showMessage(error.toString());
+      }
       return;
     }
 
@@ -465,6 +783,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
           ? 'Tarefa atualizada com sucesso.'
           : 'Tarefa salva com sucesso.',
     );
+    await _reconcileOfflineDraftAfterSync();
   }
 
   Map<String, dynamic> _normalizeReportAnswers() {
@@ -485,44 +804,68 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     return normalized;
   }
 
+  // O relatório pode ser salvo manualmente ou por auto-save. Nos dois casos,
+  // a regra é a mesma: persistir o conteúdo atual sem trocar o relatório ativo
+  // que o usuário estava editando.
   Future<void> _saveReport(
       {bool silent = false, bool skipReload = false}) async {
     if (_activeReportId == null) {
       setState(() => _reportMessage = 'Salve a tarefa para gerar o Relatório.');
       return;
     }
-    final previousActiveReportId = _activeReportId;
+    var preferredReportId = _activeReportId;
 
-    final templateId =
-        _activeReport?['template_id'] ?? _selectedTemplate?['id'];
-    final payload = {
-      'title': _activeReport?['title'] ?? _title.text,
-      'task_id': _taskId,
-      'client_id': _clientId,
-      'template_id': templateId,
-      'equipment_id': _activeReport?['equipment_id'],
-      'status': _reportStatus,
-      'content': {
-        'sections': _reportSections,
-        'layout': _activeReport?['content']?['layout'] ??
-            _selectedTemplate?['structure']?['layout'],
-        'answers': _normalizeReportAnswers(),
-        'photos': _reportPhotos,
-      },
-    };
+    _syncActiveReportIntoCollection();
+    final report = _reports.firstWhere(
+      (item) => item['id'] == _activeReportId,
+      orElse: () => <String, dynamic>{},
+    );
+    final payload = _buildReportPayloadFromReport(report);
 
     try {
-      await _api.put('/reports/$_activeReportId', payload);
-      _reportDirty = false;
+      if ((_activeReportId ?? 0) < 0) {
+        final created = await _api.post('/reports', payload) as Map<String, dynamic>;
+        final createdId = created['id'] as int?;
+        if (createdId != null) {
+          final reportIndex = _reports.indexWhere((item) => item['id'] == _activeReportId);
+          if (reportIndex != -1) {
+            _reports[reportIndex] = {
+              ...Map<String, dynamic>.from(_reports[reportIndex]),
+              'id': createdId,
+              'task_id': _taskId,
+            };
+          }
+          _activeReportId = createdId;
+          preferredReportId = createdId;
+        }
+      } else {
+        await _api.put('/reports/$_activeReportId', payload);
+      }
+    _reportDirty = false;
+    _reportDraftDirty = false;
+      _markReportDraftSynced();
       if (silent && skipReload) {
+        await _reconcileOfflineDraftAfterSync();
         return;
       }
       setState(() => _reportMessage = 'Relatório salvo com sucesso.');
       await _loadReports(
         _taskTypeId,
-        preferredReportId: previousActiveReportId,
+        preferredReportId: preferredReportId,
       );
+      await _reconcileOfflineDraftAfterSync();
     } catch (error) {
+      if (_isConnectionError(error)) {
+        await _persistOfflineDraft(pendingSync: true);
+        if (silent) return;
+        setState(() {
+          _offlineSyncPending = true;
+          _loadingFromOfflineDraft = true;
+          _reportMessage =
+              'Sem conexão. O relatório foi salvo localmente e será sincronizado depois.';
+        });
+        return;
+      }
       if (silent) return;
       setState(() => _reportMessage = error.toString());
     }
@@ -538,6 +881,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     });
   }
 
+  // O auto-save é propositalmente discreto: ele protege o trabalho do usuário
+  // sem bloquear a edição nem exibir erro técnico em fluxo normal.
   Future<void> _runReportAutosave(int seq) async {
     if (_activeReportId == null || !_reportDirty) return;
     if (_reportAutosaving) {
@@ -579,33 +924,90 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   Future<void> _updateReportEquipment(int? equipmentId) async {
     if (_activeReportId == null) return;
+    final equipmentName = _equipments
+        .firstWhere(
+          (item) => item['id'] == equipmentId,
+          orElse: () => <String, dynamic>{},
+        )['name']
+        ?.toString();
+
+    setState(() {
+      _reportEquipmentId = equipmentId;
+      final reportIndex =
+          _reports.indexWhere((item) => item['id'] == _activeReportId);
+      if (reportIndex != -1) {
+        _reports[reportIndex] = {
+          ..._reports[reportIndex],
+          'equipment_id': equipmentId,
+          'equipment_name': equipmentName,
+        };
+      }
+    });
+    _markReportDraftDirty(
+      localDelay: const Duration(milliseconds: 250),
+      autosaveDelay: const Duration(milliseconds: 900),
+    );
+
     try {
-      await _api
-          .put('/reports/$_activeReportId', {'equipment_id': equipmentId});
-      final equipmentName = _equipments
-          .firstWhere(
-            (item) => item['id'] == equipmentId,
-            orElse: () => <String, dynamic>{},
-          )['name']
-          ?.toString();
-      setState(() {
-        _reportEquipmentId = equipmentId;
-        final reportIndex =
-            _reports.indexWhere((item) => item['id'] == _activeReportId);
-        if (reportIndex != -1) {
-          _reports[reportIndex] = {
-            ..._reports[reportIndex],
-            'equipment_id': equipmentId,
-            'equipment_name': equipmentName,
-          };
-        }
-      });
+      if ((_activeReportId ?? 0) > 0) {
+        await _api.put('/reports/$_activeReportId', {'equipment_id': equipmentId});
+      }
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      if (_isConnectionError(error)) {
+        await _persistOfflineDraft(pendingSync: true);
+        if (!mounted) return;
+        setState(() {
+          _offlineSyncPending = true;
+          _loadingFromOfflineDraft = true;
+        });
+        _showMessage(
+          'Sem conexão. O equipamento do relatório foi salvo localmente.',
+        );
+        return;
+      }
+      _showMessage(error.toString());
     }
+  }
+
+  void _createLocalReport() {
+    final template = _selectedTemplate;
+    if (template == null) {
+      setState(() => _reportMessage =
+          'Este tipo de tarefa não possui modelo de Relatório.');
+      return;
+    }
+
+    final localId = -DateTime.now().microsecondsSinceEpoch;
+    final localReport = <String, dynamic>{
+      'id': localId,
+      'title': 'Relatório adicional',
+      'task_id': _taskId,
+      'client_id': _clientId,
+      'template_id': template['id'],
+      'equipment_id': null,
+      'status': 'rascunho',
+      'content': {
+        'sections': _cloneJson(template['structure']?['sections'] ?? const []),
+        'layout': _cloneJson(
+          template['structure']?['layout'] ??
+              {'sectionColumns': 1, 'fieldColumns': 1},
+        ),
+        'answers': <String, dynamic>{},
+        'photos': <Map<String, dynamic>>[],
+      },
+    };
+
+    setState(() {
+      _reports = [..._reports, localReport];
+      _activeReportId = localId;
+      _applyReportData(localReport, _taskTypeId);
+      _reportMessage =
+          'Sem conexão. O novo relatório foi criado apenas neste aparelho.';
+      _offlineSyncPending = true;
+      _loadingFromOfflineDraft = true;
+    });
+    _reportDraftDirty = true;
+    _scheduleOfflineDraftSave(pendingSync: true);
   }
 
   Future<void> _createReport() async {
@@ -647,12 +1049,41 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         _reportMessage = 'Relatório criado com sucesso.';
       });
     } catch (error) {
+      if (_isConnectionError(error)) {
+        _createLocalReport();
+        return;
+      }
       setState(() => _reportMessage = error.toString());
     }
   }
 
   Future<void> _deleteReport() async {
     if (_activeReportId == null) return;
+    if ((_activeReportId ?? 0) < 0) {
+      setState(() {
+        _reports.removeWhere((item) => item['id'] == _activeReportId);
+        _activeReportId = _reports.isNotEmpty ? _reports.first['id'] as int? : null;
+        final nextReport = _reports.firstWhere(
+          (item) => item['id'] == _activeReportId,
+          orElse: () => <String, dynamic>{},
+        );
+        if (nextReport.isNotEmpty) {
+          _applyReportData(nextReport, _taskTypeId);
+        } else {
+          _reportSections = [];
+          _reportAnswers = {};
+          _reportPhotos = [];
+          _reportStatus = 'rascunho';
+        }
+        _reportMessage = 'Relatório local removido.';
+        _offlineSyncPending = true;
+        _loadingFromOfflineDraft = true;
+      });
+      _reportDraftDirty = true;
+      await _persistOfflineDraft(pendingSync: true);
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -669,9 +1100,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       ),
     );
     if (confirmed != true) return;
-    await _api.delete('/reports/$_activeReportId');
-    await _loadReports(_taskTypeId);
-    await _loadBudgets(_reports);
+    try {
+      await _api.delete('/reports/$_activeReportId');
+      await _loadReports(_taskTypeId);
+      await _loadBudgets(_reports);
+      _markReportDraftSynced();
+      await _reconcileOfflineDraftAfterSync();
+    } catch (error) {
+      _showMessage(error.toString());
+    }
   }
 
   Future<void> _addPhotos() async {
@@ -733,7 +1170,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     }
     if (!mounted) return;
     setState(() => _reportPhotos = [..._reportPhotos, ...newPhotos]);
-    _markReportDirty();
+    _markReportDraftDirty();
   }
 
   String _asJpegName(String original) {
@@ -770,7 +1207,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   void _removePhoto(String photoId) {
     setState(
         () => _reportPhotos.removeWhere((photo) => photo['id'] == photoId));
-    _markReportDirty();
+    _markReportDraftDirty();
   }
 
   Future<String?> _getTaskPublicLink() async {
@@ -855,6 +1292,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         _signaturePages[key] as Map<String, dynamic>? ?? {});
     page[role] = value;
     setState(() => _signaturePages[key] = page);
+    _markTaskDraftDirty();
   }
 
   Future<void> _pickDate(TextEditingController controller) async {
@@ -868,104 +1306,69 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     if (selected == null) return;
     controller.text = formatDateFromDate(selected);
     setState(() {});
+    _markTaskDraftDirty();
   }
 
   Widget _buildDetailsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        AppTextField(label: 'Título', controller: _title),
-        const SizedBox(height: 8),
-        AppDropdownField<String>(
-          label: 'Status',
-          value: _status,
-          items: TaskDetailOptions.taskStatusItems,
-          onChanged: (value) => setState(() => _status = value ?? 'aberta'),
-        ),
-        const SizedBox(height: 8),
-        AppDropdownField<String>(
-          label: 'Prioridade',
-          value: _priority,
-          items: TaskDetailOptions.taskPriorityItems,
-          onChanged: (value) => setState(() => _priority = value ?? 'media'),
-        ),
-        const SizedBox(height: 8),
-        AppDropdownField<int>(
-          label: 'Cliente',
-          value: _clientId,
-          items: _clients
-              .map((client) => DropdownMenuItem<int>(
-                    value: client['id'] as int?,
-                    child: Text(client['name']?.toString() ?? 'Cliente'),
-                  ))
-              .toList(),
-          onChanged: (value) async {
-            setState(() {
-              _clientId = value;
-              _reportEquipmentId = null;
-            });
-            await _loadClientEquipments();
-            if (_taskId != null) {
-              await _loadReports(_taskTypeId);
-              await _loadBudgets(_reports);
-            }
-          },
-        ),
-        const SizedBox(height: 8),
-        if (_users.isNotEmpty) ...[
-          AppDropdownField<int>(
-            label: 'Responsavel',
-            value: _userId,
-            items: _users
-                .map((user) => DropdownMenuItem<int>(
-                      value: user['id'] as int?,
-                      child: Text(user['name']?.toString() ?? 'usuário'),
-                    ))
-                .toList(),
-            onChanged: (value) => setState(() => _userId = value),
-          ),
-          const SizedBox(height: 8),
-        ],
-        AppDropdownField<int>(
-          label: 'Tipo de tarefa',
-          value: _taskTypeId,
-          items: _types
-              .map((type) => DropdownMenuItem<int>(
-                    value: type['id'] as int?,
-                    child: Text(type['name']?.toString() ?? 'Tipo'),
-                  ))
-              .toList(),
-          onChanged: (value) => setState(() => _taskTypeId = value),
-        ),
-        const SizedBox(height: 8),
-        AppDateField(
-          key: ValueKey(_startDate.text),
-          label: 'Inicio',
-          value: formatDateInput(_startDate.text),
-          onTap: () => _pickDate(_startDate),
-        ),
-        const SizedBox(height: 8),
-        AppDateField(
-          key: ValueKey(_dueDate.text),
-          label: 'Fim',
-          value: formatDateInput(_dueDate.text),
-          onTap: () => _pickDate(_dueDate),
-        ),
-        const SizedBox(height: 8),
-        AppTextField(label: 'Descrição', controller: _description, maxLines: 3),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child:
-                Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-          ),
-        const SizedBox(height: 12),
-        ElevatedButton(
-          onPressed: _saveTask,
-          child: Text(_taskId == null ? 'Salvar tarefa' : 'Atualizar tarefa'),
-        ),
-      ],
+    return TaskDetailsTab(
+      titleController: _title,
+      descriptionController: _description,
+      startDateController: _startDate,
+      dueDateController: _dueDate,
+      status: _status,
+      priority: _priority,
+      clientId: _clientId,
+      userId: _userId,
+      taskTypeId: _taskTypeId,
+      clients: _clients,
+      users: _users,
+      types: _types,
+      error: _error,
+      onStatusChanged: (value) {
+        setState(() => _status = value);
+        _markTaskDraftDirty();
+      },
+      onPriorityChanged: (value) {
+        setState(() => _priority = value);
+        _markTaskDraftDirty();
+      },
+      onClientChanged: (value) async {
+        setState(() {
+          _clientId = value;
+          _reportEquipmentId = null;
+        });
+        _markTaskDraftDirty();
+        await _loadClientEquipments();
+        if (_taskId != null) {
+          await _loadReports(_taskTypeId);
+          await _loadBudgets(_reports);
+        }
+      },
+      onUserChanged: (value) {
+        setState(() => _userId = value);
+        _markTaskDraftDirty();
+      },
+      onTaskTypeChanged: (value) {
+        setState(() => _taskTypeId = value);
+        _markTaskDraftDirty();
+      },
+      onPickStartDate: () => _pickDate(_startDate),
+      onPickDueDate: () => _pickDate(_dueDate),
+      onSave: _saveTask,
     );
+  }
+
+  bool _isConnectionError(Object error) {
+    return error is AppException && error.category == 'connection_error';
+  }
+
+  void _runWithoutDraftTracking(VoidCallback action) {
+    _trackingPaused = true;
+    try {
+      action();
+    } finally {
+      _trackingPaused = false;
+    }
   }
 
   Widget _buildReportTab() {
@@ -981,160 +1384,30 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             ))
         .toList();
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_taskId == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para habilitar o Relatório.'),
-            ),
-          ),
-        if (_taskId != null && _selectedTemplate == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child:
-                  Text('Este tipo de tarefa não possui modelo de Relatório.'),
-            ),
-          ),
-        if (_taskId != null && _selectedTemplate != null)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Relatórios da tarefa',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          OutlinedButton(
-                              onPressed: _createReport,
-                              child: const Text('Adicionar')),
-                          OutlinedButton(
-                              onPressed: _deleteReport,
-                              child: const Text('Excluir')),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  AppDropdownField<int>(
-                    label: 'Relatório',
-                    value: _activeReportId,
-                    items: reportOptions,
-                    onChanged: (value) => _handleActiveReportChange(value),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildEquipmentField(),
-                  const SizedBox(height: 8),
-                  AppDropdownField<String>(
-                    label: 'Status',
-                    value: _reportStatus,
-                    items: TaskDetailOptions.reportStatusItems,
-                    onChanged: (value) {
-                      setState(() => _reportStatus = value ?? 'rascunho');
-                      _markReportDirty();
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Fotos',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      OutlinedButton(
-                          onPressed: _addPhotos,
-                          child: const Text('Adicionar')),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (_reportPhotos.isEmpty) const Text('Sem fotos anexadas.'),
-                  if (_reportPhotos.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _reportPhotos
-                          .map((photo) => SizedBox(
-                                width: 120,
-                                child: Column(
-                                  children: [
-                                    Image.memory(
-                                      base64Decode(photo['dataUrl']
-                                          .toString()
-                                          .split(',')
-                                          .last),
-                                      height: 90,
-                                      fit: BoxFit.cover,
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          _removePhoto(photo['id'].toString()),
-                                      child: const Text('Remover'),
-                                    ),
-                                  ],
-                                ),
-                              ))
-                          .toList(),
-                    ),
-                  const SizedBox(height: 12),
-                  Text('Formulario',
-                      style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  if (_reportSections.isEmpty)
-                    const Text('Este modelo ainda não possui campos.'),
-                  ..._reportSections.map((section) => Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(section['title']?.toString() ?? 'Seção',
-                                  style:
-                                      Theme.of(context).textTheme.titleSmall),
-                              const SizedBox(height: 8),
-                              ..._buildReportFields(section),
-                            ],
-                          ),
-                        ),
-                      )),
-                  if (_reportMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(_reportMessage!,
-                          style: const TextStyle(color: Colors.blueGrey)),
-                    ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      ElevatedButton(
-                          onPressed: _saveReport,
-                          child: const Text('Salvar Relatório')),
-                      OutlinedButton(
-                          onPressed: _sendReportEmail,
-                          child: const Text('Enviar e-mail')),
-                      OutlinedButton(
-                        onPressed: _shareTaskPublicLink,
-                        child: const Text('Compartilhar link'),
-                      ),
-                      OutlinedButton(
-                        onPressed: _openTaskPublicPage,
-                        child: const Text('Abrir PDF'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
+    return TaskReportTab(
+      taskId: _taskId,
+      selectedTemplateExists: _selectedTemplate != null,
+      reportOptions: reportOptions,
+      activeReportId: _activeReportId,
+      onActiveReportChanged: _handleActiveReportChange,
+      reportStatus: _reportStatus,
+      onReportStatusChanged: (value) {
+        setState(() => _reportStatus = value);
+        _markReportDirty();
+      },
+      equipmentField: _buildEquipmentField(),
+      reportPhotos: _reportPhotos,
+      onAddPhotos: _addPhotos,
+      onRemovePhoto: _removePhoto,
+      reportSections: _reportSections,
+      buildReportFields: _buildReportFields,
+      reportMessage: _reportMessage,
+      onCreateReport: _createReport,
+      onDeleteReport: _deleteReport,
+      onSaveReport: _saveReport,
+      onSendReportEmail: _sendReportEmail,
+      onSharePublicLink: _shareTaskPublicLink,
+      onOpenPublicPage: _openTaskPublicPage,
     );
   }
 
@@ -1227,7 +1500,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             maxLines: 3,
             onChanged: (val) {
               setState(() => _reportAnswers[fieldId] = val);
-              _markReportDirty();
+              _markReportDraftDirty();
             },
           ),
         );
@@ -1251,7 +1524,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             items: options,
             onChanged: (val) {
               setState(() => _reportAnswers[fieldId] = val);
-              _markReportDirty();
+              _markReportDraftDirty();
             },
           ),
         );
@@ -1268,7 +1541,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             ],
             onChanged: (val) {
               setState(() => _reportAnswers[fieldId] = val);
-              _markReportDirty();
+              _markReportDraftDirty();
             },
           ),
         );
@@ -1280,7 +1553,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
           value: value == true,
           onChanged: (val) {
             setState(() => _reportAnswers[fieldId] = val);
-            _markReportDirty();
+            _markReportDraftDirty();
           },
         );
       }
@@ -1303,7 +1576,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
               if (selected == null) return;
               final formatted = formatDateFromDate(selected);
               setState(() => _reportAnswers[fieldId] = formatted);
-              _markReportDirty();
+              _markReportDraftDirty();
             },
           ),
         );
@@ -1317,7 +1590,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
           initialValue: value?.toString() ?? '',
           onChanged: (val) {
             setState(() => _reportAnswers[fieldId] = val);
-            _markReportDirty();
+            _markReportDraftDirty();
           },
         ),
       );
@@ -1330,83 +1603,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       orElse: () => <String, dynamic>{},
     );
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_taskId == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para liberar os Orçamentos.'),
-            ),
-          ),
-        if (_taskId != null) ...[
-          BudgetForm(
-            clientId: _clientId,
-            taskId: _taskId,
-            reportId: generalReport['id'] as int?,
-            products: _products,
-            onSaved: () => _loadBudgets(_reports),
-          ),
-          const SizedBox(height: 12),
-          ..._budgets.map((budget) {
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('orçamento #${budget['id']}',
-                            style: Theme.of(context).textTheme.titleSmall),
-                        Row(
-                          children: [
-                            Chip(
-                                label: Text(budget['status']?.toString() ??
-                                    'rascunho')),
-                            PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'edit') {
-                                  _editBudget(budget);
-                                } else if (value == 'delete') {
-                                  _deleteBudget(budget['id'] as int);
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                    value: 'edit', child: Text('Editar')),
-                                PopupMenuItem(
-                                    value: 'delete', child: Text('Remover')),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Total: ${formatCurrency(budget['total'] ?? 0)}'),
-                    const SizedBox(height: 8),
-                    ...(budget['items'] as List<dynamic>? ?? [])
-                        .cast<Map<String, dynamic>>()
-                        .map((item) => Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                    child: Text(
-                                        item['description']?.toString() ??
-                                            'Item')),
-                                Text(formatCurrency(item['total'] ?? 0)),
-                              ],
-                            )),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ],
-      ],
+    return TaskBudgetsTab(
+      taskId: _taskId,
+      clientId: _clientId,
+      generalReportId: generalReport['id'] as int?,
+      products: _products,
+      budgets: _budgets,
+      onBudgetSaved: () => _loadBudgets(_reports),
+      onEditBudget: _editBudget,
+      onDeleteBudget: _deleteBudget,
     );
   }
 
@@ -1421,141 +1626,202 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
           }),
       ..._budgets.map((budget) => {
             'key': 'budget:${budget['id']}',
-            'label': 'orçamento #${budget['id']}',
+            'label': 'Orçamento #${budget['id']}',
           }),
     ];
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_taskId == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para configurar Assinaturas.'),
-            ),
-          ),
-        if (_taskId != null) ...[
-          AppDropdownField<String>(
-            label: 'Assinaturas',
-            value: _signatureMode,
-            items: TaskDetailOptions.signatureModeItems,
-            onChanged: (value) =>
-                setState(() => _signatureMode = value ?? 'none'),
-          ),
-          const SizedBox(height: 8),
-          AppDropdownField<String>(
-            label: 'Aplicação',
-            value: _signatureScope,
-            items: TaskDetailOptions.signatureScopeItems,
-            onChanged: (value) =>
-                setState(() => _signatureScope = value ?? 'last_page'),
-          ),
-          const SizedBox(height: 12),
-          if (_signatureScope == 'last_page') ...[
-            if (_signatureMode == 'client' || _signatureMode == 'both')
-              SignaturePadField(
-                label: 'Assinatura do cliente*',
-                value: _signatureClient,
-                onChanged: (value) => setState(() => _signatureClient = value),
-              ),
-            if (_signatureMode == 'client' || _signatureMode == 'both')
-              if (_signatureClient.isNotEmpty)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => setState(() => _signatureClient = ''),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Remover assinatura'),
+    return TaskSignaturesTab(
+      taskId: _taskId,
+      signatureMode: _signatureMode,
+      signatureScope: _signatureScope,
+      signatureClient: _signatureClient,
+      signatureTech: _signatureTech,
+      signaturePages: _signaturePages,
+      signaturePageItems:
+          signaturePageItems.map((item) => item.map((key, value) => MapEntry(key, value.toString()))).toList(),
+      onSignatureModeChanged: (value) {
+        setState(() => _signatureMode = value);
+        _markTaskDraftDirty();
+      },
+      onSignatureScopeChanged: (value) {
+        setState(() => _signatureScope = value);
+        _markTaskDraftDirty();
+      },
+      onSignatureClientChanged: (value) {
+        setState(() => _signatureClient = value);
+        _markTaskDraftDirty();
+      },
+      onSignatureTechChanged: (value) {
+        setState(() => _signatureTech = value);
+        _markTaskDraftDirty();
+      },
+      onUpdateSignaturePage: _updateSignaturePage,
+      onSave: _saveTask,
+    );
+  }
+
+  bool get _shouldShowOfflineBanner {
+    return _offlineSyncPending ||
+        _loadingFromOfflineDraft ||
+        _taskDraftDirty ||
+        _reportDraftDirty;
+  }
+
+  Future<void> _discardOfflineDraft() async {
+    await _clearOfflineDraft();
+    _taskDraftDirty = false;
+    _reportDraftDirty = false;
+    if (_taskId != null) {
+      await _loadAll();
+    } else {
+      _runWithoutDraftTracking(() {
+        _title.clear();
+        _description.clear();
+        _startDate.clear();
+        _dueDate.clear();
+        _clientId = null;
+        _userId = null;
+        _taskTypeId = null;
+        _status = 'aberta';
+        _priority = 'media';
+        _reports = [];
+        _budgets = [];
+        _activeReportId = null;
+        _reportSections = [];
+        _reportAnswers = {};
+        _reportPhotos = [];
+        _reportStatus = 'rascunho';
+        _signatureMode = 'none';
+        _signatureScope = 'last_page';
+        _signatureClient = '';
+        _signatureTech = '';
+        _signaturePages = {};
+      });
+      if (mounted) {
+        setState(() {});
+      }
+    }
+    if (!mounted) return;
+    _showMessage('O rascunho local foi removido deste aparelho.');
+  }
+
+  Future<void> _syncOfflineDraft() async {
+    if (_syncingOfflineDraft) return;
+
+    setState(() => _syncingOfflineDraft = true);
+    _offlineDraftTimer?.cancel();
+    _syncActiveReportIntoCollection();
+
+    try {
+      final syncedTaskId = await _pushTaskToServer();
+      if (syncedTaskId != null) {
+        for (var index = 0; index < _reports.length; index += 1) {
+          final report = Map<String, dynamic>.from(_reports[index]);
+          final reportId = report['id'] as int?;
+          final payload =
+              _buildReportPayloadFromReport(report, taskIdOverride: syncedTaskId);
+
+          if ((reportId ?? 0) < 0) {
+            final created =
+                await _api.post('/reports', payload) as Map<String, dynamic>;
+            final createdId = created['id'] as int?;
+            if (createdId != null) {
+              _reports[index] = {
+                ...report,
+                'id': createdId,
+                'task_id': syncedTaskId,
+              };
+              if (_activeReportId == reportId) {
+                _activeReportId = createdId;
+              }
+            }
+            continue;
+          }
+
+          if (reportId != null) {
+            await _api.put('/reports/$reportId', payload);
+          }
+        }
+      }
+
+      _markTaskDraftSynced();
+      _markReportDraftSynced();
+      await _clearOfflineDraft();
+      await _loadAll();
+      _showMessage('Rascunho local sincronizado com sucesso.');
+    } catch (error) {
+      await _persistOfflineDraft(pendingSync: true);
+      if (!mounted) return;
+      setState(() {
+        _offlineSyncPending = true;
+        _loadingFromOfflineDraft = true;
+      });
+      _showMessage(
+        _isConnectionError(error)
+            ? 'Ainda não foi possível sincronizar. O rascunho continua salvo localmente.'
+            : error.toString(),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _syncingOfflineDraft = false);
+      }
+    }
+  }
+
+  Widget _buildOfflineBanner(BuildContext context) {
+    final theme = Theme.of(context);
+    final waitingConnection = _loadingFromOfflineDraft || _offlineSyncPending;
+    final headline = waitingConnection
+        ? 'Modo offline ativo'
+        : 'Rascunho local disponível';
+    final description = waitingConnection
+        ? 'As alterações desta tarefa estão salvas neste aparelho e serão sincronizadas quando houver conexão.'
+        : 'Existe um rascunho local desta tarefa salvo neste aparelho.';
+
+    return Card(
+      color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.65),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  waitingConnection ? Icons.cloud_off_outlined : Icons.save_outlined,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    headline,
+                    style: theme.textTheme.titleSmall,
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(description, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 12),
-            if (_signatureMode == 'tech' || _signatureMode == 'both')
-              SignaturePadField(
-                label: 'Assinatura do técnico*',
-                value: _signatureTech,
-                onChanged: (value) => setState(() => _signatureTech = value),
-              ),
-            if (_signatureMode == 'tech' || _signatureMode == 'both')
-              if (_signatureTech.isNotEmpty)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => setState(() => _signatureTech = ''),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Remover assinatura'),
-                  ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _syncingOfflineDraft ? null : _syncOfflineDraft,
+                  icon: Icon(_syncingOfflineDraft ? Icons.sync : Icons.cloud_upload_outlined),
+                  label: Text(_syncingOfflineDraft ? 'Sincronizando...' : 'Sincronizar agora'),
                 ),
-          ],
-          if (_signatureScope == 'all_pages' && _signatureMode != 'none') ...[
-            ...signaturePageItems.map((page) {
-              final key = page['key'] as String;
-              final label = page['label'] as String;
-              final pageSignatures =
-                  _signaturePages[key] as Map<String, dynamic>? ?? {};
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label,
-                          style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: 8),
-                      if (_signatureMode == 'client' ||
-                          _signatureMode == 'both')
-                        SignaturePadField(
-                          label: 'Assinatura do cliente*',
-                          value: pageSignatures['client']?.toString() ?? '',
-                          onChanged: (value) =>
-                              _updateSignaturePage(key, 'client', value),
-                        ),
-                      if (_signatureMode == 'client' ||
-                          _signatureMode == 'both')
-                        if ((pageSignatures['client']?.toString() ?? '')
-                            .isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () =>
-                                  _updateSignaturePage(key, 'client', ''),
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Remover assinatura'),
-                            ),
-                          ),
-                      const SizedBox(height: 12),
-                      if (_signatureMode == 'tech' || _signatureMode == 'both')
-                        SignaturePadField(
-                          label: 'Assinatura do técnico*',
-                          value: pageSignatures['tech']?.toString() ?? '',
-                          onChanged: (value) =>
-                              _updateSignaturePage(key, 'tech', value),
-                        ),
-                      if (_signatureMode == 'tech' || _signatureMode == 'both')
-                        if ((pageSignatures['tech']?.toString() ?? '')
-                            .isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () =>
-                                  _updateSignaturePage(key, 'tech', ''),
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Remover assinatura'),
-                            ),
-                          ),
-                    ],
-                  ),
+                TextButton.icon(
+                  onPressed: _syncingOfflineDraft ? null : _discardOfflineDraft,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Descartar rascunho'),
                 ),
-              );
-            }),
-          ],
-          const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _saveTask,
-              child: const Text('Salvar assinaturas'),
+              ],
             ),
-        ],
-      ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -1604,13 +1870,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                 : const [Color(0xFFF6FAFD), Color(0xFFEAF2F8)],
           ),
         ),
-        child: TabBarView(
-          controller: _tabController,
+        child: Column(
           children: [
-            _buildDetailsTab(),
-            _buildReportTab(),
-            _buildBudgetsTab(),
-            _buildSignatureTab(),
+            if (_shouldShowOfflineBanner)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _buildOfflineBanner(context),
+              ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildDetailsTab(),
+                  _buildReportTab(),
+                  _buildBudgetsTab(),
+                  _buildSignatureTab(),
+                ],
+              ),
+            ),
           ],
         ),
       ),

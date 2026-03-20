@@ -12,6 +12,7 @@ function createPublicService({ env, logger }) {
   let cachedLogoDataUrl;
   let pdfHelpersPromise;
   let pdfBrowserPromise;
+  let jobService = null;
 
   const pdfInFlight = {
     tasks: new Map(),
@@ -436,28 +437,58 @@ function createPublicService({ env, logger }) {
     return renderBudgetPdf(db, budgetId, { forceRefresh });
   }
 
-  function scheduleWarmTaskPdfCache(db, taskId, forceRefresh = true) {
+  async function enqueuePdfWarmJob(type, id, forceRefresh = true, requestId = null, db = null) {
+    if (!env.pdfCacheEnabled || !id) return null;
+
+    if (!jobService) {
+      if (type === "tasks") {
+        return warmTaskPdf(db, id, forceRefresh);
+      }
+      return warmBudgetPdf(db, id, forceRefresh);
+    }
+
+    return jobService.enqueue({
+      type: type === "tasks" ? "pdf.warmTask" : "pdf.warmBudget",
+      payload: { id, forceRefresh },
+      dedupeKey: `pdf:${type}:${id}`,
+      requestId
+    });
+  }
+
+  function scheduleWarmTaskPdfCache(db, taskId, forceRefresh = true, requestId = null) {
     if (!env.pdfCacheEnabled || !taskId) return;
     clearTimeout(taskWarmTimers.get(taskId));
     const timer = setTimeout(() => {
       taskWarmTimers.delete(taskId);
-      warmTaskPdf(db, taskId, forceRefresh).catch((error) => {
+      enqueuePdfWarmJob("tasks", taskId, forceRefresh, requestId, db).catch((error) => {
         logger.warn("task_pdf_warm_failed", { taskId, message: error.message });
       });
     }, env.pdfWarmDebounceMs);
     taskWarmTimers.set(taskId, timer);
   }
 
-  function scheduleWarmBudgetPdfCache(db, budgetId, forceRefresh = true) {
+  function scheduleWarmBudgetPdfCache(db, budgetId, forceRefresh = true, requestId = null) {
     if (!env.pdfCacheEnabled || !budgetId) return;
     clearTimeout(budgetWarmTimers.get(budgetId));
     const timer = setTimeout(() => {
       budgetWarmTimers.delete(budgetId);
-      warmBudgetPdf(db, budgetId, forceRefresh).catch((error) => {
+      enqueuePdfWarmJob("budgets", budgetId, forceRefresh, requestId, db).catch((error) => {
         logger.warn("budget_pdf_warm_failed", { budgetId, message: error.message });
       });
     }, env.pdfWarmDebounceMs);
     budgetWarmTimers.set(budgetId, timer);
+  }
+
+  function queueWarmTaskPdfCache(db, taskId, forceRefresh = true, requestId = null) {
+    return enqueuePdfWarmJob("tasks", taskId, forceRefresh, requestId, db);
+  }
+
+  function queueWarmBudgetPdfCache(db, budgetId, forceRefresh = true, requestId = null) {
+    return enqueuePdfWarmJob("budgets", budgetId, forceRefresh, requestId, db);
+  }
+
+  function setJobService(service) {
+    jobService = service;
   }
 
   function normalizePublicStatusLabel(status) {
@@ -902,6 +933,9 @@ function createPublicService({ env, logger }) {
     warmBudgetPdf,
     scheduleWarmTaskPdfCache,
     scheduleWarmBudgetPdfCache,
+    queueWarmTaskPdfCache,
+    queueWarmBudgetPdfCache,
+    setJobService,
     ensureTaskPublicLink,
     ensureBudgetPublicLink,
     renderPublicTaskPage,

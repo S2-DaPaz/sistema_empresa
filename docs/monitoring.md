@@ -40,7 +40,7 @@ Antes desta reforma, backend, web e mobile tratavam falhas de forma inconsistent
 - `web/src/pages/admin/ErrorLogs.jsx`
   - listagem filtravel, detalhe tecnico e resolucao de logs
 - `web/src/pages/admin/EventLogs.jsx`
-  - auditoria operacional com busca e detalhe de metadata
+  - auditoria operacional com busca, detalhe de metadata e exportacao CSV
 
 ### Mobile
 
@@ -59,6 +59,7 @@ Antes desta reforma, backend, web e mobile tratavam falhas de forma inconsistent
 - detalhes tecnicos ficam restritos ao storage interno e ao painel admin
 - autenticacao expirada mostra orientacao de relogin
 - conexao e timeout nao exibem stack trace, exception nativa nem mensagem crua da biblioteca HTTP
+- administradores conseguem exportar o log de eventos filtrado para analise externa
 
 ## Seguranca
 

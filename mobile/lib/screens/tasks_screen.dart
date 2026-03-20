@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/offline/offline_read_cache.dart';
 import '../services/api_service.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
@@ -17,10 +18,13 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
+  static const _cacheKey = 'offline_cache_tasks_list';
   final ApiService _api = ApiService();
+  final OfflineReadCache _cache = OfflineReadCache.instance;
   final TextEditingController _searchController = TextEditingController();
   bool _loading = true;
   String? _error;
+  String? _offlineNotice;
   List<Map<String, dynamic>> _tasks = [];
   TaskViewMode _viewMode = TaskViewMode.list;
   DateTime _calendarMonth = DateTime.now();
@@ -44,13 +48,25 @@ class _TasksScreenState extends State<TasksScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _offlineNotice = null;
     });
     try {
       final data = await _api.get('/tasks') as List<dynamic>;
       setState(() {
         _tasks = data.cast<Map<String, dynamic>>();
       });
+      await _cache.writeJson(_cacheKey, data);
     } catch (error) {
+      final cached = await _cache.readList(_cacheKey);
+      if (cached != null) {
+        setState(() {
+          _tasks = cached.cast<Map<String, dynamic>>();
+          _offlineNotice =
+              'Sem conexão. Exibindo a última lista de tarefas salva neste aparelho.';
+          _loading = false;
+        });
+        return;
+      }
       setState(() => _error = error.toString());
     } finally {
       setState(() => _loading = false);
@@ -238,6 +254,21 @@ class _TasksScreenState extends State<TasksScreen> {
       ),
       body: ListView(
         children: [
+          if (_offlineNotice != null) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_off_outlined),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_offlineNotice!)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),

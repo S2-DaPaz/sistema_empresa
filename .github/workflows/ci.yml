@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Instalar dependências do servidor
+        run: npm ci
+        working-directory: server
+      - name: Rodar testes do servidor
+        run: npm test
+        working-directory: server
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Instalar dependências do web
+        run: npm ci
+        working-directory: web
+      - name: Gerar build do web
+        run: npm run build
+        working-directory: web
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Baixar dependências do mobile
+        run: flutter pub get
+        working-directory: mobile
+      - name: Analisar mobile
+        run: flutter analyze
+        working-directory: mobile
+      - name: Rodar testes do mobile
+        run: flutter test
+        working-directory: mobile

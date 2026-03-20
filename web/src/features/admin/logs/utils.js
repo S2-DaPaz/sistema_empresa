@@ -39,3 +39,32 @@ export async function copyToClipboard(text) {
   await navigator.clipboard.writeText(text);
   return true;
 }
+
+function escapeCsvValue(value) {
+  const normalized = value === undefined || value === null ? "" : String(value);
+  return `"${normalized.replace(/"/g, '""')}"`;
+}
+
+export function toCsv(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return "";
+  }
+
+  const headers = Object.keys(rows[0]);
+  const lines = [
+    headers.map(escapeCsvValue).join(","),
+    ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(","))
+  ];
+
+  return lines.join("\n");
+}
+
+export function downloadTextFile(filename, content, mimeType = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}

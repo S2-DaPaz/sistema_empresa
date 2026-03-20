@@ -1,3 +1,3 @@
-const { initDb } = require("../../../db");
+const { initDb, DB_TYPES } = require("./connection");
 
-module.exports = { initDb };
+module.exports = { initDb, DB_TYPES };

@@ -121,7 +121,7 @@ function createTasksRouter({ db, publicService }) {
       );
       const task = await db.get("SELECT * FROM tasks WHERE id = ?", [result.lastID]);
       await createReportForTask(db, task);
-      publicService.scheduleWarmTaskPdfCache(db, task.id);
+      publicService.scheduleWarmTaskPdfCache(db, task.id, true, req.requestId);
       return sendCreated(res, parseJsonFields(task, ["signature_pages"]));
     })
   );
@@ -157,7 +157,7 @@ function createTasksRouter({ db, publicService }) {
         throw new NotFoundError("Tarefa nao encontrada.");
       }
       await syncReportForTask(db, task);
-      publicService.scheduleWarmTaskPdfCache(db, id);
+      publicService.scheduleWarmTaskPdfCache(db, id, true, req.requestId);
       return send(res, parseJsonFields(task, ["signature_pages"]));
     })
   );
@@ -234,7 +234,7 @@ function createTasksRouter({ db, publicService }) {
       const task = await db.get("SELECT id FROM tasks WHERE id = ?", [taskId]);
       if (!task) throw new NotFoundError("Tarefa nao encontrada.");
       const link = await publicService.ensureTaskPublicLink(db, req, taskId, req.user?.id);
-      publicService.scheduleWarmTaskPdfCache(db, taskId);
+      publicService.scheduleWarmTaskPdfCache(db, taskId, true, req.requestId);
       return send(res, link);
     })
   );
@@ -272,9 +272,7 @@ function createTasksRouter({ db, publicService }) {
     asyncHandler(async (req, res) => {
       const taskId = normalizeId(req.params.id);
       const status = await publicService.getTaskPdfCacheStatus(db, taskId);
-      setImmediate(() => {
-        publicService.warmTaskPdf(db, taskId, true).catch(() => {});
-      });
+      await publicService.queueWarmTaskPdfCache(db, taskId, true, req.requestId);
       return send(res, { ...status, warming: true });
     })
   );

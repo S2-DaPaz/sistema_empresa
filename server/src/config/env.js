@@ -120,6 +120,14 @@ function getEnv() {
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean),
+    jobs: {
+      enabled: String(process.env.JOBS_ENABLED || "true").toLowerCase() !== "false",
+      pollMs: toPositiveNumber(process.env.JOBS_POLL_MS, 2000),
+      batchSize: toPositiveNumber(process.env.JOBS_BATCH_SIZE, 5),
+      maxAttempts: toPositiveNumber(process.env.JOBS_MAX_ATTEMPTS, 5),
+      retryDelaySeconds: toPositiveNumber(process.env.JOBS_RETRY_DELAY_SECONDS, 30),
+      encryptionSecret: process.env.JOBS_ENCRYPTION_SECRET || process.env.AUTH_CODE_SECRET || jwtSecret
+    },
     mobileUpdate: {
       versionCode: Number(process.env.MOBILE_APP_VERSION_CODE || 0),
       versionName: (process.env.MOBILE_APP_VERSION_NAME || "").trim(),

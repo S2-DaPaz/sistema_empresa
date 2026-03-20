@@ -32,8 +32,23 @@ Isso eliminou a mistura anterior de payloads crus, strings de erro avulsas e con
 ## Persistencia
 
 - a compatibilidade dual SQLite/PostgreSQL foi mantida por custo-beneficio
-- o adapter existente em `server/db.js` ainda e a base da persistencia
-- a reforma atual moveu bootstrap HTTP, auth, contratos e modulos para `server/src/`, reduzindo o acoplamento do antigo `server/index.js`
+- a conexao agora vive em `server/src/infrastructure/database/connection.js`
+- o schema foi extraido para migracoes versionadas em `server/src/infrastructure/database/migrations/`
+- `server/db.js` virou apenas uma fachada de compatibilidade para nao quebrar os modulos antigos
+- a tabela `schema_migrations` remove a evolucao manual de schema espalhada pela aplicacao
+
+## Jobs em background
+
+- `server/src/infrastructure/jobs/job.service.js` processa a fila local persistida
+- `server/src/infrastructure/jobs/queued-email.service.js` desacopla envio de e-mail da requisicao HTTP
+- aquecimento de PDF de tarefa e orcamento agora entra em fila via `background_jobs`
+- cada job registra tentativas, ultimo erro, requestId e status para rastreabilidade
+
+## Scripts operacionais
+
+- `npm run migrate --prefix server`
+- `npm run seed:base --prefix server`
+- `npm test --prefix server`
 
 ## Operacao local
 
@@ -43,6 +58,6 @@ Isso eliminou a mistura anterior de payloads crus, strings de erro avulsas e con
 
 ## Proximos cortes recomendados
 
-- extrair `server/db.js` em adapters/repositorios menores com migracoes formais
 - quebrar `public.service.js` em renderer, cache e public-link service
+- ampliar o job runner com dashboard operacional e dead-letter handling
 - adicionar testes de integracao para rotas criticas de tarefas e orcamentos

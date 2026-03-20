@@ -126,9 +126,7 @@ function createBudgetsRouter({ db, publicService }) {
     asyncHandler(async (req, res) => {
       const id = normalizeId(req.params.id);
       const status = await publicService.getBudgetPdfCacheStatus(db, id);
-      setImmediate(() => {
-        publicService.warmBudgetPdf(db, id, true).catch(() => {});
-      });
+      await publicService.queueWarmBudgetPdfCache(db, id, true, req.requestId);
       return send(res, { ...status, warming: true });
     })
   );
@@ -154,7 +152,7 @@ function createBudgetsRouter({ db, publicService }) {
         const budget = await db.get("SELECT id FROM budgets WHERE id = ?", [budgetId]);
       if (!budget) throw new NotFoundError("Orçamento não encontrado.");
         const link = await publicService.ensureBudgetPublicLink(db, req, budgetId, req.user?.id);
-      publicService.scheduleWarmBudgetPdfCache(db, budgetId);
+      publicService.scheduleWarmBudgetPdfCache(db, budgetId, true, req.requestId);
       return send(res, link);
     })
   );
@@ -216,8 +214,8 @@ function createBudgetsRouter({ db, publicService }) {
       budget.items = await db.all("SELECT * FROM budget_items WHERE budget_id = ? ORDER BY id ASC", [
         result.lastID
       ]);
-      publicService.scheduleWarmBudgetPdfCache(db, budget?.id);
-      publicService.scheduleWarmTaskPdfCache(db, budget?.task_id);
+      publicService.scheduleWarmBudgetPdfCache(db, budget?.id, true, req.requestId);
+      publicService.scheduleWarmTaskPdfCache(db, budget?.task_id, true, req.requestId);
       return sendCreated(res, budget);
     })
   );
@@ -282,8 +280,8 @@ function createBudgetsRouter({ db, publicService }) {
         "signature_pages"
       ]);
       budget.items = await db.all("SELECT * FROM budget_items WHERE budget_id = ? ORDER BY id ASC", [id]);
-      publicService.scheduleWarmBudgetPdfCache(db, budget?.id);
-      publicService.scheduleWarmTaskPdfCache(db, budget?.task_id);
+      publicService.scheduleWarmBudgetPdfCache(db, budget?.id, true, req.requestId);
+      publicService.scheduleWarmTaskPdfCache(db, budget?.task_id, true, req.requestId);
       return send(res, budget);
     })
   );
@@ -295,7 +293,7 @@ function createBudgetsRouter({ db, publicService }) {
       const id = normalizeId(req.params.id);
       const existing = await db.get("SELECT task_id FROM budgets WHERE id = ?", [id]);
       await db.run("DELETE FROM budgets WHERE id = ?", [id]);
-      publicService.scheduleWarmTaskPdfCache(db, existing?.task_id);
+      publicService.scheduleWarmTaskPdfCache(db, existing?.task_id, true, req.requestId);
       return send(res, { ok: true });
     })
   );

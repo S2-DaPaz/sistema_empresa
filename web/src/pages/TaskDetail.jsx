@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import { PERMISSIONS, useAuth } from "../contexts/AuthContext";
-import BudgetForm from "../components/BudgetForm";
 import FormField from "../components/FormField";
-import SignaturePad from "../components/SignaturePad";
 import { getFriendlyErrorMessage } from "../shared/errors/error-normalizer";
+import { TaskBudgetsTab } from "../features/tasks/detail/TaskBudgetsTab";
+import { TaskDetailsTab } from "../features/tasks/detail/TaskDetailsTab";
+import { TaskEquipmentsTab } from "../features/tasks/detail/TaskEquipmentsTab";
+import { TaskReportsTab } from "../features/tasks/detail/TaskReportsTab";
+import { TaskSignaturesTab } from "../features/tasks/detail/TaskSignaturesTab";
 import {
   reportStatusOptions as reportStatusOptionsConfig,
   signatureModeOptions as signatureModeOptionsConfig,
@@ -18,84 +21,6 @@ import { buildTaskReportText, createDraftId } from "../features/tasks/task-repor
 import { buildTaskPdfHtml, openPrintWindow } from "../utils/pdf";
 import logo from "../assets/Logo.png";
 
-const statusOptions = [
-  { value: "aberta", label: "Aberta" },
-  { value: "em_andamento", label: "Em andamento" },
-  { value: "concluida", label: "Concluída" }
-];
-
-const priorityOptions = [
-  { value: "alta", label: "Alta" },
-  { value: "media", label: "Média" },
-  { value: "baixa", label: "Baixa" }
-];
-
-const reportStatusOptions = [
-  { value: "rascunho", label: "Rascunho" },
-  { value: "enviado", label: "Enviado" },
-  { value: "finalizado", label: "Finalizado" }
-];
-
-const signatureModeOptions = [
-  { value: "none", label: "Sem assinatura" },
-  { value: "client", label: "Cliente" },
-  { value: "tech", label: "Técnico" },
-  { value: "both", label: "Cliente e Técnico" }
-];
-
-const signatureScopeOptions = [
-  { value: "all_pages", label: "Assinar todas as páginas" },
-  { value: "last_page", label: "Assinar apenas no final" }
-];
-
-const tabs = [
-  { id: "detalhes", label: "Detalhes da tarefa" },
-  { id: "relatorio", label: "Relatório" },
-  { id: "orcamentos", label: "Orçamentos" },
-  { id: "equipamentos", label: "Equipamentos" },
-  { id: "assinaturas", label: "Assinaturas" }
-];
-
-function uid() {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
-
-function buildReportText({ reportTitle, taskTitle, clientName, equipmentName, sections, answers }) {
-  const formatAnswer = (field, value) => {
-    if (field.type === "checkbox") return value ? "Sim" : "Não";
-    if (field.type === "yesno") {
-      if (value === "sim") return "Sim";
-      if (value === "nao") return "Não";
-      return "-";
-    }
-    if (value === 0 || value === "0") return "0";
-    return value || "-";
-  };
-
-  const lines = [];
-  lines.push(`Relatório: ${reportTitle || taskTitle || "Relatório"}`);
-  if (clientName) {
-    lines.push(`Cliente: ${clientName}`);
-  }
-  if (equipmentName) {
-    lines.push(`Equipamento: ${equipmentName}`);
-  }
-  lines.push("");
-
-  (sections || []).forEach((section) => {
-    lines.push(section.title || "Seção");
-    (section.fields || []).forEach((field) => {
-      const value = answers?.[field.id];
-      lines.push(`- ${field.label}: ${formatAnswer(field, value)}`);
-    });
-    lines.push("");
-  });
-
-  return lines.join("\n");
-}
 
 export default function TaskDetail() {
   const { id } = useParams();
@@ -268,6 +193,9 @@ export default function TaskDetail() {
     loadClientEquipments();
   }, [form.client_id]);
 
+  // Preservamos o relatório ativo sempre que recarregamos a lista. Sem isso a
+  // tela tende a "voltar" para o relatório geral após um save, o que confunde
+  // o usuário e dá a impressão de que um novo relatório vazio foi criado.
   async function loadReports(
     taskTypeId,
     typesData = types,
@@ -414,6 +342,8 @@ export default function TaskDetail() {
     );
   }
 
+  // Salvar a tarefa pode disparar sincronização do relatório geral no backend.
+  // Guardamos o relatório ativo antes do save para restaurar o contexto depois.
   async function saveTask() {
     setError("");
     if (!canManage) {
@@ -457,6 +387,8 @@ export default function TaskDetail() {
     await saveTask();
   }
 
+  // O save do relatório recarrega a coleção para refletir mudanças persistidas,
+  // mas sem perder o relatório que o usuário estava editando.
   async function handleSaveReport() {
     if (!canManage) {
       setReportMessage("Sem permissão para editar relatórios.");
@@ -892,585 +824,99 @@ export default function TaskDetail() {
 
         <div className="task-config-body">
           {activeTab === "detalhes" && (
-            <form className="card" onSubmit={handleSubmit}>
-              <div className="inline" style={{ justifyContent: "space-between" }}>
-                <h3>Detalhes da tarefa</h3>
-                <span className="badge">{taskId ? `#${taskId}` : "Nova"}</span>
-              </div>
-              {!canManage && <small className="muted">Somente leitura.</small>}
-              <fieldset style={{ border: "none", padding: 0, margin: 0 }} disabled={!canManage}>
-                <div className="form-grid">
-                  <FormField
-                    label="Titulo"
-                    value={form.title}
-                    onChange={(value) => setForm((prev) => ({ ...prev, title: value }))}
-                  />
-                  <FormField
-                    label="Status"
-                    type="select"
-                    value={form.status}
-                    options={taskStatusOptionsConfig}
-                    onChange={(value) => setForm((prev) => ({ ...prev, status: value }))}
-                  />
-                  <FormField
-                    label="Prioridade"
-                    type="select"
-                    value={form.priority}
-                    options={taskPriorityOptionsConfig}
-                    onChange={(value) => setForm((prev) => ({ ...prev, priority: value }))}
-                  />
-                  <FormField
-                    label="Cliente"
-                    type="select"
-                    value={form.client_id}
-                    options={clients.map((clientItem) => ({
-                      value: clientItem.id,
-                      label: clientItem.name
-                    }))}
-                    onChange={(value) => setForm((prev) => ({ ...prev, client_id: value }))}
-                  />
-                  <FormField
-                    label="Responsavel"
-                    type="select"
-                    value={form.user_id}
-                    options={users.map((user) => ({ value: user.id, label: user.name }))}
-                    onChange={(value) => setForm((prev) => ({ ...prev, user_id: value }))}
-                  />
-                  <FormField
-                    label="Tipo de tarefa"
-                    type="select"
-                    value={form.task_type_id}
-                    options={types.map((type) => ({ value: type.id, label: type.name }))}
-                    onChange={(value) => setForm((prev) => ({ ...prev, task_type_id: value }))}
-                  />
-                  <FormField
-                    label="Inicio"
-                    type="date-br"
-                    value={form.start_date}
-                    onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))}
-                  />
-                  <FormField
-                    label="Fim"
-                    type="date-br"
-                    value={form.due_date}
-                    onChange={(value) => setForm((prev) => ({ ...prev, due_date: value }))}
-                  />
-                  <FormField
-                    label="Descrição"
-                    type="textarea"
-                    value={form.description}
-                    onChange={(value) => setForm((prev) => ({ ...prev, description: value }))}
-                    className="full"
-                  />
-                </div>
-                <div className="inline" style={{ marginTop: "16px" }}>
-                  <button className="btn primary" type="submit" disabled={!canManage}>
-                    {taskId ? "Atualizar" : "Salvar"}
-                  </button>
-                </div>
-              </fieldset>
-            </form>
+            <TaskDetailsTab
+              taskId={taskId}
+              canManage={canManage}
+              form={form}
+              setForm={setForm}
+              clients={clients}
+              users={users}
+              types={types}
+              taskStatusOptions={taskStatusOptionsConfig}
+              taskPriorityOptions={taskPriorityOptionsConfig}
+              onSubmit={handleSubmit}
+            />
           )}
 
           {activeTab === "relatorio" && (
-            <div className="list">
-              {!taskId && (
-                <div className="card">
-                  <small>Salve a tarefa para habilitar o relatório.</small>
-                </div>
-              )}
-
-              {taskId && !selectedTemplate && (
-                <div className="card">
-                  <small>Este tipo de tarefa ainda não possui modelo de relatório.</small>
-                </div>
-              )}
-
-              {taskId && selectedTemplate && reportOptions.length === 0 && (
-                <div className="card">
-                  <div className="section-header">
-                    <h3 className="section-title">Relatórios da tarefa</h3>
-                    <div className="inline">
-                      <button
-                        className="btn primary"
-                        type="button"
-                        onClick={handleCreateReport}
-                        disabled={!canManage}
-                      >
-                        Adicionar relatório
-                      </button>
-                    </div>
-                  </div>
-                  <small>Nenhum relatório cadastrado.</small>
-                  {!form.client_id && (
-                    <small>Selecione um cliente para criar o relatório.</small>
-                  )}
-                  {reportMessage && <small className="muted">{reportMessage}</small>}
-                </div>
-              )}
-
-              {taskId && reportOptions.length > 0 && (
-                <div className="card">
-                  <div className="section-header">
-                    <div>
-                      <h3 className="section-title">Relatórios da tarefa</h3>
-                      <span className="muted">Selecione o relatório para editar</span>
-                    </div>
-                    <div className="inline">
-                      <button
-                        className="btn secondary"
-                        type="button"
-                        onClick={handleCreateReport}
-                        disabled={!canManage}
-                      >
-                        Adicionar relatório
-                      </button>
-                      <button
-                        className="btn ghost"
-                        type="button"
-                        onClick={handleDeleteReport}
-                        disabled={!canManage || !activeReport || activeReport.equipment_id}
-                      >
-                        Excluir relatório
-                      </button>
-                      <img className="report-logo" src={logo} alt="Logo" />
-                    </div>
-                  </div>
-                  <div className="form-grid">
-                    <FormField
-                      label="Relatório"
-                      type="select"
-                      value={activeReportId || ""}
-                      options={reportOptions}
-                      onChange={handleReportSelect}
-                    />
-                    <FormField
-                      label="Status do relatório"
-                      type="select"
-                      value={reportStatus}
-                      options={reportStatusOptionsConfig}
-                      onChange={setReportStatus}
-                      disabled={!canManage}
-                    />
-                  </div>
-
-                  {activeReport?.equipment_id && (
-                    <small className="muted">
-                      Relatórios de equipamentos são gerenciados na aba Equipamentos.
-                    </small>
-                  )}
-
-                  <div className="section-divider" />
-                  <div className="section-header">
-                    <h3 className="section-title">Fotos</h3>
-                    <label className="btn secondary">
-                      Adicionar fotos
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(event) => handleAddPhotos(event.target.files)}
-                        disabled={!canManage}
-                        hidden
-                      />
-                    </label>
-                  </div>
-
-                  {reportPhotos.length === 0 && (
-                    <small>Sem fotos anexadas.</small>
-                  )}
-                  {reportPhotos.length > 0 && (
-                    <div className="photo-grid">
-                      {reportPhotos.map((photo) => (
-                        <div key={photo.id} className="photo-card">
-                          <img src={photo.dataUrl} alt={photo.name} />
-                          <button
-                            className="btn ghost"
-                            type="button"
-                            onClick={() => handleRemovePhoto(photo.id)}
-                            disabled={!canManage}
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="section-divider" />
-                  <div className="section-header">
-                    <h3 className="section-title">Formulario</h3>
-                    <span className="muted">Preencha os dados do relatório</span>
-                  </div>
-
-                  {reportSections.length === 0 && (
-                    <small>Este modelo ainda não possui campos.</small>
-                  )}
-
-                  <div className="report-sections" style={reportLayoutStyle}>
-                    {reportSections.map((section) => (
-                      <div key={section.id} className="card">
-                        <h3>{section.title || "Seção"}</h3>
-                        <div className="report-section-fields">
-                          {(section.fields || []).map((field) => renderReportField(field))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {reportMessage && <small className="muted">{reportMessage}</small>}
-                  <div className="inline" style={{ marginTop: "12px" }}>
-                    <button
-                      className="btn primary"
-                      type="button"
-                      onClick={handleSaveReport}
-                      disabled={!canManage}
-                    >
-                      Salvar relatório
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <TaskReportsTab
+              taskId={taskId}
+              canManage={canManage}
+              selectedTemplate={selectedTemplate}
+              reportOptions={reportOptions}
+              activeReportId={activeReportId}
+              onReportSelect={handleReportSelect}
+              reportStatus={reportStatus}
+              reportStatusOptions={reportStatusOptionsConfig}
+              onReportStatusChange={setReportStatus}
+              activeReport={activeReport}
+              reportPhotos={reportPhotos}
+              onAddPhotos={handleAddPhotos}
+              onRemovePhoto={handleRemovePhoto}
+              reportSections={reportSections}
+              reportLayoutStyle={reportLayoutStyle}
+              renderReportField={renderReportField}
+              reportMessage={reportMessage}
+              onCreateReport={handleCreateReport}
+              onDeleteReport={handleDeleteReport}
+              onSaveReport={handleSaveReport}
+              formClientId={form.client_id}
+              logo={logo}
+            />
           )}
 
           {activeTab === "orcamentos" && (
-            <div className="list">
-              {!taskId && (
-                <div className="card">
-                  <small>Salve a tarefa para liberar os orçamentos.</small>
-                </div>
-              )}
-
-              {taskId && (
-                <>
-                  <div className="card">
-                    <div className="section-header">
-                      <h3 className="section-title">Orçamentos vinculados</h3>
-                    </div>
-                    {budgets.length === 0 && <small>Nenhum orçamento cadastrado.</small>}
-                    {budgets.map((budget) => (
-                      <div key={budget.id} className="card">
-                        <div className="inline" style={{ justifyContent: "space-between" }}>
-                          <strong>Orçamento #{budget.id}</strong>
-                          <span className="badge">{budget.status || "rascunho"}</span>
-                        </div>
-                          <small>Total: {formatter.format(budget.total || 0)}</small>
-                          <div className="list" style={{ marginTop: "8px" }}>
-                            {(budget.items || []).map((item) => (
-                              <div key={item.id} className="card">
-                              <div className="inline" style={{ justifyContent: "space-between" }}>
-                                <span>{item.description}</span>
-                                <span>{formatter.format(item.total || 0)}</span>
-                              </div>
-                              <small>
-                                {item.qty} x {formatter.format(item.unit_price || 0)}
-                                </small>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="inline" style={{ marginTop: "12px" }}>
-                            <button
-                              className="btn ghost"
-                              type="button"
-                              onClick={() => handleShareBudgetLink(budget.id)}
-                              disabled={!taskId}
-                            >
-                              Compartilhar link
-                            </button>
-                            <button
-                              className="btn secondary"
-                              type="button"
-                              onClick={() => handleOpenBudgetPage(budget.id)}
-                              disabled={!taskId}
-                            >
-                              Abrir PDF
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                  <BudgetForm
-                    clientId={form.client_id}
-                    reportId={generalReport?.id}
-                    taskId={taskId}
-                    products={products}
-                    clients={clients}
-                    canManage={canManageBudgets}
-                    onSaved={() => loadBudgets()}
-                  />
-                </>
-              )}
-            </div>
+            <TaskBudgetsTab
+              taskId={taskId}
+              budgets={budgets}
+              formatter={formatter}
+              onShareBudgetLink={handleShareBudgetLink}
+              onOpenBudgetPage={handleOpenBudgetPage}
+              generalReportId={generalReport?.id}
+              formClientId={form.client_id}
+              products={products}
+              clients={clients}
+              canManageBudgets={canManageBudgets}
+              onBudgetsSaved={() => loadBudgets()}
+            />
           )}
 
           {activeTab === "equipamentos" && (
-            <div className="list">
-              {!taskId && (
-                <div className="card">
-                  <small>Salve a tarefa para adicionar equipamentos.</small>
-                </div>
-              )}
-
-              {taskId && (
-                <>
-                  <div className="card">
-                    <div className="section-header">
-                      <h3 className="section-title">Equipamentos da tarefa</h3>
-                    </div>
-                    {taskEquipments.length === 0 && <small>Nenhum equipamento vinculado.</small>}
-                    {taskEquipments.map((equipment) => (
-                      <div key={equipment.id} className="card">
-                        <div className="inline" style={{ justifyContent: "space-between" }}>
-                          <strong>{equipment.name}</strong>
-                          <span className="badge">{equipment.model || "Sem modelo"}</span>
-                        </div>
-                        <small>Serie: {equipment.serial || "-"}</small>
-                        {equipment.description && <small>{equipment.description}</small>}
-                        <div className="inline" style={{ marginTop: "10px" }}>
-                          <button
-                            className="btn secondary"
-                            type="button"
-                            onClick={() => handleOpenEquipmentReport(equipment.id)}
-                          >
-                            Abrir relatório
-                          </button>
-                          <button
-                            className="btn ghost"
-                            type="button"
-                            onClick={() => handleDetachEquipment(equipment.id)}
-                            disabled={!canManage}
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="card">
-                    <div className="section-header">
-                      <h3 className="section-title">Vincular equipamento existente</h3>
-                    </div>
-                    <div className="form-grid">
-                      <FormField
-                        label="Equipamento"
-                        type="select"
-                        value={selectedEquipmentId}
-                        options={equipments.map((item) => ({ value: item.id, label: item.name }))}
-                        onChange={setSelectedEquipmentId}
-                        disabled={!canManage}
-                      />
-                    </div>
-                    <div className="inline" style={{ marginTop: "12px" }}>
-                      <button
-                        className="btn secondary"
-                        type="button"
-                        onClick={handleAttachEquipment}
-                        disabled={!canManage}
-                      >
-                        Vincular
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="card">
-                    <div className="section-header">
-                      <h3 className="section-title">Cadastrar novo equipamento</h3>
-                    </div>
-                    <div className="form-grid">
-                      <FormField
-                        label="Nome"
-                        value={newEquipment.name}
-                        onChange={(value) =>
-                          setNewEquipment((prev) => ({ ...prev, name: value }))
-                        }
-                        disabled={!canManage}
-                      />
-                      <FormField
-                        label="Modelo"
-                        value={newEquipment.model}
-                        onChange={(value) =>
-                          setNewEquipment((prev) => ({ ...prev, model: value }))
-                        }
-                        disabled={!canManage}
-                      />
-                      <FormField
-                        label="Serie"
-                        value={newEquipment.serial}
-                        onChange={(value) =>
-                          setNewEquipment((prev) => ({ ...prev, serial: value }))
-                        }
-                        disabled={!canManage}
-                      />
-                      <FormField
-                        label="Descrição"
-                        type="textarea"
-                        value={newEquipment.description}
-                        onChange={(value) =>
-                          setNewEquipment((prev) => ({ ...prev, description: value }))
-                        }
-                        className="full"
-                        disabled={!canManage}
-                      />
-                    </div>
-                    <div className="inline" style={{ marginTop: "12px" }}>
-                      <button
-                        className="btn primary"
-                        type="button"
-                        onClick={handleCreateEquipment}
-                        disabled={!canManage}
-                      >
-                        Cadastrar e vincular
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+            <TaskEquipmentsTab
+              taskId={taskId}
+              taskEquipments={taskEquipments}
+              canManage={canManage}
+              onOpenEquipmentReport={handleOpenEquipmentReport}
+              onDetachEquipment={handleDetachEquipment}
+              selectedEquipmentId={selectedEquipmentId}
+              setSelectedEquipmentId={setSelectedEquipmentId}
+              equipments={equipments}
+              onAttachEquipment={handleAttachEquipment}
+              newEquipment={newEquipment}
+              setNewEquipment={setNewEquipment}
+              onCreateEquipment={handleCreateEquipment}
+            />
           )}
 
           {activeTab === "assinaturas" && (
-            <div className="list">
-              {!taskId && (
-                <div className="card">
-                  <small>Salve a tarefa para configurar assinaturas.</small>
-                </div>
-              )}
-
-              {taskId && (
-                <div className="card">
-                  <div className="section-header">
-                    <h3 className="section-title">Assinaturas do PDF</h3>
-                  </div>
-                  <div className="form-grid">
-                    <FormField
-                      label="Assinaturas"
-                      type="select"
-                      value={signatureMode}
-                      options={signatureModeOptionsConfig}
-                      onChange={setSignatureMode}
-                      disabled={!canManage}
-                    />
-                    <FormField
-                      label="Aplicação"
-                      type="select"
-                      value={signatureScope}
-                      options={signatureScopeOptionsConfig}
-                      onChange={setSignatureScope}
-                      disabled={!canManage}
-                    />
-                  </div>
-
-                  {signatureScope === "last_page" && (
-                    <>
-                      {(signatureMode === "client" || signatureMode === "both") && (
-                        <div className="card">
-                          <h3>Assinatura do cliente</h3>
-                          <SignaturePad
-                            value={signatureClient}
-                            onChange={setSignatureClient}
-                            disabled={!canManage}
-                          />
-                          {canManage && signatureClient && (
-                            <button
-                              className="btn ghost"
-                              type="button"
-                              onClick={() => setSignatureClient("")}
-                            >
-                              Remover assinatura
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {(signatureMode === "tech" || signatureMode === "both") && (
-                        <div className="card">
-                          <h3>Assinatura do técnico</h3>
-                          <SignaturePad
-                            value={signatureTech}
-                            onChange={setSignatureTech}
-                            disabled={!canManage}
-                          />
-                          {canManage && signatureTech && (
-                            <button
-                              className="btn ghost"
-                              type="button"
-                              onClick={() => setSignatureTech("")}
-                            >
-                              Remover assinatura
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {signatureScope === "all_pages" && signatureMode !== "none" && (
-                    <div className="list" style={{ marginTop: "16px" }}>
-                      {signaturePageItems.length === 0 && (
-                        <small>Sem páginas para assinar.</small>
-                      )}
-                      {signaturePageItems.map((page) => (
-                        <div key={page.key} className="card">
-                          <h3>{page.label}</h3>
-                          {(signatureMode === "client" || signatureMode === "both") && (
-                            <div className="card">
-                              <h3>Assinatura do cliente</h3>
-                              <SignaturePad
-                                value={signaturePages?.[page.key]?.client || ""}
-                                onChange={(value) => updateSignaturePage(page.key, "client", value)}
-                                disabled={!canManage}
-                              />
-                              {canManage && signaturePages?.[page.key]?.client && (
-                                <button
-                                  className="btn ghost"
-                                  type="button"
-                                  onClick={() => updateSignaturePage(page.key, "client", "")}
-                                >
-                                  Remover assinatura
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          {(signatureMode === "tech" || signatureMode === "both") && (
-                            <div className="card">
-                              <h3>Assinatura do técnico</h3>
-                              <SignaturePad
-                                value={signaturePages?.[page.key]?.tech || ""}
-                                onChange={(value) => updateSignaturePage(page.key, "tech", value)}
-                                disabled={!canManage}
-                              />
-                              {canManage && signaturePages?.[page.key]?.tech && (
-                                <button
-                                  className="btn ghost"
-                                  type="button"
-                                  onClick={() => updateSignaturePage(page.key, "tech", "")}
-                                >
-                                  Remover assinatura
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="inline" style={{ marginTop: "16px" }}>
-                    <button
-                      className="btn primary"
-                      type="button"
-                      onClick={saveTask}
-                      disabled={!canManage}
-                    >
-                      Salvar assinaturas
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <TaskSignaturesTab
+              taskId={taskId}
+              canManage={canManage}
+              signatureMode={signatureMode}
+              setSignatureMode={setSignatureMode}
+              signatureScope={signatureScope}
+              setSignatureScope={setSignatureScope}
+              signatureModeOptions={signatureModeOptionsConfig}
+              signatureScopeOptions={signatureScopeOptionsConfig}
+              signatureClient={signatureClient}
+              setSignatureClient={setSignatureClient}
+              signatureTech={signatureTech}
+              setSignatureTech={setSignatureTech}
+              signaturePageItems={signaturePageItems}
+              signaturePages={signaturePages}
+              updateSignaturePage={updateSignaturePage}
+              onSaveTask={saveTask}
+            />
           )}
         </div>
       </div>

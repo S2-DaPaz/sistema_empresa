@@ -11,7 +11,7 @@ function serializeJson(value) {
 
 function buildPagination(query = {}) {
   const page = Math.max(Number(query.page) || 1, 1);
-  const pageSize = Math.min(Math.max(Number(query.pageSize) || 20, 1), 100);
+  const pageSize = Math.min(Math.max(Number(query.pageSize) || 20, 1), 500);
   const offset = (page - 1) * pageSize;
   const sort = String(query.sort || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
   return { page, pageSize, offset, sort };

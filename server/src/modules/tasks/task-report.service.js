@@ -1,8 +1,14 @@
 const { safeJsonParse } = require("../../core/utils/json");
 
+// Este módulo encapsula o vínculo entre tarefa, equipamento e relatório.
+// O objetivo principal é evitar que regras implícitas de criação e
+// sincronização fiquem espalhadas entre controllers, services e clientes.
+
 async function createReportForTask(db, task) {
   if (!task || !task.id || !task.task_type_id) return null;
 
+  // A tarefa possui no máximo um relatório geral ativo. Se ele já existir,
+  // preservamos o registro atual em vez de recriar um rascunho redundante.
   const existing = await db.get(
     "SELECT id FROM reports WHERE task_id = ? AND equipment_id IS NULL ORDER BY id DESC LIMIT 1",
     [task.id]
@@ -45,6 +51,9 @@ async function createReportForTask(db, task) {
 async function syncReportForTask(db, task) {
   if (!task || !task.id) return null;
 
+  // Atualizar a tarefa não deve recriar relatório geral ausente. Essa
+  // distinção evita que exclusões intencionais reapareçam como efeito
+  // colateral de um PUT /tasks/:id.
   const report = await db.get(
     "SELECT * FROM reports WHERE task_id = ? AND equipment_id IS NULL ORDER BY id DESC LIMIT 1",
     [task.id]
@@ -62,6 +71,8 @@ async function syncReportForTask(db, task) {
   let nextTemplateId = report.template_id;
   let nextContent = report.content;
 
+  // Alguns relatórios legados existem sem seções estruturadas. Nesse caso,
+  // reaproveitamos o template atual apenas para hidratar o conteúdo vazio.
   if (!hasSections && typeRow?.report_template_id) {
     const template = await db.get("SELECT structure FROM report_templates WHERE id = ?", [
       typeRow.report_template_id
@@ -88,6 +99,8 @@ async function syncReportForTask(db, task) {
 async function createReportForEquipment(db, task, equipment) {
   if (!task?.id || !task.task_type_id || !equipment?.id) return null;
 
+  // Cada equipamento tem seu próprio relatório para manter inspeções,
+  // respostas e fotos isoladas dentro da mesma tarefa.
   const existing = await db.get(
     "SELECT id FROM reports WHERE task_id = ? AND equipment_id = ? ORDER BY id DESC LIMIT 1",
     [task.id, equipment.id]

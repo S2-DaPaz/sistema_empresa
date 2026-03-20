@@ -31,6 +31,10 @@ const {
   secondsUntil
 } = require("./auth.helpers");
 
+// Este módulo centraliza os fluxos de autenticação sensíveis ao domínio:
+// cadastro, login, verificação de e-mail, recuperação de senha e sessões.
+// A intenção é manter as regras de segurança e negócio fora das rotas.
+
 function buildUserPayload(user) {
   return {
     ...normalizeUser(user),
@@ -50,6 +54,9 @@ function buildAuthPayload(user, env, session, refreshToken) {
   };
 }
 
+// A UI precisa saber quando o código poderá ser reenviado novamente. Usamos o
+// código ativo mais recente como fonte da verdade para manter o cooldown
+// sincronizado com o que o backend realmente aceita.
 function buildVerificationContext(user, env, activeCode = null) {
   return {
     email: user.email,
@@ -62,6 +69,8 @@ function buildVerificationContext(user, env, activeCode = null) {
 
 function ensureEmail(value) {
   const normalized = normalizeEmail(value);
+  // Aceitamos "local" e "localhost" porque o projeto ainda usa credenciais
+  // locais de bootstrap em ambientes de desenvolvimento e smoke tests.
   const emailPattern = /^[^\s@]+@([^\s@]+\.[^\s@]+|local|localhost)$/i;
   if (!normalized || !emailPattern.test(normalized)) {
     throw new ValidationError("Informe um endereço de e-mail válido.");
@@ -162,6 +171,9 @@ function createAuthError(code, message, statusCode = 400, details) {
   });
 }
 
+// Sempre invalidamos os códigos anteriores antes de gerar um novo. Isso reduz
+// ambiguidade para o usuário, impede reutilização acidental e simplifica a
+// auditoria, já que passa a existir apenas um código ativo por finalidade.
 async function issueCode({
   db,
   env,
@@ -219,6 +231,8 @@ async function issueCode({
   return storedCode;
 }
 
+// O refresh token nunca é persistido em texto puro. Apenas o hash fica no
+// banco para reduzir impacto caso alguém consiga ler a tabela de sessões.
 async function createSessionForUser(db, env, user, req) {
   const refreshToken = generateRefreshToken();
   const now = new Date();
@@ -249,6 +263,9 @@ function requirePendingVerification(user) {
   }
 }
 
+// A validação de código consolida expiração, consumo e contagem de tentativas.
+// Centralizar essa regra evita que verificação de e-mail e redefinição de
+// senha evoluam de forma inconsistente.
 async function validateCode({ db, env, user, purpose, code, invalidCodeMessage, expiredCodeMessage }) {
   const currentCode = await repository.findLatestActiveAuthCode(db, user.id, purpose);
   if (!currentCode) {
