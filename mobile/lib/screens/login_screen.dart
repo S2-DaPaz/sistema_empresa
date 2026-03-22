@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../core/config/app_config.dart';
 import '../core/errors/app_exception.dart';
 import '../services/auth_service.dart';
+import '../theme/app_tokens.dart';
+import '../widgets/app_ui.dart';
 import '../widgets/brand_logo.dart';
+import '../widgets/form_fields.dart';
 
 enum _AuthFlow {
   login,
@@ -60,14 +63,11 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _error = error is AppException
           ? error.message
-          : fallback ?? 'Não foi possível concluir a operação no momento.';
+          : fallback ?? 'Não foi possível concluir a operação agora.';
     });
   }
 
-  void _validatePasswordConfirmation(
-    String password,
-    String confirmation,
-  ) {
+  void _validatePasswordConfirmation(String password, String confirmation) {
     if (password != confirmation) {
       throw AppException(
         message: 'As senhas informadas não coincidem.',
@@ -93,10 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (_flow == _AuthFlow.register) {
-        _validatePasswordConfirmation(
-          _password.text,
-          _passwordConfirm.text,
-        );
+        _validatePasswordConfirmation(_password.text, _passwordConfirm.text);
         final data = await AuthService.instance.register(
           _name.text.trim(),
           _email.text.trim(),
@@ -105,7 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _verificationMeta = _asMap(data['verification']);
           _notice = data['message']?.toString() ??
-              'Enviamos um código de verificação para o seu e-mail.';
+              'Conta criada com sucesso. Enviamos um código para o seu e-mail.';
           _flow = _AuthFlow.verifyEmail;
         });
         return;
@@ -125,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         setState(() {
           _notice = data['message']?.toString() ??
-              'Se o e-mail informado estiver cadastrado, você receberá um código para redefinir sua senha.';
+              'Se o e-mail informado estiver cadastrado, você receberá um código para redefinir a senha.';
           _flow = _AuthFlow.verifyResetCode;
         });
         return;
@@ -156,8 +153,8 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         setState(() {
           _flow = _AuthFlow.login;
-          _notice = data['message']?.toString() ??
-              'Senha redefinida com sucesso.';
+          _notice =
+              data['message']?.toString() ?? 'Senha redefinida com sucesso.';
           _password.clear();
           _passwordConfirm.clear();
           _newPassword.clear();
@@ -200,13 +197,12 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _verificationMeta = _asMap(data['verification']) ?? _verificationMeta;
         _notice =
-            data['message']?.toString() ?? 'Enviamos um novo código.';
+            data['message']?.toString() ?? 'Enviamos um novo código de verificação.';
       });
     } catch (error) {
       _setError(
         error,
-        fallback:
-            'Não foi possível reenviar o código de verificação no momento.',
+        fallback: 'Não foi possível reenviar o código de verificação agora.',
       );
     } finally {
       if (mounted) {
@@ -216,19 +212,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Map<String, dynamic>? _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return Map<String, dynamic>.from(value);
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
     return null;
   }
 
   String get _title {
     switch (_flow) {
       case _AuthFlow.login:
-        return 'Acesse a sua conta';
+        return 'Acesse sua conta';
       case _AuthFlow.register:
-        return 'Crie a sua conta';
+        return 'Crie sua conta';
       case _AuthFlow.verifyEmail:
-        return 'Confirme o seu e-mail';
+        return 'Confirme seu e-mail';
       case _AuthFlow.forgotPassword:
         return 'Recupere o acesso';
       case _AuthFlow.verifyResetCode:
@@ -241,22 +241,24 @@ class _LoginScreenState extends State<LoginScreen> {
   String get _subtitle {
     switch (_flow) {
       case _AuthFlow.login:
-        return 'Entre com seu e-mail e senha para continuar.';
+        return 'Entre com e-mail e senha para continuar no ambiente operacional.';
       case _AuthFlow.register:
-        return 'Cadastre uma nova conta para acessar o sistema.';
+        return 'Cadastre uma nova conta para começar a usar o sistema.';
       case _AuthFlow.verifyEmail:
-        return 'Informe o código enviado para o seu e-mail.';
+        return 'Informe o código enviado para o e-mail cadastrado.';
       case _AuthFlow.forgotPassword:
         return 'Informe o e-mail cadastrado para receber o código de recuperação.';
       case _AuthFlow.verifyResetCode:
-        return 'Digite o código recebido para continuar.';
+        return 'Digite o código recebido para validar a redefinição.';
       case _AuthFlow.resetPassword:
         return 'Crie uma nova senha para concluir a recuperação.';
     }
   }
 
   String get _submitLabel {
-    if (_loading) return 'Aguarde...';
+    if (_loading) {
+      return 'Aguarde...';
+    }
     switch (_flow) {
       case _AuthFlow.login:
         return 'Entrar';
@@ -273,241 +275,209 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  int get _progressStep {
+    switch (_flow) {
+      case _AuthFlow.register:
+        return 1;
+      case _AuthFlow.verifyEmail:
+      case _AuthFlow.verifyResetCode:
+      case _AuthFlow.resetPassword:
+        return 2;
+      default:
+        return 1;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final maskedEmail = _verificationMeta?['maskedEmail']?.toString();
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              isDark ? const Color(0xFF0F1B2A) : const Color(0xFFF6FAFD),
-              isDark ? const Color(0xFF0B1320) : const Color(0xFFEAF2F8),
-            ],
-          ),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AppTokens.softBackgroundGradient,
         ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(22),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isCompact = constraints.maxWidth < 300;
-                          final brandText = Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppConfig.appName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                AppConfig.appTagline,
-                                maxLines: isCompact ? 3 : 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          );
-
-                          if (isCompact) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Align(
-                                  alignment: Alignment.centerRight,
-                                  child: BrandLogo(height: 40),
-                                ),
-                                const SizedBox(height: 12),
-                                brandText,
-                              ],
-                            );
-                          }
-
-                          return Row(
-                            children: [
-                              const BrandLogo(height: 44),
-                              const SizedBox(width: 12),
-                              Expanded(child: brandText),
-                            ],
-                          );
-                        },
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(AppTokens.space5),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppHeroBanner(
+                      title: AppConfig.appName,
+                      subtitle: AppConfig.appTagline,
+                      trailing: const CircleAvatar(
+                        radius: 28,
+                        backgroundColor: Color(0x1FFFFFFF),
+                        child: BrandLogo(height: 34),
                       ),
-                      const SizedBox(height: 18),
-                      Text(
-                        _title,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                      metrics: [
+                        AppHeroMetric(
+                          label: 'Etapa',
+                          value: _flow == _AuthFlow.login ? 'Login' : 'Conta',
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _subtitle,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 18),
-                      if (_flow == _AuthFlow.login ||
-                          _flow == _AuthFlow.register) ...[
-                        SegmentedButton<_AuthFlow>(
-                          segments: const [
-                            ButtonSegment(
-                              value: _AuthFlow.login,
-                              label: Text('Entrar'),
+                        AppHeroMetric(
+                          label: 'Fluxo',
+                          value: _flow == _AuthFlow.login ? 'Acesso' : 'Verificação',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppTokens.space5),
+                    AppSurface(
+                      padding: const EdgeInsets.all(AppTokens.space5),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_flow == _AuthFlow.login ||
+                              _flow == _AuthFlow.register) ...[
+                            SegmentedButton<_AuthFlow>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: _AuthFlow.login,
+                                  label: Text('Entrar'),
+                                ),
+                                ButtonSegment(
+                                  value: _AuthFlow.register,
+                                  label: Text('Criar conta'),
+                                ),
+                              ],
+                              selected: {_flow},
+                              onSelectionChanged: _loading
+                                  ? null
+                                  : (value) => _switchTo(value.first),
                             ),
-                            ButtonSegment(
-                              value: _AuthFlow.register,
-                              label: Text('Criar conta'),
+                            const SizedBox(height: AppTokens.space5),
+                          ],
+                          _FlowProgress(step: _progressStep),
+                          const SizedBox(height: AppTokens.space4),
+                          Text(
+                            _title,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _subtitle,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: AppTokens.space5),
+                          if (_notice != null) ...[
+                            AppMessageBanner(
+                              message: _notice!,
+                              icon: Icons.mark_email_read_outlined,
+                            ),
+                            const SizedBox(height: AppTokens.space3),
+                          ],
+                          if (_error != null) ...[
+                            AppMessageBanner(
+                              message: _error!,
+                              icon: Icons.error_outline_rounded,
+                              toneColor: Theme.of(context).colorScheme.error,
+                            ),
+                            const SizedBox(height: AppTokens.space3),
+                          ],
+                          if (_flow == _AuthFlow.register) ...[
+                            AppTextField(
+                              label: 'Nome completo',
+                              controller: _name,
+                              hintText: 'Informe seu nome completo',
+                            ),
+                            const SizedBox(height: AppTokens.space4),
+                          ],
+                          AppTextField(
+                            label: 'E-mail',
+                            controller: _email,
+                            keyboardType: TextInputType.emailAddress,
+                            enabled: ![
+                              _AuthFlow.verifyEmail,
+                              _AuthFlow.verifyResetCode,
+                              _AuthFlow.resetPassword,
+                            ].contains(_flow),
+                            hintText: 'voce@empresa.com.br',
+                          ),
+                          if (_flow == _AuthFlow.login ||
+                              _flow == _AuthFlow.register) ...[
+                            const SizedBox(height: AppTokens.space4),
+                            AppTextField(
+                              label: 'Senha',
+                              controller: _password,
+                              obscureText: true,
+                              hintText: 'Digite sua senha',
+                              suffixIcon: const Icon(Icons.lock_outline_rounded),
                             ),
                           ],
-                          selected: {_flow},
-                          onSelectionChanged: _loading
-                              ? null
-                              : (value) => _switchTo(value.first),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      if (_notice != null) ...[
-                        _MessageCard(
-                          text: _notice!,
-                          toneColor: theme.colorScheme.primary,
-                          backgroundColor:
-                              theme.colorScheme.primary.withValues(alpha: 0.08),
-                          borderColor:
-                              theme.colorScheme.primary.withValues(alpha: 0.18),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      if (_error != null) ...[
-                        _MessageCard(
-                          text: _error!,
-                          toneColor: theme.colorScheme.error,
-                          backgroundColor:
-                              theme.colorScheme.error.withValues(alpha: 0.08),
-                          borderColor:
-                              theme.colorScheme.error.withValues(alpha: 0.18),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      if (_flow == _AuthFlow.register) ...[
-                        TextField(
-                          controller: _name,
-                          textInputAction: TextInputAction.next,
-                          decoration:
-                              const InputDecoration(labelText: 'Nome completo'),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      TextField(
-                        controller: _email,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        enabled: ![
-                          _AuthFlow.verifyEmail,
-                          _AuthFlow.verifyResetCode,
-                          _AuthFlow.resetPassword,
-                        ].contains(_flow),
-                        decoration: const InputDecoration(labelText: 'E-mail'),
-                      ),
-                      if (_flow == _AuthFlow.login || _flow == _AuthFlow.register) ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _password,
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          decoration: const InputDecoration(labelText: 'Senha'),
-                        ),
-                      ],
-                      if (_flow == _AuthFlow.register) ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _passwordConfirm,
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          decoration:
-                              const InputDecoration(labelText: 'Confirmar senha'),
-                        ),
-                      ],
-                      if (_flow == _AuthFlow.verifyEmail ||
-                          _flow == _AuthFlow.verifyResetCode) ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _code,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          onChanged: (value) {
-                            final digitsOnly =
-                                value.replaceAll(RegExp(r'[^0-9]'), '');
-                            if (digitsOnly != value) {
-                              _code.value = TextEditingValue(
-                                text: digitsOnly,
-                                selection: TextSelection.collapsed(
-                                  offset: digitsOnly.length,
-                                ),
-                              );
-                            }
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Código',
-                            hintText: 'Informe o código de 6 dígitos',
+                          if (_flow == _AuthFlow.register) ...[
+                            const SizedBox(height: AppTokens.space4),
+                            AppTextField(
+                              label: 'Confirmar senha',
+                              controller: _passwordConfirm,
+                              obscureText: true,
+                              hintText: 'Repita a senha informada',
+                              suffixIcon: const Icon(Icons.lock_outline_rounded),
+                            ),
+                          ],
+                          if (_flow == _AuthFlow.verifyEmail ||
+                              _flow == _AuthFlow.verifyResetCode) ...[
+                            const SizedBox(height: AppTokens.space4),
+                            AppTextField(
+                              label: 'Código de verificação',
+                              controller: _code,
+                              keyboardType: TextInputType.number,
+                              hintText: 'Informe o código de 6 dígitos',
+                              onChanged: (value) {
+                                final digitsOnly =
+                                    value.replaceAll(RegExp(r'[^0-9]'), '');
+                                if (digitsOnly != value) {
+                                  _code.value = TextEditingValue(
+                                    text: digitsOnly,
+                                    selection: TextSelection.collapsed(
+                                      offset: digitsOnly.length,
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            if (_flow == _AuthFlow.verifyEmail &&
+                                maskedEmail != null &&
+                                maskedEmail.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Código enviado para $maskedEmail.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ],
+                          if (_flow == _AuthFlow.resetPassword) ...[
+                            const SizedBox(height: AppTokens.space4),
+                            AppTextField(
+                              label: 'Nova senha',
+                              controller: _newPassword,
+                              obscureText: true,
+                              hintText: 'Crie uma nova senha',
+                              suffixIcon: const Icon(Icons.lock_outline_rounded),
+                            ),
+                            const SizedBox(height: AppTokens.space4),
+                            AppTextField(
+                              label: 'Confirmar nova senha',
+                              controller: _newPasswordConfirm,
+                              obscureText: true,
+                              hintText: 'Repita a nova senha',
+                              suffixIcon: const Icon(Icons.lock_outline_rounded),
+                            ),
+                          ],
+                          const SizedBox(height: AppTokens.space5),
+                          ElevatedButton(
+                            onPressed: _loading ? null : _submit,
+                            child: Text(_submitLabel),
                           ),
-                        ),
-                        if (_flow == _AuthFlow.verifyEmail &&
-                            maskedEmail != null &&
-                            maskedEmail.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            'Código enviado para $maskedEmail.',
-                            style: theme.textTheme.bodySmall,
-                          ),
+                          const SizedBox(height: AppTokens.space3),
+                          _buildFooterActions(),
                         ],
-                      ],
-                      if (_flow == _AuthFlow.resetPassword) ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _newPassword,
-                          obscureText: true,
-                          textInputAction: TextInputAction.next,
-                          decoration:
-                              const InputDecoration(labelText: 'Nova senha'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _newPasswordConfirm,
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          decoration: const InputDecoration(
-                            labelText: 'Confirmar nova senha',
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loading ? null : _submit,
-                        child: Text(_submitLabel),
                       ),
-                      const SizedBox(height: 12),
-                      _buildFooterActions(theme),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -517,7 +487,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildFooterActions(ThemeData theme) {
+  Widget _buildFooterActions() {
+    final bodySmall = Theme.of(context).textTheme.bodySmall;
+
     switch (_flow) {
       case _AuthFlow.login:
         return Column(
@@ -527,9 +499,9 @@ class _LoginScreenState extends State<LoginScreen> {
               child: const Text('Esqueci minha senha'),
             ),
             Text(
-              'A conta precisa estar verificada para liberar o acesso.',
+              'A conta precisa estar verificada para liberar o acesso completo.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall,
+              style: bodySmall,
             ),
           ],
         );
@@ -537,12 +509,13 @@ class _LoginScreenState extends State<LoginScreen> {
         return Text(
           'Novos cadastros são criados como visitante até a confirmação do e-mail.',
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall,
+          style: bodySmall,
         );
       case _AuthFlow.verifyEmail:
         return Wrap(
           alignment: WrapAlignment.center,
           spacing: 8,
+          runSpacing: 0,
           children: [
             TextButton(
               onPressed: _loading ? null : _resendVerificationCode,
@@ -566,8 +539,7 @@ class _LoginScreenState extends State<LoginScreen> {
           spacing: 8,
           children: [
             TextButton(
-              onPressed:
-                  _loading ? null : () => _switchTo(_AuthFlow.forgotPassword),
+              onPressed: _loading ? null : () => _switchTo(_AuthFlow.forgotPassword),
               child: const Text('Alterar e-mail'),
             ),
             TextButton(
@@ -580,32 +552,29 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _MessageCard extends StatelessWidget {
-  const _MessageCard({
-    required this.text,
-    required this.toneColor,
-    required this.backgroundColor,
-    required this.borderColor,
-  });
+class _FlowProgress extends StatelessWidget {
+  const _FlowProgress({required this.step});
 
-  final String text;
-  final Color toneColor;
-  final Color backgroundColor;
-  final Color borderColor;
+  final int step;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(color: toneColor),
+    final activeColor = Theme.of(context).colorScheme.primary;
+    final idleColor =
+        Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.7);
+    return Row(
+      children: List.generate(
+        2,
+        (index) => Expanded(
+          child: Container(
+            height: 6,
+            margin: EdgeInsets.only(right: index == 0 ? 8 : 0),
+            decoration: BoxDecoration(
+              color: index < step ? activeColor : idleColor,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ),
       ),
     );
   }

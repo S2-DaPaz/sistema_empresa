@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../theme/app_tokens.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/section_header.dart';
+import '../widgets/app_ui.dart';
+import '../widgets/loading_view.dart';
 
 class ErrorLogsScreen extends StatefulWidget {
   const ErrorLogsScreen({super.key});
@@ -62,15 +64,20 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
         '/admin/error-logs?${Uri(queryParameters: query).query}',
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _items = List<dynamic>.from(envelope['data'] as List? ?? const []);
         _loading = false;
       });
-    } catch (error) {
-      if (!mounted) return;
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
-        _error = error.toString();
+        _error = 'Não foi possível carregar os logs de erro.';
         _loading = false;
       });
     }
@@ -106,12 +113,12 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      Chip(label: Text(map['severity']?.toString() ?? 'erro')),
-                      Chip(
-                        label: Text(map['platform']?.toString() ?? 'mobile'),
-                      ),
-                      Chip(
-                        label: Text(map['module']?.toString() ?? 'sistema'),
+                      AppStatusPill(label: _severityLabel(map['severity'])),
+                      AppStatusPill(label: _platformLabel(map['platform'])),
+                      AppStatusPill(
+                        label: map['resolved_at'] == null
+                            ? 'Pendente'
+                            : 'Resolvido',
                       ),
                     ],
                   ),
@@ -134,7 +141,6 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                     title: 'Payload seguro',
                     value: _prettyJson(map['payload_json']),
                   ),
-                  const SizedBox(height: 12),
                   FilledButton.tonal(
                     onPressed: () async {
                       await Clipboard.setData(
@@ -157,10 +163,12 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
           );
         },
       );
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        const SnackBar(
+          content: Text('Não foi possível carregar os detalhes do log.'),
+        ),
       );
     }
   }
@@ -204,162 +212,196 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
     return value.toString();
   }
 
+  String _severityLabel(dynamic value) {
+    return value?.toString() == 'warning' ? 'Alerta' : 'Erro';
+  }
+
+  String _platformLabel(dynamic value) {
+    switch (value?.toString()) {
+      case 'web':
+        return 'Web';
+      case 'mobile':
+        return 'Mobile';
+      case 'backend':
+        return 'Backend';
+      default:
+        return 'Sistema';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!AuthService.instance.isAdmin) {
+      return const AppScaffold(
+        title: 'Logs de erro',
+        body: Center(
+          child: Text('Somente administradores podem acessar os logs de erro.'),
+        ),
+      );
+    }
+
+    final openItems = _items
+        .where((item) => (item as Map)['resolved_at'] == null)
+        .length;
+
     return AppScaffold(
       title: 'Logs de erro',
+      subtitle: 'Falhas técnicas, investigação e resolução',
       actions: [
         IconButton(
           onPressed: _loading ? null : _load,
-          icon: const Icon(Icons.refresh),
+          icon: const Icon(Icons.refresh_rounded),
         ),
       ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!AuthService.instance.isAdmin)
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Somente administradores podem acessar os logs de erro.',
-                ),
-              ),
-            )
-          else ...[
-            const SectionHeader(
-              title: 'Falhas técnicas',
-              subtitle: 'Erros do backend e falhas reportadas por web ou mobile.',
+          AppHeroBanner(
+            title: 'Logs administrativos',
+            subtitle: 'Falhas registradas pelo backend, web e mobile com contexto.',
+            metrics: [
+              AppHeroMetric(label: 'Abertos', value: '$openItems'),
+              AppHeroMetric(label: 'Total', value: '${_items.length}'),
+            ],
+          ),
+          const SizedBox(height: AppTokens.space4),
+          AppSearchField(
+            controller: _searchController,
+            hintText: 'Buscar por mensagem, usuário ou endpoint',
+            onSubmitted: (_) => _load(),
+            trailing: IconButton(
+              onPressed: _load,
+              icon: const Icon(Icons.search_rounded),
             ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _searchController,
-                      onSubmitted: (_) => _load(),
-                      decoration: InputDecoration(
-                        labelText: 'Buscar por mensagem, usuário ou endpoint',
-                        suffixIcon: IconButton(
-                          onPressed: _load,
-                          icon: const Icon(Icons.search),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _severity.isEmpty ? null : _severity,
-                            decoration:
-                                const InputDecoration(labelText: 'Severidade'),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'error',
-                                child: Text('Erro'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'warning',
-                                child: Text('Alerta'),
-                              ),
-                            ],
-                            onChanged: (value) =>
-                                setState(() => _severity = value ?? ''),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _platform.isEmpty ? null : _platform,
-                            decoration:
-                                const InputDecoration(labelText: 'Plataforma'),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'web',
-                                child: Text('Web'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'mobile',
-                                child: Text('Mobile'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'backend',
-                                child: Text('Backend'),
-                              ),
-                            ],
-                            onChanged: (value) =>
-                                setState(() => _platform = value ?? ''),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(
-                          value: 'false',
-                          label: Text('Pendentes'),
-                        ),
-                        ButtonSegment(
-                          value: 'true',
-                          label: Text('Resolvidos'),
-                        ),
-                        ButtonSegment(
-                          value: '',
-                          label: Text('Todos'),
-                        ),
-                      ],
-                      selected: {_resolved},
-                      onSelectionChanged: (selection) {
-                        setState(() => _resolved = selection.first);
-                      },
-                    ),
-                  ],
+          ),
+          const SizedBox(height: AppTokens.space3),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in const <MapEntry<String, String>>[
+                MapEntry('', 'Todas as severidades'),
+                MapEntry('error', 'Erro'),
+                MapEntry('warning', 'Alerta'),
+              ])
+                ChoiceChip(
+                  label: Text(entry.value),
+                  selected: _severity == entry.key,
+                  onSelected: (_) => setState(() => _severity = entry.key),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(child: Text(_error!))
-                      : _items.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'Nenhum log encontrado com os filtros atuais.',
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: _items.length,
-                              itemBuilder: (context, index) {
-                                final item =
-                                    Map<String, dynamic>.from(_items[index] as Map);
-                                return Card(
-                                  child: ListTile(
-                                    onTap: () => _openDetail(item),
-                                    title: Text(
-                                      item['friendly_message']?.toString() ??
-                                          'Falha sem descrição amigável.',
-                                    ),
-                                    subtitle: Text(
-                                      '${_formatDate(item['created_at'])} • ${item['module'] ?? 'sistema'} • ${item['platform'] ?? 'plataforma'}',
-                                    ),
-                                    trailing: Chip(
-                                      label: Text(
-                                        item['resolved_at'] == null
-                                            ? 'Pendente'
-                                            : 'Resolvido',
+            ],
+          ),
+          const SizedBox(height: AppTokens.space3),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in const <MapEntry<String, String>>[
+                MapEntry('false', 'Pendentes'),
+                MapEntry('true', 'Resolvidos'),
+                MapEntry('', 'Todos'),
+              ])
+                ChoiceChip(
+                  label: Text(entry.value),
+                  selected: _resolved == entry.key,
+                  onSelected: (_) => setState(() => _resolved = entry.key),
+                ),
+              for (final entry in const <MapEntry<String, String>>[
+                MapEntry('', 'Plataforma'),
+                MapEntry('web', 'Web'),
+                MapEntry('mobile', 'Mobile'),
+                MapEntry('backend', 'Backend'),
+              ])
+                ChoiceChip(
+                  label: Text(entry.value),
+                  selected: _platform == entry.key,
+                  onSelected: (_) => setState(() => _platform = entry.key),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.space4),
+          Expanded(
+            child: _loading
+                ? const LoadingView(message: 'Carregando logs...')
+                : _error != null
+                    ? AppMessageBanner(
+                        message: _error!,
+                        icon: Icons.error_outline_rounded,
+                        toneColor: Theme.of(context).colorScheme.error,
+                      )
+                    : _items.isEmpty
+                        ? const EmptyStateCard(
+                            title: 'Nenhum log encontrado',
+                            subtitle:
+                                'Ajuste os filtros para localizar falhas de outro período ou plataforma.',
+                          )
+                        : ListView.builder(
+                            itemCount: _items.length,
+                            itemBuilder: (context, index) {
+                              final item =
+                                  Map<String, dynamic>.from(_items[index] as Map);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: AppSurface(
+                                  onTap: () => _openDetail(item),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 42,
+                                        height: 42,
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error
+                                              .withValues(alpha: 0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                        ),
+                                        child: Icon(
+                                          Icons.error_outline_rounded,
+                                          color: Theme.of(context).colorScheme.error,
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(width: AppTokens.space3),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item['friendly_message']
+                                                      ?.toString() ??
+                                                  'Falha sem descrição amigável.',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleSmall,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${_formatDate(item['created_at'])} • ${item['module'] ?? 'sistema'} • ${_platformLabel(item['platform'])}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      AppStatusPill(
+                                        label: item['resolved_at'] == null
+                                            ? 'aberto'
+                                            : 'resolvido',
+                                        color: item['resolved_at'] == null
+                                            ? Theme.of(context).colorScheme.error
+                                            : AppTokens.supportTeal,
+                                      ),
+                                    ],
                                   ),
-                                );
-                              },
-                            ),
-            ),
-          ],
+                                ),
+                              );
+                            },
+                          ),
+          ),
         ],
       ),
     );

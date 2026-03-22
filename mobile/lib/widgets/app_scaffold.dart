@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/navigation/route_tracker.dart';
+import '../theme/app_tokens.dart';
 import 'brand_logo.dart';
 
 class AppScaffold extends StatelessWidget {
@@ -8,7 +9,9 @@ class AppScaffold extends StatelessWidget {
     super.key,
     required this.title,
     required this.body,
+    this.subtitle,
     this.actions,
+    this.leading,
     this.floatingActionButton,
     this.showAppBar = true,
     this.showLogo = true,
@@ -17,8 +20,10 @@ class AppScaffold extends StatelessWidget {
   });
 
   final String title;
+  final String? subtitle;
   final Widget body;
   final List<Widget>? actions;
+  final Widget? leading;
   final FloatingActionButton? floatingActionButton;
   final bool showAppBar;
   final bool showLogo;
@@ -29,96 +34,121 @@ class AppScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     RouteTracker.instance.update(title);
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final titleWidget = showLogo
-        ? Row(
-            children: [
+
+    final titleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            if (showLogo) ...[
               BrandLogo(height: logoHeight),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
+              const SizedBox(width: 10),
             ],
-          )
-        : Text(title);
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ],
+    );
+
     return Scaffold(
+      extendBody: true,
       appBar: showAppBar
           ? AppBar(
+              leading: leading,
               title: titleWidget,
               actions: actions,
             )
           : null,
       floatingActionButton: floatingActionButton,
-      body: Container(
+      body: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              isDark ? const Color(0xFF0F1B2A) : const Color(0xFFF6FAFD),
-              isDark ? const Color(0xFF0B1320) : const Color(0xFFEAF2F8),
-            ],
-          ),
+          gradient: isDark
+              ? const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF0F1826),
+                    Color(0xFF0B1320),
+                  ],
+                )
+              : AppTokens.softBackgroundGradient,
         ),
         child: Stack(
           children: [
             Positioned(
-              top: -120,
-              right: -60,
-              child: _GlowCircle(
-                size: 220,
-                color: colors.primary.withValues(alpha: isDark ? 0.12 : 0.16),
+              top: -60,
+              left: 80,
+              right: 80,
+              height: 220,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.colorScheme.primary.withValues(alpha: 0.12),
+                        theme.colorScheme.secondary.withValues(alpha: 0.06),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
             Positioned(
-              bottom: -140,
-              left: -80,
-              child: _GlowCircle(
-                size: 260,
-                color: colors.secondary.withValues(alpha: isDark ? 0.12 : 0.16),
+              top: 0,
+              bottom: 0,
+              left: 88,
+              width: 1,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.48),
+                  ),
+                ),
               ),
             ),
             Positioned(
-              top: 180,
-              left: -40,
-              child: _GlowCircle(
-                size: 160,
-                color: colors.tertiary.withValues(alpha: isDark ? 0.08 : 0.12),
+              top: 0,
+              bottom: 0,
+              right: 112,
+              width: 1,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.38),
+                  ),
+                ),
               ),
             ),
             SafeArea(
               child: Padding(
-                padding: padding ?? const EdgeInsets.all(16),
+                padding: padding ??
+                    const EdgeInsets.fromLTRB(
+                      AppTokens.space4,
+                      AppTokens.space4,
+                      AppTokens.space4,
+                      AppTokens.space4,
+                    ),
                 child: body,
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GlowCircle extends StatelessWidget {
-  const _GlowCircle({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
         ),
       ),
     );

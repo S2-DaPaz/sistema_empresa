@@ -22,6 +22,7 @@ import '../services/permissions.dart';
 import '../utils/formatters.dart';
 import '../utils/report_text.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_ui.dart';
 import '../widgets/budget_form.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/form_fields.dart';
@@ -1825,6 +1826,28 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     );
   }
 
+  String _statusLabel(String value) {
+    switch (value) {
+      case 'em_andamento':
+        return 'Em andamento';
+      case 'concluida':
+        return 'Concluída';
+      default:
+        return 'Aberta';
+    }
+  }
+
+  String _priorityLabel(String value) {
+    switch (value) {
+      case 'alta':
+        return 'Alta';
+      case 'baixa':
+        return 'Baixa';
+      default:
+        return 'Média';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -1834,63 +1857,130 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       return AppScaffold(title: 'Tarefa', body: Center(child: Text(_error!)));
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const BrandLogo(height: 22),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _taskId == null ? 'Nova tarefa' : 'Tarefa #$_taskId',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+    final clientName = _clients
+        .firstWhere(
+          (item) => item['id'] == _clientId,
+          orElse: () => <String, dynamic>{},
+        )['name']
+        ?.toString() ??
+        'Sem cliente';
+    final taskTypeName = _types
+        .firstWhere(
+          (item) => item['id'] == _taskTypeId,
+          orElse: () => <String, dynamic>{},
+        )['name']
+        ?.toString();
+    final heroTitle = _title.text.trim().isEmpty
+        ? (_taskId == null ? 'Nova tarefa' : 'Detalhe da tarefa')
+        : _title.text.trim();
+
+    return AppScaffold(
+      title: _taskId == null ? 'Nova tarefa' : 'Tarefa #$_taskId',
+      subtitle: clientName,
+      showLogo: false,
+      body: Column(
+        children: [
+          AppHeroBanner(
+            title: heroTitle,
+            subtitle: [
+              clientName,
+              if (taskTypeName != null && taskTypeName.isNotEmpty) taskTypeName,
+            ].join(' • '),
+            trailing: const CircleAvatar(
+              radius: 24,
+              backgroundColor: Color(0x1FFFFFFF),
+              child: BrandLogo(height: 28),
             ),
-          ],
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabs: const [
-            Tab(text: 'Detalhes'),
-            Tab(text: 'Relatório'),
-            Tab(text: 'Orçamentos'),
-            Tab(text: 'Assinaturas'),
-          ],
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: Theme.of(context).brightness == Brightness.dark
-                ? const [Color(0xFF0F1B2A), Color(0xFF0B1320)]
-                : const [Color(0xFFF6FAFD), Color(0xFFEAF2F8)],
+            metrics: [
+              AppHeroMetric(label: 'Status', value: _statusLabel(_status)),
+              AppHeroMetric(label: 'Prioridade', value: _priorityLabel(_priority)),
+              AppHeroMetric(label: 'Relatórios', value: '${_reports.length}'),
+            ],
           ),
-        ),
-        child: Column(
-          children: [
-            if (_shouldShowOfflineBanner)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: _buildOfflineBanner(context),
-              ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildDetailsTab(),
-                  _buildReportTab(),
-                  _buildBudgetsTab(),
-                  _buildSignatureTab(),
-                ],
-              ),
+          const SizedBox(height: 16),
+          AppSurface(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _SummaryInfo(
+                    title: 'Cliente e local',
+                    value: clientName,
+                    caption: _description.text.trim().isEmpty
+                        ? 'Sem observação inicial registrada.'
+                        : _description.text.trim(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _SummaryInfo(
+                    title: 'Próxima ação',
+                    value: _reports.isEmpty ? 'Criar relatório' : 'Atualizar execução',
+                    caption:
+                        '${_budgets.length} orçamento(s) • ${_equipments.length} equipamento(s)',
+                  ),
+                ),
+              ],
             ),
+          ),
+          if (_shouldShowOfflineBanner) ...[
+            const SizedBox(height: 12),
+            _buildOfflineBanner(context),
           ],
-        ),
+          const SizedBox(height: 16),
+          AppSurface(
+            padding: const EdgeInsets.all(6),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: const [
+                Tab(text: 'Detalhes'),
+                Tab(text: 'Relatório'),
+                Tab(text: 'Orçamentos'),
+                Tab(text: 'Assinaturas'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildDetailsTab(),
+                _buildReportTab(),
+                _buildBudgetsTab(),
+                _buildSignatureTab(),
+              ],
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _SummaryInfo extends StatelessWidget {
+  const _SummaryInfo({
+    required this.title,
+    required this.value,
+    required this.caption,
+  });
+
+  final String title;
+  final String value;
+  final String caption;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Text(value, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Text(caption, style: Theme.of(context).textTheme.bodySmall),
+      ],
     );
   }
 }

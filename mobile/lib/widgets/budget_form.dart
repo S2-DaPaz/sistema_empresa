@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../models/budget_item.dart';
 import '../screens/budget_item_form_page.dart';
 import '../services/api_service.dart';
+import '../theme/app_tokens.dart';
 import '../utils/formatters.dart';
+import 'app_ui.dart';
 import 'form_fields.dart';
 import 'signature_pad.dart';
 
@@ -234,6 +236,28 @@ class _BudgetFormState extends State<BudgetForm> {
     return _subtotal - discount + tax;
   }
 
+  String _clientLabel(int? clientId) {
+    if (clientId == null) {
+      return 'Cliente não selecionado';
+    }
+    final match = widget.clients.firstWhere(
+      (client) => client['id'] == clientId,
+      orElse: () => {},
+    );
+    return match['name']?.toString() ?? 'Cliente #$clientId';
+  }
+
+  String _statusLabel() {
+    switch (_status) {
+      case 'aprovado':
+        return 'Aprovado';
+      case 'recusado':
+        return 'Recusado';
+      default:
+        return 'Em andamento';
+    }
+  }
+
   Future<void> _save() async {
     setState(() {
       _saving = true;
@@ -323,24 +347,65 @@ class _BudgetFormState extends State<BudgetForm> {
 
     final isEditing = widget.initialBudget != null;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
             Text(
               isEditing ? 'Editar orçamento' : 'Novo orçamento',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 12),
-            if (widget.clientId == null)
-              AppDropdownField<int>(
-                label: 'Cliente',
-                value: _localClientId,
-                items: clientOptions,
-                onChanged: (value) => setState(() => _localClientId = value),
+        const SizedBox(height: AppTokens.space5),
+            AppSurface(
+              backgroundColor: AppTokens.bgSoft,
+              shadow: const [],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Contexto',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: AppTokens.space3),
+                  Text(
+                    _clientLabel(widget.clientId ?? _localClientId),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Status atual: ${_statusLabel()}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  if (widget.taskId != null || widget.reportId != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Vinculado à tarefa #${widget.taskId ?? '-'} • relatório #${widget.reportId ?? '-'}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ],
               ),
+            ),
+            const SizedBox(height: AppTokens.space5),
+            AppSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const AppSectionBlock(
+                    title: 'Configuração da proposta',
+                    subtitle:
+                        'Dados comerciais e parâmetros principais do orçamento.',
+                  ),
+                  const SizedBox(height: AppTokens.space4),
+                  if (widget.clientId == null) ...[
+                    AppDropdownField<int>(
+                      label: 'Cliente',
+                      value: _localClientId,
+                      items: clientOptions,
+                      onChanged: (value) =>
+                          setState(() => _localClientId = value),
+                    ),
+                    const SizedBox(height: AppTokens.space4),
+                  ],
             const SizedBox(height: 8),
             AppDropdownField<String>(
               label: 'Status',
@@ -389,9 +454,20 @@ class _BudgetFormState extends State<BudgetForm> {
             const SizedBox(height: 8),
             AppTextField(
                 label: 'Nota interna', controller: _internalNote, maxLines: 3),
-            const SizedBox(height: 16),
-            Text('Assinaturas', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppTokens.space5),
+            AppSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const AppSectionBlock(
+                    title: 'Assinaturas',
+                    subtitle:
+                        'Defina quem assina e em quais páginas a assinatura será aplicada.',
+                  ),
+                  const SizedBox(height: AppTokens.space4),
             AppDropdownField<String>(
               label: 'Assinatura',
               value: _signatureMode,
@@ -469,18 +545,20 @@ class _BudgetFormState extends State<BudgetForm> {
                 ),
               ],
             ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text('Itens', style: Theme.of(context).textTheme.titleSmall),
-                OutlinedButton(
-                    onPressed: _addItem, child: const Text('Adicionar item')),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppTokens.space5),
+            AppSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const AppSectionBlock(
+                    title: 'Itens e composição',
+                    subtitle:
+                        'Monte a proposta com produtos, serviços e demais cobranças.',
+                  ),
+                  const SizedBox(height: AppTokens.space4),
             if (_items.isEmpty)
               const Text('Nenhum item adicionado.')
             else
@@ -526,21 +604,45 @@ class _BudgetFormState extends State<BudgetForm> {
                   ),
                 ],
               ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                Chip(label: Text('Subtotal: ${formatCurrency(_subtotal)}')),
-                Chip(label: Text('Total: ${formatCurrency(_total)}')),
-              ],
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!, style: const TextStyle(color: Colors.redAccent)),
             ],
-            const SizedBox(height: 12),
-            ElevatedButton(
+          ),
+        ),
+        const SizedBox(height: AppTokens.space5),
+        Row(
+          children: [
+            Expanded(
+              child: AppMetricTile(
+                title: 'Subtotal',
+                value: formatCurrency(_subtotal),
+                subtitle: '${_items.length} item(ns)',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AppMetricTile(
+                title: 'Total estimado',
+                value: formatCurrency(_total),
+                subtitle: 'Descontos e taxas aplicados',
+                emphasis: true,
+              ),
+            ),
+          ],
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: AppTokens.space4),
+          AppMessageBanner(
+            message: _error!,
+            icon: Icons.error_outline_rounded,
+            toneColor: Theme.of(context).colorScheme.error,
+          ),
+        ],
+        const SizedBox(height: AppTokens.space5),
+        OutlinedButton(
+          onPressed: _addItem,
+          child: const Text('Adicionar item'),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton(
               onPressed: _saving ? null : _save,
               child: Text(
                 _saving
@@ -548,9 +650,7 @@ class _BudgetFormState extends State<BudgetForm> {
                     : (isEditing ? 'Atualizar orçamento' : 'Salvar orçamento'),
               ),
             ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

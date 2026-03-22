@@ -1,18 +1,19 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
 import '../services/entity_refresh_service.dart';
+import '../theme/app_tokens.dart';
 import '../utils/budget_email.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_ui.dart';
 import '../widgets/budget_form.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
-import '../widgets/section_header.dart';
 
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
@@ -24,6 +25,7 @@ class BudgetsScreen extends StatefulWidget {
 class _BudgetsScreenState extends State<BudgetsScreen> {
   final ApiService _api = ApiService();
   final TextEditingController _searchController = TextEditingController();
+
   StreamSubscription<String>? _entityRefreshSubscription;
   bool _loading = true;
   String? _error;
@@ -56,19 +58,28 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       _error = null;
     });
     try {
-      final budgets =
-          await _api.get('/budgets?includeItems=1') as List<dynamic>;
+      final budgets = await _api.get('/budgets?includeItems=1') as List<dynamic>;
       final clients = await _api.get('/clients') as List<dynamic>;
       final products = await _api.get('/products') as List<dynamic>;
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _budgets = budgets.cast<Map<String, dynamic>>();
         _clients = clients.cast<Map<String, dynamic>>();
         _products = products.cast<Map<String, dynamic>>();
+        _loading = false;
       });
-    } catch (error) {
-      setState(() => _error = error.toString());
-    } finally {
-      setState(() => _loading = false);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = 'Não foi possível carregar o pipeline de orçamentos.';
+        _loading = false;
+      });
     }
   }
 
@@ -102,10 +113,12 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     try {
       final response = await _api.post('/budgets/$budgetId/public-link', {});
       return response['url']?.toString();
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        const SnackBar(
+          content: Text('Não foi possível gerar o link público agora.'),
+        ),
       );
       return null;
     }
@@ -114,10 +127,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   Future<void> _shareReportLink(Map<String, dynamic> budget) async {
     final url = await _getPublicLink(budget);
     if (url == null || url.isEmpty) return;
-    await Share.share(
-      url,
-      subject: 'Orçamento #${budget['id']}',
-    );
+    await Share.share(url, subject: 'Orçamento #${budget['id']}');
   }
 
   Future<void> _openReportLink(Map<String, dynamic> budget) async {
@@ -139,58 +149,18 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       budget['status'],
       items,
     ];
-    return parts
-        .map((value) => value?.toString() ?? '')
-        .join(' ')
-        .toLowerCase();
+    return parts.map((value) => value?.toString() ?? '').join(' ').toLowerCase();
   }
 
   List<Map<String, dynamic>> _filteredBudgets() {
     final query = _searchQuery.trim().toLowerCase();
     return _budgets.where((budget) {
-      if (_statusFilter != null &&
-          budget['status']?.toString() != _statusFilter) {
+      if (_statusFilter != null && budget['status']?.toString() != _statusFilter) {
         return false;
       }
       if (query.isEmpty) return true;
       return _buildSearchText(budget).contains(query);
     }).toList();
-  }
-
-  Future<void> _openFilters() async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text('Filtrar por status'),
-            ),
-            ListTile(
-              title: const Text('Todos'),
-              leading: const Icon(Icons.clear_all),
-              onTap: () => Navigator.pop(context, 'todos'),
-            ),
-            ListTile(
-              title: const Text('Em andamento'),
-              onTap: () => Navigator.pop(context, 'em_andamento'),
-            ),
-            ListTile(
-              title: const Text('Aprovado'),
-              onTap: () => Navigator.pop(context, 'aprovado'),
-            ),
-            ListTile(
-              title: const Text('Recusado'),
-              onTap: () => Navigator.pop(context, 'recusado'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (!mounted || selected == null) return;
-    setState(() => _statusFilter = selected == 'todos' ? null : selected);
   }
 
   Future<void> _editBudget(Map<String, dynamic> budget) async {
@@ -208,8 +178,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             return Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: SingleChildScrollView(
                 controller: scrollController,
@@ -245,11 +214,13 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         content: const Text('Deseja remover este orçamento?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remover')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remover'),
+          ),
         ],
       ),
     );
@@ -257,10 +228,12 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     try {
       await _api.delete('/budgets/$id');
       await _load();
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        const SnackBar(
+          content: Text('Não foi possível remover o orçamento agora.'),
+        ),
       );
     }
   }
@@ -278,6 +251,17 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
+  Color _statusColor(String? value) {
+    switch (value) {
+      case 'aprovado':
+        return AppTokens.supportTeal;
+      case 'recusado':
+        return Theme.of(context).colorScheme.error;
+      default:
+        return AppTokens.accentBlue;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -291,187 +275,193 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
 
     final filteredBudgets = _filteredBudgets();
+    final inProgress =
+        _budgets.where((budget) => budget['status'] == 'em_andamento').length;
+    final approved =
+        _budgets.where((budget) => budget['status'] == 'aprovado').length;
+    final rejected =
+        _budgets.where((budget) => budget['status'] == 'recusado').length;
 
     return AppScaffold(
       title: 'Orçamentos',
-      body: ListView(
-        children: [
-          BudgetForm(
-            clients: _clients,
-            products: _products,
-            onSaved: _load,
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Buscar orçamentos',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _searchQuery.isEmpty
-                                ? null
-                                : IconButton(
-                                    icon: const Icon(Icons.close),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  ),
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _searchQuery = value),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: _openFilters,
-                          child: const Icon(Icons.tune),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_searchQuery.isNotEmpty || _statusFilter != null) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        if (_searchQuery.isNotEmpty)
-                          Chip(
-                            label: Text('Busca: $_searchQuery'),
-                            onDeleted: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          ),
-                        if (_statusFilter != null)
-                          Chip(
-                            label:
-                                Text('Status: ${_formatStatus(_statusFilter)}'),
-                            onDeleted: () =>
-                                setState(() => _statusFilter = null),
-                          ),
-                      ],
+      subtitle: 'Pipeline comercial vinculado às tarefas',
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          children: [
+            AppHeroBanner(
+              title: 'Pipeline de orçamentos',
+              subtitle: 'Andamento, conversão e propostas da operação comercial.',
+              metrics: [
+                AppHeroMetric(label: 'Ativos', value: '$inProgress'),
+                AppHeroMetric(label: 'Aprovados', value: '$approved'),
+                AppHeroMetric(label: 'Recusados', value: '$rejected'),
+              ],
+            ),
+            const SizedBox(height: AppTokens.space5),
+            AppSurface(
+              child: BudgetForm(
+                clients: _clients,
+                products: _products,
+                onSaved: _load,
+              ),
+            ),
+            const SizedBox(height: AppTokens.space5),
+            AppSearchField(
+              controller: _searchController,
+              hintText: 'Buscar por cliente, tarefa ou item',
+              onChanged: (value) => setState(() => _searchQuery = value),
+              trailing: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                      icon: const Icon(Icons.close_rounded),
                     ),
-                  ],
-                ],
-              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          const SectionHeader(
-            title: 'Orçamentos cadastrados',
-            subtitle: 'Histórico e andamento dos orçamentos',
-          ),
-          const SizedBox(height: 12),
-          if (_budgets.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Nenhum orçamento cadastrado.'),
-              ),
+            const SizedBox(height: AppTokens.space3),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final entry in const <MapEntry<String?, String>>[
+                  MapEntry(null, 'Todos'),
+                  MapEntry('em_andamento', 'Em andamento'),
+                  MapEntry('aprovado', 'Aprovado'),
+                  MapEntry('recusado', 'Recusado'),
+                ])
+                  ChoiceChip(
+                    label: Text(entry.value),
+                    selected: _statusFilter == entry.key,
+                    onSelected: (_) => setState(() => _statusFilter = entry.key),
+                  ),
+              ],
             ),
-          if (_budgets.isNotEmpty && filteredBudgets.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child:
-                    Text('Nenhum orçamento encontrado com os filtros atuais.'),
-              ),
+            const SizedBox(height: AppTokens.space5),
+            const AppSectionBlock(
+              title: 'Propostas cadastradas',
+              subtitle: 'Histórico, andamento e compartilhamento comercial.',
             ),
-          ...filteredBudgets.map((budget) {
-            final clientName = budget['client_name'] ?? 'Sem cliente';
-            final statusLabel = _formatStatus(budget['status']?.toString());
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Orçamento #${budget['id']}',
-                            style: Theme.of(context).textTheme.titleSmall),
-                        Row(
-                          children: [
-                            Chip(label: Text(statusLabel)),
-                            PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'edit') {
-                                  _editBudget(budget);
-                                } else if (value == 'delete') {
-                                  _deleteBudget(budget['id'] as int);
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                    value: 'edit', child: Text('Editar')),
-                                PopupMenuItem(
-                                    value: 'delete', child: Text('Remover')),
+            const SizedBox(height: AppTokens.space4),
+            if (_budgets.isEmpty)
+              const EmptyStateCard(
+                title: 'Nenhum orçamento cadastrado',
+                subtitle: 'Crie a primeira proposta para começar o pipeline.',
+              ),
+            if (_budgets.isNotEmpty && filteredBudgets.isEmpty)
+              const EmptyStateCard(
+                title: 'Nenhum orçamento encontrado',
+                subtitle: 'Os filtros atuais não retornaram propostas.',
+              ),
+            ...filteredBudgets.map((budget) {
+              final clientName = budget['client_name'] ?? 'Sem cliente';
+              final statusLabel = _formatStatus(budget['status']?.toString());
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AppSurface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Orçamento #${budget['id']}',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  clientName.toString(),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               ],
                             ),
-                          ],
+                          ),
+                          AppStatusPill(
+                            label: statusLabel,
+                            color: _statusColor(budget['status']?.toString()),
+                          ),
+                          PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                _editBudget(budget);
+                              } else if (value == 'delete') {
+                                _deleteBudget(budget['id'] as int);
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(value: 'edit', child: Text('Editar')),
+                              PopupMenuItem(value: 'delete', child: Text('Remover')),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Total ${formatCurrency(budget['total'] ?? 0)}',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      if (budget['task_title'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tarefa: ${budget['task_title']}',
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                        'Cliente: $clientName • Total: ${formatCurrency(budget['total'] ?? 0)}'),
-                    if (budget['task_title'] != null)
-                      Text('Tarefa: ${budget['task_title']}'),
-                    if (budget['report_title'] != null)
-                      Text('Relatório: ${budget['report_title']}'),
-                    const SizedBox(height: 8),
-                    ...(budget['items'] as List<dynamic>? ?? [])
-                        .cast<Map<String, dynamic>>()
-                        .map((item) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
+                      const SizedBox(height: 12),
+                      ...(budget['items'] as List<dynamic>? ?? [])
+                          .cast<Map<String, dynamic>>()
+                          .take(3)
+                          .map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
-                                      child: Text(
-                                          item['description']?.toString() ??
-                                              'Item')),
+                                    child: Text(
+                                      item['description']?.toString() ?? 'Item',
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
                                   Text(formatCurrency(item['total'] ?? 0)),
                                 ],
                               ),
-                            )),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        OutlinedButton(
-                          onPressed: () => _sendEmail(budget),
-                          child: const Text('Enviar e-mail'),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _shareReportLink(budget),
-                          child: const Text('Compartilhar link'),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _openReportLink(budget),
-                          child: const Text('Abrir PDF'),
-                        ),
-                      ],
-                    ),
-                  ],
+                            ),
+                          ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => _sendEmail(budget),
+                            child: const Text('Enviar e-mail'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _shareReportLink(budget),
+                            child: const Text('Compartilhar link'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _openReportLink(budget),
+                            child: const Text('Abrir PDF'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }),
-        ],
+              );
+            }),
+            const SizedBox(height: 96),
+          ],
+        ),
       ),
     );
   }

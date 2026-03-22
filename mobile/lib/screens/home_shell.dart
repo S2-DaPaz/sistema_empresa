@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_tokens.dart';
 import 'budgets_screen.dart';
 import 'clients_screen.dart';
 import 'dashboard_screen.dart';
-import 'equipments_screen.dart';
 import 'more_screen.dart';
 import 'products_screen.dart';
 import 'tasks_screen.dart';
@@ -21,8 +21,6 @@ class _HomeShellState extends State<HomeShell> {
   late final List<Widget> _screens = [
     DashboardScreen(onOpenShortcut: _handleDashboardShortcut),
     const TasksScreen(),
-    const EquipmentsScreen(),
-    const BudgetsScreen(),
     ClientsScreen(),
     const MoreScreen(),
   ];
@@ -30,17 +28,19 @@ class _HomeShellState extends State<HomeShell> {
   void _handleDashboardShortcut(DashboardShortcut shortcut) {
     switch (shortcut) {
       case DashboardShortcut.clients:
-        setState(() => _index = 4);
+        setState(() => _index = 2);
         break;
       case DashboardShortcut.tasks:
         setState(() => _index = 1);
         break;
       case DashboardShortcut.budgets:
-        setState(() => _index = 3);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const BudgetsScreen()),
+        );
         break;
       case DashboardShortcut.products:
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ProductsScreen()),
+          MaterialPageRoute(builder: (_) => const ProductsScreen()),
         );
         break;
     }
@@ -48,36 +48,60 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            label: 'Painel',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.task_alt),
-            label: 'Tarefas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.handyman_outlined),
-            label: 'Equipamentos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long),
-            label: 'Orçamentos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_alt_outlined),
-            label: 'Clientes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.more_horiz),
-            label: 'Mais',
+      extendBody: true,
+      body: Stack(
+        children: [
+          IndexedStack(index: _index, children: _screens),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: SafeArea(
+              top: false,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface.withValues(alpha: 0.96),
+                  borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                  boxShadow: AppTokens.softShadow,
+                ),
+                child: NavigationBar(
+                  height: 74,
+                  selectedIndex: _index,
+                  backgroundColor: Colors.transparent,
+                  labelBehavior:
+                      NavigationDestinationLabelBehavior.alwaysShow,
+                  onDestinationSelected: (value) {
+                    setState(() => _index = value);
+                  },
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home_rounded),
+                      label: 'Início',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.task_alt_outlined),
+                      selectedIcon: Icon(Icons.task_alt),
+                      label: 'Tarefas',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.people_alt_outlined),
+                      selectedIcon: Icon(Icons.people_alt),
+                      label: 'Clientes',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.grid_view_rounded),
+                      selectedIcon: Icon(Icons.grid_view_rounded),
+                      label: 'Mais',
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),

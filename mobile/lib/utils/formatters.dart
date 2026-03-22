@@ -87,3 +87,10 @@ String formatDateKey(String? value) {
 String formatMonthLabel(DateTime date) {
   return DateFormat('MMMM yyyy', 'pt_BR').format(date);
 }
+
+String formatTime(String? value) {
+  if (value == null || value.isEmpty) return '--:--';
+  final date = DateTime.tryParse(value);
+  if (date == null) return value;
+  return DateFormat('HH:mm', 'pt_BR').format(date.toLocal());
+}

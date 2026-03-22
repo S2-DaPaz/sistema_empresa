@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_tokens.dart';
+import 'app_ui.dart';
+
 class ErrorView extends StatelessWidget {
   const ErrorView({
     super.key,
@@ -12,26 +15,39 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 36, color: theme.colorScheme.error),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: AppSurface(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                size: 34,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(height: AppTokens.space3),
+              Text(
+                'Não foi possível carregar esta tela.',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: AppTokens.space4),
+                ElevatedButton(
+                  onPressed: onRetry,
+                  child: const Text('Tentar novamente'),
+                ),
+              ],
+            ],
           ),
-          if (onRetry != null) ...[
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: onRetry,
-              child: const Text('Tentar novamente'),
-            ),
-          ]
-        ],
+        ),
       ),
     );
   }

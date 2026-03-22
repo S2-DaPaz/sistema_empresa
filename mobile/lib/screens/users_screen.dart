@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/permissions.dart';
+import '../theme/app_tokens.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_ui.dart';
 import '../widgets/error_view.dart';
 import '../widgets/form_fields.dart';
 import '../widgets/loading_view.dart';
@@ -53,7 +55,7 @@ const Set<String> _reservedRoles = {
   'administracao',
   'gestor',
   'tecnico',
-  'visitante'
+  'visitante',
 };
 
 List<String> _parsePermissions(dynamic value) {
@@ -115,23 +117,28 @@ class _UsersScreenState extends State<UsersScreen> {
         _api.get('/users'),
         _api.get('/roles'),
       ]);
-      final users = (results[0] as List?) ?? [];
-      final roles = (results[1] as List?) ?? [];
+      if (!mounted) {
+        return;
+      }
       setState(() {
-        _users = users.cast<Map<String, dynamic>>();
-        _roles = roles.cast<Map<String, dynamic>>();
+        _users = ((results[0] as List?) ?? []).cast<Map<String, dynamic>>();
+        _roles = ((results[1] as List?) ?? []).cast<Map<String, dynamic>>();
+        _loading = false;
       });
-    } catch (error) {
-      setState(() => _error = error.toString());
-    } finally {
-      setState(() => _loading = false);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = 'Não foi possível carregar usuários e perfis.';
+        _loading = false;
+      });
     }
   }
 
   String _roleName(String? key) {
     if (key == null) return 'Visitante';
-    final match =
-        _roles.where((role) => role['key']?.toString() == key).toList();
+    final match = _roles.where((role) => role['key']?.toString() == key).toList();
     if (match.isNotEmpty) {
       return match.first['name']?.toString() ?? key;
     }
@@ -145,10 +152,7 @@ class _UsersScreenState extends State<UsersScreen> {
   Future<void> _openUserForm({Map<String, dynamic>? item}) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => UserFormScreen(
-          user: item,
-          roles: _roles,
-        ),
+        builder: (_) => UserFormScreen(user: item, roles: _roles),
       ),
     );
     if (saved == true) {
@@ -177,11 +181,13 @@ class _UsersScreenState extends State<UsersScreen> {
         content: const Text('Deseja remover este usuário?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remover')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remover'),
+          ),
         ],
       ),
     );
@@ -190,10 +196,12 @@ class _UsersScreenState extends State<UsersScreen> {
     try {
       await _api.delete('/users/$id');
       await _load();
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        const SnackBar(
+          content: Text('Não foi possível remover o usuário agora.'),
+        ),
       );
     }
   }
@@ -204,7 +212,8 @@ class _UsersScreenState extends State<UsersScreen> {
     if (_reservedRoles.contains(item['key']?.toString())) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Este perfil é protegido e não pode ser removido.')),
+          content: Text('Este perfil é protegido e não pode ser removido.'),
+        ),
       );
       return;
     }
@@ -212,14 +221,16 @@ class _UsersScreenState extends State<UsersScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Remover perfil'),
-            content: Text('Deseja remover o perfil "${item['name']}"?'),
+        content: Text('Deseja remover o perfil "${item['name']}"?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remover')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remover'),
+          ),
         ],
       ),
     );
@@ -228,10 +239,12 @@ class _UsersScreenState extends State<UsersScreen> {
     try {
       await _api.delete('/roles/$id');
       await _load();
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        const SnackBar(
+          content: Text('Não foi possível remover o perfil agora.'),
+        ),
       );
     }
   }
@@ -244,60 +257,93 @@ class _UsersScreenState extends State<UsersScreen> {
           if (_canManage)
             Align(
               alignment: Alignment.centerLeft,
-              child: ElevatedButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: () => _openUserForm(),
-                icon: const Icon(Icons.person_add),
+                icon: const Icon(Icons.person_add_alt_1_outlined),
                 label: const Text('Novo usuário'),
               ),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppTokens.space4),
           if (_users.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Nenhum usuário cadastrado.'),
-              ),
+            const EmptyStateCard(
+              title: 'Nenhum usuário cadastrado',
+              subtitle: 'Convide pessoas e distribua papéis de acesso por perfil.',
             ),
           ..._users.map((item) {
             final roleKey = item['role']?.toString();
-            final roleName =
-                item['role_name']?.toString() ?? _roleName(roleKey);
+            final roleName = item['role_name']?.toString() ?? _roleName(roleKey);
             final isMe = item['id'] == AuthService.instance.user?['id'];
-            return Card(
-              child: ListTile(
-                title: Row(
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: AppSurface(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                        child: Text(item['name']?.toString() ?? 'Sem nome')),
-                    if (isMe)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 8),
-                        child: Chip(label: Text('Você')),
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor:
+                          AppTokens.accentBlue.withValues(alpha: 0.12),
+                      child: Text(
+                        (item['name']?.toString().isNotEmpty ?? false)
+                            ? item['name'].toString().trim().substring(0, 1).toUpperCase()
+                            : 'U',
+                        style: const TextStyle(
+                          color: AppTokens.accentBlue,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                  ],
-                ),
-                subtitle: Text(
-                  '${item['email']?.toString() ?? 'Sem e-mail'}\nPerfil: $roleName',
-                ),
-                isThreeLine: true,
-                trailing: _canManage
-                    ? PopupMenuButton<String>(
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                item['name']?.toString() ?? 'Sem nome',
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              if (isMe) const AppStatusPill(label: 'Você'),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item['email']?.toString() ?? 'Sem e-mail',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          AppStatusPill(label: roleName),
+                        ],
+                      ),
+                    ),
+                    if (_canManage)
+                      PopupMenuButton<String>(
                         onSelected: (value) {
                           if (value == 'edit') _openUserForm(item: item);
                           if (value == 'delete') _deleteUser(item);
                         },
                         itemBuilder: (context) => [
                           const PopupMenuItem(
-                              value: 'edit', child: Text('Editar')),
+                            value: 'edit',
+                            child: Text('Editar'),
+                          ),
                           if (!isMe)
                             const PopupMenuItem(
-                                value: 'delete', child: Text('Remover')),
+                              value: 'delete',
+                              child: Text('Remover'),
+                            ),
                         ],
-                      )
-                    : null,
+                      ),
+                  ],
+                ),
               ),
             );
           }),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -311,63 +357,101 @@ class _UsersScreenState extends State<UsersScreen> {
           if (_canManage)
             Align(
               alignment: Alignment.centerLeft,
-              child: ElevatedButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: () => _openRoleForm(),
-                icon: const Icon(Icons.add_moderator_outlined),
+                icon: const Icon(Icons.verified_user_outlined),
                 label: const Text('Novo perfil'),
               ),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppTokens.space4),
           if (_roles.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Nenhum perfil cadastrado.'),
-              ),
+            const EmptyStateCard(
+              title: 'Nenhum perfil cadastrado',
+              subtitle: 'Crie perfis para centralizar permissões por tipo de usuário.',
             ),
           ..._roles.map((item) {
             final isAdmin = item['is_admin'] == true;
             final key = item['key']?.toString() ?? '';
             final permissions = (item['permissions'] as List?)?.length ?? 0;
-            return Card(
-              child: ListTile(
-                title: Row(
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: AppSurface(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: Text(item['name']?.toString() ?? 'Perfil')),
-                    if (isAdmin)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 8),
-                        child: Chip(label: Text('ADM')),
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: AppTokens.supportTeal.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    if (_reservedRoles.contains(key))
-                      const Padding(
-                        padding: EdgeInsets.only(left: 8),
-                        child: Chip(label: Text('Padrão')),
+                      child: const Icon(
+                        Icons.admin_panel_settings_outlined,
+                        color: AppTokens.supportTeal,
                       ),
-                  ],
-                ),
-                subtitle: Text(
-                  'Código: $key\nPermissões: ${isAdmin ? 'Todas (ADM)' : permissions}',
-                ),
-                isThreeLine: true,
-                trailing: _canManage
-                    ? PopupMenuButton<String>(
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              Text(
+                                item['name']?.toString() ?? 'Perfil',
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              if (isAdmin)
+                                const AppStatusPill(
+                                  label: 'ADM',
+                                  color: AppTokens.accentBlue,
+                                ),
+                              if (_reservedRoles.contains(key))
+                                const AppStatusPill(label: 'Padrão'),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Código: $key',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            isAdmin
+                                ? 'Permissões: acesso total'
+                                : 'Permissões: $permissions item(ns)',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_canManage)
+                      PopupMenuButton<String>(
                         onSelected: (value) {
                           if (value == 'edit') _openRoleForm(item: item);
                           if (value == 'delete') _deleteRole(item);
                         },
                         itemBuilder: (context) => [
                           const PopupMenuItem(
-                              value: 'edit', child: Text('Editar')),
+                            value: 'edit',
+                            child: Text('Editar'),
+                          ),
                           if (!_reservedRoles.contains(key))
                             const PopupMenuItem(
-                                value: 'delete', child: Text('Remover')),
+                              value: 'delete',
+                              child: Text('Remover'),
+                            ),
                         ],
-                      )
-                    : null,
+                      ),
+                  ],
+                ),
               ),
             );
           }),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -387,29 +471,40 @@ class _UsersScreenState extends State<UsersScreen> {
     if (!_canView) {
       return const AppScaffold(
         title: 'Usuários',
-        body: Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('Você não possui permissão para visualizar usuários.'),
-          ),
+        body: EmptyStateCard(
+          title: 'Acesso restrito',
+          subtitle: 'Você não possui permissão para visualizar usuários.',
         ),
       );
     }
 
     return AppScaffold(
-      title: 'Usuários',
+      title: 'Usuários e perfis',
+      subtitle: 'Pessoas, papéis e acessos do sistema',
       body: DefaultTabController(
         length: 2,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TabBar(
-              labelColor: Theme.of(context).colorScheme.primary,
-              tabs: const [
-                Tab(text: 'Usuários'),
-                Tab(text: 'Perfis'),
+            AppHeroBanner(
+              title: 'Usuários e papéis',
+              subtitle: 'Gestão de pessoas, acessos e perfis da operação.',
+              metrics: [
+                AppHeroMetric(label: 'Usuários', value: '${_users.length}'),
+                AppHeroMetric(label: 'Perfis', value: '${_roles.length}'),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppTokens.space4),
+            const AppSurface(
+              padding: EdgeInsets.all(6),
+              child: TabBar(
+                tabs: [
+                  Tab(text: 'Usuários'),
+                  Tab(text: 'Perfis'),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppTokens.space4),
             Expanded(
               child: TabBarView(
                 children: [
@@ -472,10 +567,12 @@ class _UserFormScreenState extends State<UserFormScreen> {
   List<DropdownMenuItem<String>> _buildRoleItems() {
     final roles = widget.roles.isNotEmpty
         ? widget.roles
-            .map((role) => _RoleOption(
-                  role['key']?.toString() ?? '',
-                  role['name']?.toString() ?? '',
-                ))
+            .map(
+              (role) => _RoleOption(
+                role['key']?.toString() ?? '',
+                role['name']?.toString() ?? '',
+              ),
+            )
             .toList()
         : _fallbackRoles;
 
@@ -512,8 +609,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
-    } catch (error) {
-      setState(() => _error = error.toString());
+    } catch (_) {
+      setState(() => _error = 'Não foi possível salvar o usuário.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -523,27 +620,40 @@ class _UserFormScreenState extends State<UserFormScreen> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: _isEdit ? 'Editar usuário' : 'Novo usuário',
+      subtitle: 'Cadastro operacional',
       body: ListView(
         children: [
-          AppTextField(label: 'Nome', controller: _nameController),
-          AppTextField(label: 'E-mail', controller: _emailController),
-          AppDropdownField<String>(
-            label: 'Perfil',
-            value: _role,
-            items: _buildRoleItems(),
-            onChanged: (value) => setState(() => _role = value ?? _role),
-          ),
-          AppTextField(
-            label: _isEdit ? 'Nova senha (opcional)' : 'Senha',
-            controller: _passwordController,
-          ),
-          const SizedBox(height: 12),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(_error!,
-                  style: const TextStyle(color: Colors.redAccent)),
+          AppSurface(
+            child: Column(
+              children: [
+                AppTextField(label: 'Nome', controller: _nameController),
+                const SizedBox(height: AppTokens.space4),
+                AppTextField(label: 'E-mail', controller: _emailController),
+                const SizedBox(height: AppTokens.space4),
+                AppDropdownField<String>(
+                  label: 'Perfil',
+                  value: _role,
+                  items: _buildRoleItems(),
+                  onChanged: (value) => setState(() => _role = value ?? _role),
+                ),
+                const SizedBox(height: AppTokens.space4),
+                AppTextField(
+                  label: _isEdit ? 'Nova senha (opcional)' : 'Senha',
+                  controller: _passwordController,
+                  obscureText: true,
+                ),
+              ],
             ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: AppTokens.space4),
+            AppMessageBanner(
+              message: _error!,
+              icon: Icons.error_outline_rounded,
+              toneColor: Theme.of(context).colorScheme.error,
+            ),
+          ],
+          const SizedBox(height: AppTokens.space5),
           ElevatedButton(
             onPressed: _saving ? null : _save,
             child: Text(_saving ? 'Salvando...' : 'Salvar'),
@@ -593,8 +703,7 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
   void _togglePermission(String permission) {
     setState(() {
       if (_permissions.contains(permission)) {
-        _permissions =
-            _permissions.where((item) => item != permission).toList();
+        _permissions = _permissions.where((item) => item != permission).toList();
       } else {
         _permissions = [..._permissions, permission];
       }
@@ -621,8 +730,8 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
-    } catch (error) {
-      setState(() => _error = error.toString());
+    } catch (_) {
+      setState(() => _error = 'Não foi possível salvar o perfil.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -632,46 +741,63 @@ class _RoleFormScreenState extends State<RoleFormScreen> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: _isEdit ? 'Editar perfil' : 'Novo perfil',
+      subtitle: 'Permissões e acesso',
       body: ListView(
         children: [
-          AppTextField(label: 'Nome do perfil', controller: _nameController),
-          CheckboxListTile(
-            value: _isAdmin,
-            onChanged: (value) => setState(() {
-              _isAdmin = value == true;
-              if (_isAdmin) _permissions = [];
-            }),
-            title: const Text('Permissões de ADM'),
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Permissões do perfil',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 8),
-          ..._permissionOptions.map(
-            (option) => CheckboxListTile(
-              value: _permissions.contains(option.id),
-              onChanged: _isAdmin ? null : (_) => _togglePermission(option.id),
-              title: Text(option.label),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
+          AppSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppTextField(
+                  label: 'Nome do perfil',
+                  controller: _nameController,
+                ),
+                const SizedBox(height: AppTokens.space4),
+                AppCheckboxField(
+                  label: 'Permissões de administração',
+                  value: _isAdmin,
+                  onChanged: (value) => setState(() {
+                    _isAdmin = value == true;
+                    if (_isAdmin) _permissions = [];
+                  }),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Ao ativar "Permissões de ADM", o perfil passa a ter acesso total.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(_error!,
-                  style: const TextStyle(color: Colors.redAccent)),
+          const SizedBox(height: AppTokens.space4),
+          AppSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Permissões do perfil',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Ao ativar permissões de administração, o perfil passa a ter acesso total.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: AppTokens.space4),
+                ..._permissionOptions.map(
+                  (option) => AppCheckboxField(
+                    label: option.label,
+                    value: _permissions.contains(option.id),
+                    onChanged: _isAdmin ? (_) {} : (_) => _togglePermission(option.id),
+                  ),
+                ),
+              ],
             ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: AppTokens.space4),
+            AppMessageBanner(
+              message: _error!,
+              icon: Icons.error_outline_rounded,
+              toneColor: Theme.of(context).colorScheme.error,
+            ),
+          ],
+          const SizedBox(height: AppTokens.space5),
           ElevatedButton(
             onPressed: _saving ? null : _save,
             child: Text(_saving ? 'Salvando...' : 'Salvar'),

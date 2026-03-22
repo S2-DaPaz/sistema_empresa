@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_ui.dart';
+
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
@@ -14,28 +16,10 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: textTheme.titleMedium),
-              if (subtitle != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    subtitle!,
-                    style: textTheme.bodySmall,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        if (trailing != null) trailing!,
-      ],
+    return AppSectionBlock(
+      title: title,
+      subtitle: subtitle,
+      trailing: trailing,
     );
   }
 }

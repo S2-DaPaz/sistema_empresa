@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../theme/app_tokens.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/section_header.dart';
+import '../widgets/app_ui.dart';
+import '../widgets/loading_view.dart';
 
 class EventLogsScreen extends StatefulWidget {
   const EventLogsScreen({super.key});
@@ -76,7 +78,6 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
       if (!mounted) {
         return;
       }
-
       setState(() {
         _error = 'Não foi possível carregar o log de eventos.';
         _loading = false;
@@ -105,23 +106,17 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _friendlyActionTitle(map),
-                    style: textTheme.titleLarge,
-                  ),
+                  Text(_friendlyActionTitle(map), style: textTheme.titleLarge),
                   const SizedBox(height: 8),
-                  Text(
-                    _friendlyDescription(map),
-                    style: textTheme.bodyMedium,
-                  ),
+                  Text(_friendlyDescription(map), style: textTheme.bodyMedium),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      Chip(label: Text(_outcomeLabel(map['outcome']))),
-                      Chip(label: Text(_platformLabel(map['platform']))),
-                      Chip(label: Text(_moduleLabel(map['module']))),
+                      AppStatusPill(label: _outcomeLabel(map['outcome'])),
+                      AppStatusPill(label: _platformLabel(map['platform'])),
+                      AppStatusPill(label: _moduleLabel(map['module'])),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -151,11 +146,9 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                       await Clipboard.setData(
                         ClipboardData(text: _buildSnapshot(map)),
                       );
-
                       if (!context.mounted) {
                         return;
                       }
-
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
@@ -176,7 +169,6 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
       if (!mounted) {
         return;
       }
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Não foi possível carregar os detalhes do evento.'),
@@ -189,12 +181,10 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
     if (value == null || value.toString().isEmpty) {
       return '-';
     }
-
     final date = DateTime.tryParse(value.toString());
     if (date == null) {
       return value.toString();
     }
-
     return DateFormat('dd/MM/yyyy HH:mm').format(date.toLocal());
   }
 
@@ -211,20 +201,10 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
       'AUTH_REGISTER_FAILURE': 'Falha no cadastro',
       'AUTH_EMAIL_VERIFICATION_SENT': 'Código de verificação enviado',
       'AUTH_EMAIL_VERIFICATION_RESENT': 'Código de verificação reenviado',
-      'AUTH_EMAIL_VERIFICATION_RESEND_FAILED':
-          'Falha ao reenviar o código de verificação',
       'AUTH_EMAIL_VERIFIED': 'E-mail confirmado',
-      'AUTH_EMAIL_VERIFICATION_FAILED': 'Falha na confirmação do e-mail',
       'AUTH_PASSWORD_RESET_REQUESTED': 'Recuperação de senha solicitada',
-      'AUTH_PASSWORD_RESET_REQUEST_FAILED':
-          'Falha na solicitação de recuperação de senha',
-      'AUTH_PASSWORD_RESET_CODE_VERIFIED': 'Código de recuperação validado',
-      'AUTH_PASSWORD_RESET_CODE_FAILED':
-          'Falha na validação do código de recuperação',
       'AUTH_PASSWORD_RESET_SUCCESS': 'Senha redefinida',
-      'AUTH_PASSWORD_RESET_FAILURE': 'Falha na redefinição de senha',
       'AUTH_REFRESH_TOKEN_ROTATED': 'Sessão renovada',
-      'AUTH_REFRESH_TOKEN_FAILURE': 'Falha na renovação da sessão',
       'TASK_EQUIPMENT_ATTACHED': 'Equipamento vinculado à tarefa',
       'TASK_EQUIPMENT_DETACHED': 'Equipamento removido da tarefa',
       'ERROR_LOG_RESOLVED': 'Log de erro atualizado',
@@ -250,27 +230,13 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
 
     final label = entityLabels[entity];
     if (label != null) {
-      if (action.endsWith('_CREATED')) {
-        return '$label criado';
-      }
-      if (action.endsWith('_UPDATED')) {
-        return '$label atualizado';
-      }
-      if (action.endsWith('_DELETED')) {
-        return '$label removido';
-      }
-      if (action.endsWith('_STATUS_CHANGED')) {
-        return 'Status de $label atualizado';
-      }
-      if (action.endsWith('_GENERATED')) {
-        return '$label gerado';
-      }
-      if (action.endsWith('_APPROVED')) {
-        return '$label aprovado';
-      }
-      if (action.endsWith('_REJECTED')) {
-        return '$label rejeitado';
-      }
+      if (action.endsWith('_CREATED')) return '$label criado';
+      if (action.endsWith('_UPDATED')) return '$label atualizado';
+      if (action.endsWith('_DELETED')) return '$label removido';
+      if (action.endsWith('_STATUS_CHANGED')) return 'Status de $label atualizado';
+      if (action.endsWith('_GENERATED')) return '$label gerado';
+      if (action.endsWith('_APPROVED')) return '$label aprovado';
+      if (action.endsWith('_REJECTED')) return '$label rejeitado';
     }
 
     final description = item['description']?.toString().trim() ?? '';
@@ -279,7 +245,6 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
           ? description.substring(0, description.length - 1)
           : description;
     }
-
     return 'Evento registrado';
   }
 
@@ -288,7 +253,6 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
     if (description.isNotEmpty) {
       return description;
     }
-
     return 'Ação registrada no histórico do sistema.';
   }
 
@@ -297,12 +261,10 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
     if (name.isNotEmpty) {
       return name;
     }
-
     final email = item['user_email']?.toString().trim() ?? '';
     if (email.isNotEmpty) {
       return email;
     }
-
     return 'Sistema';
   }
 
@@ -320,11 +282,6 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
   }
 
   String _moduleLabel(dynamic value) {
-    final module = value?.toString().trim() ?? '';
-    if (module.isEmpty) {
-      return 'Sistema';
-    }
-
     const labels = <String, String>{
       'auth': 'Autenticação',
       'users': 'Usuários',
@@ -335,7 +292,10 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
       'public': 'Páginas públicas',
       'system': 'Sistema',
     };
-
+    final module = value?.toString().trim() ?? '';
+    if (module.isEmpty) {
+      return 'Sistema';
+    }
     return labels[module] ?? module;
   }
 
@@ -376,138 +336,168 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!AuthService.instance.isAdmin) {
+      return const AppScaffold(
+        title: 'Log de eventos',
+        body: Center(
+          child: Text('Somente administradores podem acessar o log de eventos.'),
+        ),
+      );
+    }
+
+    final successCount = _items
+        .where((item) => (item as Map)['outcome']?.toString() == 'success')
+        .length;
+
     return AppScaffold(
       title: 'Log de eventos',
+      subtitle: 'Auditoria operacional e rastreabilidade',
       actions: [
         IconButton(
           onPressed: _loading ? null : _load,
-          icon: const Icon(Icons.refresh),
+          icon: const Icon(Icons.refresh_rounded),
         ),
       ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!AuthService.instance.isAdmin)
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Somente administradores podem acessar o log de eventos.',
-                ),
-              ),
-            )
-          else ...[
-            const SectionHeader(
-              title: 'Auditoria operacional',
-              subtitle: 'Rastreabilidade das ações relevantes do sistema.',
+          AppHeroBanner(
+            title: 'Logs administrativos',
+            subtitle: 'Erros, eventos e resolução com contexto.',
+            metrics: [
+              AppHeroMetric(label: 'Eventos', value: '${_items.length}'),
+              AppHeroMetric(label: 'Sucesso', value: '$successCount'),
+            ],
+          ),
+          const SizedBox(height: AppTokens.space4),
+          AppSearchField(
+            controller: _searchController,
+            hintText: 'Buscar por ação, descrição ou usuário',
+            onSubmitted: (_) => _load(),
+            trailing: IconButton(
+              onPressed: _load,
+              icon: const Icon(Icons.search_rounded),
             ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _searchController,
-                      onSubmitted: (_) => _load(),
-                      decoration: InputDecoration(
-                        labelText: 'Buscar por evento, descrição ou usuário',
-                        suffixIcon: IconButton(
-                          onPressed: _load,
-                          icon: const Icon(Icons.search),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _outcome.isEmpty ? null : _outcome,
-                            decoration:
-                                const InputDecoration(labelText: 'Resultado'),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'success',
-                                child: Text('Sucesso'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'failure',
-                                child: Text('Falha'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setState(() => _outcome = value ?? '');
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _platform.isEmpty ? null : _platform,
-                            decoration:
-                                const InputDecoration(labelText: 'Plataforma'),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'web',
-                                child: Text('Web'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'mobile',
-                                child: Text('Mobile'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'backend',
-                                child: Text('Backend'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setState(() => _platform = value ?? '');
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+          ),
+          const SizedBox(height: AppTokens.space3),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in const <MapEntry<String, String>>[
+                MapEntry('', 'Todos'),
+                MapEntry('success', 'Sucesso'),
+                MapEntry('failure', 'Falha'),
+              ])
+                ChoiceChip(
+                  label: Text(entry.value),
+                  selected: _outcome == entry.key,
+                  onSelected: (_) => setState(() => _outcome = entry.key),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(child: Text(_error!))
-                      : _items.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'Nenhum evento foi encontrado com os filtros atuais.',
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: _items.length,
-                              itemBuilder: (context, index) {
-                                final item =
-                                    Map<String, dynamic>.from(_items[index] as Map);
-
-                                return Card(
-                                  child: ListTile(
-                                    onTap: () => _openDetail(item),
-                                    title: Text(_friendlyActionTitle(item)),
-                                    subtitle: Text(
-                                      '${_friendlyDescription(item)}\n${_formatDate(item['created_at'])} • ${_formatUser(item)}',
-                                    ),
-                                    isThreeLine: true,
-                                    trailing: Chip(
-                                      label: Text(
-                                        _outcomeLabel(item['outcome']),
+            ],
+          ),
+          const SizedBox(height: AppTokens.space3),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in const <MapEntry<String, String>>[
+                MapEntry('', 'Plataforma'),
+                MapEntry('web', 'Web'),
+                MapEntry('mobile', 'Mobile'),
+                MapEntry('backend', 'Backend'),
+              ])
+                ChoiceChip(
+                  label: Text(entry.value),
+                  selected: _platform == entry.key,
+                  onSelected: (_) => setState(() => _platform = entry.key),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.space4),
+          Expanded(
+            child: _loading
+                ? const LoadingView(message: 'Carregando eventos...')
+                : _error != null
+                    ? AppMessageBanner(
+                        message: _error!,
+                        icon: Icons.error_outline_rounded,
+                        toneColor: Theme.of(context).colorScheme.error,
+                      )
+                    : _items.isEmpty
+                        ? const EmptyStateCard(
+                            title: 'Nenhum evento encontrado',
+                            subtitle:
+                                'Ajuste os filtros para localizar outros registros de auditoria.',
+                          )
+                        : ListView.builder(
+                            itemCount: _items.length,
+                            itemBuilder: (context, index) {
+                              final item =
+                                  Map<String, dynamic>.from(_items[index] as Map);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: AppSurface(
+                                  onTap: () => _openDetail(item),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 42,
+                                        height: 42,
+                                        decoration: BoxDecoration(
+                                          color: AppTokens.accentBlue
+                                              .withValues(alpha: 0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                        ),
+                                        child: const Icon(
+                                          Icons.event_note_rounded,
+                                          color: AppTokens.accentBlue,
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(width: AppTokens.space3),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _friendlyActionTitle(item),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleSmall,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _friendlyDescription(item),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              '${_formatDate(item['created_at'])} • ${_formatUser(item)}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelMedium,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      AppStatusPill(
+                                        label: _outcomeLabel(item['outcome']),
+                                        color: item['outcome'] == 'success'
+                                            ? AppTokens.accentBlue
+                                            : Theme.of(context).colorScheme.error,
+                                      ),
+                                    ],
                                   ),
-                                );
-                              },
-                            ),
-            ),
-          ],
+                                ),
+                              );
+                            },
+                          ),
+          ),
         ],
       ),
     );

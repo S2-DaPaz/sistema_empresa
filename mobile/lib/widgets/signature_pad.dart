@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:signature/signature.dart';
 
+import '../theme/app_tokens.dart';
+import 'app_ui.dart';
+
 class SignaturePadField extends StatefulWidget {
   const SignaturePadField({
     super.key,
@@ -22,9 +25,13 @@ class SignaturePadField extends StatefulWidget {
 
 class _SignaturePadFieldState extends State<SignaturePadField> {
   Uint8List? _decode(String dataUrl) {
-    if (dataUrl.isEmpty) return null;
+    if (dataUrl.isEmpty) {
+      return null;
+    }
     final parts = dataUrl.split(',');
-    if (parts.length != 2) return null;
+    if (parts.length != 2) {
+      return null;
+    }
     try {
       return base64Decode(parts.last);
     } catch (_) {
@@ -58,8 +65,9 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
 
   Future<void> _openSignature() async {
     final signer = await _promptSignerInfo();
-    if (signer == null) return;
-    if (!mounted) return;
+    if (signer == null || !mounted) {
+      return;
+    }
 
     final dataUrl = await Navigator.of(context).push<String>(
       MaterialPageRoute(
@@ -79,43 +87,60 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
   @override
   Widget build(BuildContext context) {
     final preview = _decode(widget.value);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label.toUpperCase(),
-            style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        InkWell(
+        Text(
+          widget.label,
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+        const SizedBox(height: AppTokens.space3),
+        AppSurface(
           onTap: _openSignature,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
+          backgroundColor: AppTokens.bgSoft,
+          shadow: const [],
+          child: SizedBox(
             width: double.infinity,
-            height: 168,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black.withValues(alpha: 0.12)),
-            ),
+            height: 196,
             child: preview == null
-                ? Center(
-                    child: Text(
-                      'toque para assinar',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.black54,
-                          ),
-                    ),
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: AppTokens.accentBlue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.draw_rounded,
+                          color: AppTokens.accentBlue,
+                        ),
+                      ),
+                      const SizedBox(height: AppTokens.space4),
+                      Text(
+                        'Toque para assinar',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Abra o modo de assinatura para registrar a rubrica.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   )
                 : Column(
                     children: [
                       Expanded(
-                          child: Image.memory(preview, fit: BoxFit.contain)),
-                      const SizedBox(height: 8),
+                        child: Image.memory(preview, fit: BoxFit.contain),
+                      ),
+                      const SizedBox(height: AppTokens.space2),
                       Text(
-                        'toque para assinar',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.black54,
-                            ),
+                        'Toque para atualizar a assinatura',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),
@@ -166,54 +191,48 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
   Future<void> _saveSignature() async {
     final bytes = await _controller.toPngBytes();
     if (bytes == null || bytes.isEmpty) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Assinatura vazia.')),
       );
       return;
     }
     final dataUrl = 'data:image/png;base64,${base64Encode(bytes)}';
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     Navigator.pop(context, dataUrl);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF3F7FB),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           child: Column(
             children: [
               Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(Icons.close_rounded),
                     onPressed: () => Navigator.pop(context),
                   ),
                   Expanded(
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (widget.signerName.isNotEmpty)
-                          Text(
-                            widget.signerName,
-                            style: Theme.of(context).textTheme.titleSmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        if (widget.signerCpf.isNotEmpty)
-                          Text(
-                            widget.signerCpf,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Colors.black54),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        Text(
+                          'Capturar assinatura',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(
+                          'Paisagem otimizada para mais espaço de escrita.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     ),
                   ),
@@ -222,26 +241,61 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
                     child: const Text('Limpar'),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton(
+                  ElevatedButton(
                     onPressed: _saveSignature,
                     child: const Text('Salvar'),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppTokens.space4),
+              AppSurface(
+                backgroundColor: AppTokens.bgSoft,
+                shadow: const [],
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppTokens.accentBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.badge_outlined,
+                        color: AppTokens.accentBlue,
+                      ),
+                    ),
+                    const SizedBox(width: AppTokens.space4),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.signerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          if (widget.signerCpf.isNotEmpty)
+                            Text(
+                              widget.signerCpf,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppTokens.space4),
               Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: Colors.black.withValues(alpha: 0.12)),
-                  ),
+                child: AppSurface(
+                  padding: EdgeInsets.zero,
                   child: Stack(
                     children: [
                       Positioned.fill(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 36, 12, 18),
+                          padding: const EdgeInsets.fromLTRB(18, 44, 18, 22),
                           child: Signature(
                             controller: _controller,
                             backgroundColor: Colors.white,
@@ -249,17 +303,17 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
                         ),
                       ),
                       Positioned(
-                        left: 12,
-                        top: 10,
+                        left: 18,
+                        top: 16,
                         child: Text(
                           'Assinatura',
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                       ),
                       Positioned(
-                        left: 12,
-                        right: 12,
-                        bottom: 12,
+                        left: 18,
+                        right: 18,
+                        bottom: 18,
                         child: Container(height: 1, color: Colors.black26),
                       ),
                     ],
@@ -300,8 +354,12 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
     final trimmed = digits.length > 11 ? digits.substring(0, 11) : digits;
     final buffer = StringBuffer();
     for (var i = 0; i < trimmed.length; i++) {
-      if (i == 3 || i == 6) buffer.write('.');
-      if (i == 9) buffer.write('-');
+      if (i == 3 || i == 6) {
+        buffer.write('.');
+      }
+      if (i == 9) {
+        buffer.write('-');
+      }
       buffer.write(trimmed[i]);
     }
     return buffer.toString();
@@ -310,7 +368,9 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
   Future<void> _close([_SignerInfo? payload]) async {
     FocusManager.instance.primaryFocus?.unfocus();
     await Future.delayed(const Duration(milliseconds: 120));
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     Navigator.pop(context, payload);
   }
 
@@ -319,13 +379,13 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
     final cpfDigits = _onlyDigits(_cpfController.text);
     setState(() {
       _nameError = name.isEmpty ? 'Informe o nome.' : null;
-      if (cpfDigits.isNotEmpty && cpfDigits.length != 11) {
-        _cpfError = 'Informe um CPF válido.';
-      } else {
-        _cpfError = null;
-      }
+      _cpfError = cpfDigits.isNotEmpty && cpfDigits.length != 11
+          ? 'Informe um CPF válido.'
+          : null;
     });
-    if (_nameError != null || _cpfError != null) return;
+    if (_nameError != null || _cpfError != null) {
+      return;
+    }
     final cpf = _formatCpfDigits(cpfDigits);
     _close(_SignerInfo(name: name, cpf: cpf));
   }
@@ -338,44 +398,50 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(20),
-              ),
+            child: AppSurface(
+              radius: AppTokens.radiusLg,
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Assinatura',
-                          style: Theme.of(context).textTheme.titleMedium),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Assinatura',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            'Quem está assinando este documento?',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
                       IconButton(
                         onPressed: () => _close(),
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(Icons.close_rounded),
                       ),
                     ],
                   ),
-                  Text('Quem está assinando?',
-                      style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppTokens.space4),
                   TextField(
                     controller: _nameController,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
                     keyboardType: TextInputType.name,
                     decoration: InputDecoration(
-                        labelText: 'Nome', errorText: _nameError),
+                      labelText: 'Nome',
+                      errorText: _nameError,
+                    ),
                     onChanged: (_) {
                       if (_nameError != null) {
                         setState(() => _nameError = null);
                       }
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppTokens.space4),
                   TextField(
                     controller: _cpfController,
                     keyboardType: TextInputType.number,
@@ -384,14 +450,16 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
                       CpfInputFormatter(),
                     ],
                     decoration: InputDecoration(
-                        labelText: 'CPF (opcional)', errorText: _cpfError),
+                      labelText: 'CPF (opcional)',
+                      errorText: _cpfError,
+                    ),
                     onChanged: (_) {
                       if (_cpfError != null) {
                         setState(() => _cpfError = null);
                       }
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppTokens.space5),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -419,12 +487,18 @@ class _SignerInfo {
 class CpfInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
     final buffer = StringBuffer();
     for (var i = 0; i < digits.length && i < 11; i++) {
-      if (i == 3 || i == 6) buffer.write('.');
-      if (i == 9) buffer.write('-');
+      if (i == 3 || i == 6) {
+        buffer.write('.');
+      }
+      if (i == 9) {
+        buffer.write('-');
+      }
       buffer.write(digits[i]);
     }
     final text = buffer.toString();
