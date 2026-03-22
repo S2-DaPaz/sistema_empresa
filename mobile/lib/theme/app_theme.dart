@@ -11,22 +11,36 @@ class AppTheme {
   static ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final base = ThemeData(useMaterial3: true, brightness: brightness);
-    final scheme = ColorScheme(
+    final seedScheme = ColorScheme.fromSeed(
+      seedColor: AppTokens.primaryBlue,
       brightness: brightness,
-      primary: AppTokens.accentBlue,
+    );
+    final scheme = seedScheme.copyWith(
+      primary: AppTokens.primaryBlue,
       onPrimary: Colors.white,
+      primaryContainer:
+          isDark ? const Color(0xFF16305A) : const Color(0xFFE7EFFF),
+      onPrimaryContainer: isDark ? Colors.white : AppTokens.primaryBlueDark,
       secondary: AppTokens.primaryCyan,
       onSecondary: Colors.white,
+      secondaryContainer:
+          isDark ? const Color(0xFF122A37) : const Color(0xFFE7F7FC),
+      onSecondaryContainer: isDark ? Colors.white : AppTokens.textStrong,
       tertiary: AppTokens.supportTeal,
       onTertiary: Colors.white,
+      tertiaryContainer:
+          isDark ? const Color(0xFF103126) : AppTokens.successSoft,
+      onTertiaryContainer: isDark ? Colors.white : AppTokens.supportTeal,
       error: AppTokens.danger,
       onError: Colors.white,
+      errorContainer: isDark ? const Color(0xFF3C1D22) : AppTokens.dangerSoft,
+      onErrorContainer: isDark ? Colors.white : AppTokens.danger,
       surface: isDark ? const Color(0xFF132034) : Colors.white,
       onSurface: isDark ? const Color(0xFFF4F7FB) : AppTokens.textStrong,
       outline: isDark ? const Color(0xFF35506F) : AppTokens.fieldBorder,
       outlineVariant:
-          isDark ? const Color(0xFF24354E) : const Color(0xFFDCE7F1),
-      shadow: const Color(0x140F2B60),
+          isDark ? const Color(0xFF24354E) : const Color(0xFFE4EBF3),
+      shadow: const Color(0x16081B4D),
       scrim: Colors.black.withValues(alpha: 0.45),
       surfaceTint: Colors.transparent,
       inverseSurface: isDark ? Colors.white : AppTokens.bgDark,
@@ -34,77 +48,77 @@ class AppTheme {
       inversePrimary: AppTokens.primaryCyan,
     );
 
-    final bodyText = GoogleFonts.plusJakartaSansTextTheme(base.textTheme);
+    final bodyText = GoogleFonts.manropeTextTheme(base.textTheme);
     final textTheme = bodyText.copyWith(
-      displaySmall: GoogleFonts.plusJakartaSans(
+      displaySmall: GoogleFonts.manrope(
         fontSize: 36,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
+        height: 1.02,
+        color: scheme.onSurface,
+      ),
+      headlineMedium: GoogleFonts.manrope(
+        fontSize: 29,
+        fontWeight: FontWeight.w800,
         height: 1.05,
         color: scheme.onSurface,
       ),
-      headlineMedium: GoogleFonts.plusJakartaSans(
-        fontSize: 28,
-        fontWeight: FontWeight.w700,
-        height: 1.08,
-        color: scheme.onSurface,
-      ),
-      headlineSmall: GoogleFonts.plusJakartaSans(
+      headlineSmall: GoogleFonts.manrope(
         fontSize: 22,
-        fontWeight: FontWeight.w700,
-        height: 1.15,
+        fontWeight: FontWeight.w800,
+        height: 1.12,
         color: scheme.onSurface,
       ),
-      titleLarge: GoogleFonts.plusJakartaSans(
+      titleLarge: GoogleFonts.manrope(
         fontSize: 18,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         height: 1.15,
         color: scheme.onSurface,
       ),
-      titleMedium: GoogleFonts.plusJakartaSans(
+      titleMedium: GoogleFonts.manrope(
         fontSize: 16,
         fontWeight: FontWeight.w700,
         height: 1.2,
         color: scheme.onSurface,
       ),
-      titleSmall: GoogleFonts.plusJakartaSans(
+      titleSmall: GoogleFonts.manrope(
         fontSize: 14,
         fontWeight: FontWeight.w700,
         height: 1.2,
         color: scheme.onSurface,
       ),
-      bodyLarge: GoogleFonts.plusJakartaSans(
+      bodyLarge: GoogleFonts.manrope(
         fontSize: 15,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         height: 1.45,
         color: scheme.onSurface,
       ),
-      bodyMedium: GoogleFonts.plusJakartaSans(
+      bodyMedium: GoogleFonts.manrope(
         fontSize: 14,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         height: 1.45,
         color: scheme.onSurface,
       ),
-      bodySmall: GoogleFonts.plusJakartaSans(
+      bodySmall: GoogleFonts.manrope(
         fontSize: 12.5,
-        fontWeight: FontWeight.w500,
-        height: 1.4,
-        color: scheme.onSurface.withValues(alpha: 0.6),
+        fontWeight: FontWeight.w600,
+        height: 1.42,
+        color: scheme.onSurface.withValues(alpha: 0.62),
       ),
-      labelLarge: GoogleFonts.plusJakartaSans(
+      labelLarge: GoogleFonts.manrope(
         fontSize: 14,
-        fontWeight: FontWeight.w700,
-        height: 1.15,
+        fontWeight: FontWeight.w800,
+        height: 1.1,
         color: scheme.onSurface,
       ),
-      labelMedium: GoogleFonts.plusJakartaSans(
+      labelMedium: GoogleFonts.manrope(
         fontSize: 12,
-        fontWeight: FontWeight.w700,
-        height: 1.15,
-        color: scheme.onSurface.withValues(alpha: 0.75),
+        fontWeight: FontWeight.w800,
+        height: 1.1,
+        color: scheme.onSurface.withValues(alpha: 0.78),
       ),
-      labelSmall: GoogleFonts.plusJakartaSans(
+      labelSmall: GoogleFonts.manrope(
         fontSize: 11,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         height: 1.1,
         color: scheme.onSurface.withValues(alpha: 0.58),
       ),
@@ -116,14 +130,14 @@ class AppTheme {
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
-        foregroundColor: scheme.onSurface,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
         scrolledUnderElevation: 0,
         titleSpacing: 0,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: textTheme.titleLarge,
-        iconTheme: IconThemeData(color: scheme.onSurface),
+        titleTextStyle: textTheme.titleLarge?.copyWith(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       cardTheme: CardThemeData(
         color: scheme.surface,
@@ -131,16 +145,14 @@ class AppTheme {
         shadowColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-          side: BorderSide(
-            color: scheme.outlineVariant,
-          ),
+          borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+          side: BorderSide(color: scheme.outlineVariant),
         ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          borderRadius: BorderRadius.circular(AppTokens.radiusLg),
         ),
         titleTextStyle: textTheme.titleLarge,
         contentTextStyle: textTheme.bodyMedium,
@@ -152,9 +164,11 @@ class AppTheme {
           color: scheme.onSurface.withValues(alpha: 0.42),
         ),
         labelStyle: textTheme.labelMedium,
+        prefixIconColor: scheme.onSurface.withValues(alpha: 0.58),
+        suffixIconColor: scheme.onSurface.withValues(alpha: 0.58),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppTokens.space4,
-          vertical: 15,
+          vertical: 16,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -166,7 +180,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: BorderSide(color: scheme.primary, width: 1.4),
+          borderSide: BorderSide(color: scheme.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -174,7 +188,7 @@ class AppTheme {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: BorderSide(color: scheme.error, width: 1.4),
+          borderSide: BorderSide(color: scheme.error, width: 1.5),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -199,7 +213,7 @@ class AppTheme {
           elevation: 0,
           foregroundColor: scheme.onSurface,
           minimumSize: const Size.fromHeight(54),
-          side: BorderSide(color: scheme.outline),
+          side: BorderSide(color: scheme.outlineVariant),
           backgroundColor: scheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppTokens.radiusPill),
@@ -217,7 +231,9 @@ class AppTheme {
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
         elevation: 0,
-        shape: const CircleBorder(),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -229,6 +245,7 @@ class AppTheme {
       ),
       chipTheme: base.chipTheme.copyWith(
         backgroundColor: scheme.surface,
+        selectedColor: scheme.primary.withValues(alpha: 0.14),
         side: BorderSide(color: scheme.outlineVariant),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusPill),
@@ -248,7 +265,7 @@ class AppTheme {
           (states) => textTheme.labelSmall?.copyWith(
             color: states.contains(WidgetState.selected)
                 ? scheme.primary
-                : scheme.onSurface.withValues(alpha: 0.52),
+                : scheme.onSurface.withValues(alpha: 0.5),
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(

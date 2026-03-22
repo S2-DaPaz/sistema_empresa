@@ -15,8 +15,11 @@ class AppScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.showAppBar = true,
     this.showLogo = true,
-    this.logoHeight = 24,
+    this.logoHeight = 20,
     this.padding,
+    this.headerHeight = 184,
+    this.headerOverlap = 56,
+    this.headerGradient,
   });
 
   final String title;
@@ -29,126 +32,222 @@ class AppScaffold extends StatelessWidget {
   final bool showLogo;
   final double logoHeight;
   final EdgeInsets? padding;
+  final double headerHeight;
+  final double headerOverlap;
+  final Gradient? headerGradient;
 
   @override
   Widget build(BuildContext context) {
     RouteTracker.instance.update(title);
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
-    final titleWidget = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            if (showLogo) ...[
-              BrandLogo(height: logoHeight),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 2),
-          Text(
-            subtitle!,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
-      ],
-    );
+    final bodyPadding = padding ??
+        const EdgeInsets.fromLTRB(
+          AppTokens.space4,
+          0,
+          AppTokens.space4,
+          AppTokens.space4,
+        );
 
     return Scaffold(
       extendBody: true,
-      appBar: showAppBar
-          ? AppBar(
-              leading: leading,
-              title: titleWidget,
-              actions: actions,
-            )
-          : null,
+      backgroundColor: AppTokens.bgLight,
       floatingActionButton: floatingActionButton,
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF0F1826),
-                    Color(0xFF0B1320),
-                  ],
-                )
-              : AppTokens.softBackgroundGradient,
-        ),
-        child: Stack(
-          children: [
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: AppTokens.softBackgroundGradient,
+              ),
+            ),
+          ),
+          if (showAppBar)
             Positioned(
-              top: -60,
-              left: 80,
-              right: 80,
-              height: 220,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        theme.colorScheme.primary.withValues(alpha: 0.12),
-                        theme.colorScheme.secondary.withValues(alpha: 0.06),
-                        Colors.transparent,
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _HeaderBlock(
+                title: title,
+                subtitle: subtitle,
+                actions: actions,
+                leading: leading,
+                showLogo: showLogo,
+                logoHeight: logoHeight,
+                height: headerHeight,
+                gradient: headerGradient,
+              ),
+            ),
+          SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                bodyPadding.left,
+                showAppBar ? headerHeight - headerOverlap : bodyPadding.top,
+                bodyPadding.right,
+                bodyPadding.bottom,
+              ),
+              child: body,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderBlock extends StatelessWidget {
+  const _HeaderBlock({
+    required this.title,
+    required this.subtitle,
+    required this.actions,
+    required this.leading,
+    required this.showLogo,
+    required this.logoHeight,
+    required this.height,
+    required this.gradient,
+  });
+
+  final String title;
+  final String? subtitle;
+  final List<Widget>? actions;
+  final Widget? leading;
+  final bool showLogo;
+  final double logoHeight;
+  final double height;
+  final Gradient? gradient;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final canPop = Navigator.of(context).canPop();
+
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        gradient: gradient ?? AppTokens.heroGradient,
+        borderRadius: const BorderRadius.vertical(
+          bottom: Radius.circular(AppTokens.radiusXl),
+        ),
+        boxShadow: AppTokens.softShadow,
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppTokens.space4,
+            AppTokens.space3,
+            AppTokens.space4,
+            AppTokens.space5,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  leading ??
+                      (canPop
+                          ? _HeaderButton(
+                              icon: Icons.arrow_back_ios_new_rounded,
+                              onTap: () => Navigator.of(context).maybePop(),
+                            )
+                          : const SizedBox(width: 44, height: 44)),
+                  const Spacer(),
+                  if (actions != null)
+                    IconTheme(
+                      data: const IconThemeData(color: Colors.white),
+                      child: DefaultTextStyle(
+                        style: theme.textTheme.labelLarge!.copyWith(
+                          color: Colors.white,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: actions!,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (showLogo) ...[
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                      ),
+                      alignment: Alignment.center,
+                      child: BrandLogo(height: logoHeight),
+                    ),
+                    const SizedBox(width: AppTokens.space3),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (subtitle != null &&
+                            subtitle!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            subtitle!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.82),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderButton extends StatelessWidget {
+  const _HeaderButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+        child: Ink(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.18),
             ),
-            Positioned(
-              top: 0,
-              bottom: 0,
-              left: 88,
-              width: 1,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.48),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 0,
-              bottom: 0,
-              right: 112,
-              width: 1,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.38),
-                  ),
-                ),
-              ),
-            ),
-            SafeArea(
-              child: Padding(
-                padding: padding ??
-                    const EdgeInsets.fromLTRB(
-                      AppTokens.space4,
-                      AppTokens.space4,
-                      AppTokens.space4,
-                      AppTokens.space4,
-                    ),
-                child: body,
-              ),
-            ),
-          ],
+          ),
+          child: Icon(icon, size: 18, color: Colors.white),
         ),
       ),
     );

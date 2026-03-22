@@ -24,7 +24,8 @@ class AuthSession {
   String get role => user['role']?.toString() ?? 'visitante';
   bool get roleIsAdmin =>
       user['role_is_admin'] == true || role == 'administracao';
-  List<String> get rolePermissions => parsePermissions(user['role_permissions']);
+  List<String> get rolePermissions =>
+      parsePermissions(user['role_permissions']);
   List<String> get permissions => parsePermissions(user['permissions']);
   List<String> get effectivePermissions => getEffectivePermissions(user);
 }
@@ -37,9 +38,11 @@ class AuthService {
   static const _tokenKey = 'auth_token';
   static const _refreshTokenKey = 'auth_refresh_token';
   static const _userKey = 'auth_user';
+  static const _rememberMeKey = 'auth_remember_me';
 
   final ValueNotifier<AuthSession?> session = ValueNotifier<AuthSession?>(null);
   final http.Client _client = http.Client();
+  bool _persistSessionEnabled = true;
 
   String? get token => session.value?.token;
   String? get refreshToken => session.value?.refreshToken;
@@ -51,9 +54,15 @@ class AuthService {
 
   Future<void> restore() async {
     final prefs = await SharedPreferences.getInstance();
+    _persistSessionEnabled = prefs.getBool(_rememberMeKey) ?? true;
     final storedToken = prefs.getString(_tokenKey);
     final storedRefreshToken = prefs.getString(_refreshTokenKey);
     final storedUser = prefs.getString(_userKey);
+
+    if (!_persistSessionEnabled) {
+      await logout(localOnly: true);
+      return;
+    }
 
     if ((storedToken == null || storedToken.isEmpty) &&
         (storedRefreshToken == null || storedRefreshToken.isEmpty)) {
@@ -141,12 +150,16 @@ class AuthService {
     );
   }
 
-  Future<Map<String, dynamic>> login(String email, String password) async {
+  Future<Map<String, dynamic>> login(
+    String email,
+    String password, {
+    bool rememberSession = true,
+  }) async {
     final payload = await _post('/auth/login', {
       'email': email,
       'password': password,
     });
-    await _applyAuthPayload(payload);
+    await _applyAuthPayload(payload, persistSession: rememberSession);
     return payload;
   }
 
@@ -167,7 +180,10 @@ class AuthService {
       'email': email,
       'code': code,
     });
-    await _applyAuthPayload(payload);
+    await _applyAuthPayload(
+      payload,
+      persistSession: _persistSessionEnabled,
+    );
     return payload;
   }
 
@@ -225,7 +241,10 @@ class AuthService {
         final data = payload?['data'] is Map
             ? Map<String, dynamic>.from(payload!['data'] as Map)
             : payload ?? <String, dynamic>{};
-        await _applyAuthPayload(data);
+        await _applyAuthPayload(
+          data,
+          persistSession: _persistSessionEnabled,
+        );
         return true;
       }
     } catch (_) {
@@ -259,7 +278,111 @@ class AuthService {
       await prefs.remove(_tokenKey);
       await prefs.remove(_refreshTokenKey);
       await prefs.remove(_userKey);
+      await prefs.remove(_rememberMeKey);
+      _persistSessionEnabled = true;
     }
+  }
+
+  Future<List<Map<String, dynamic>>> getSessions() async {
+    final response = await _send(
+      '/auth/sessions',
+      (uri) => _client.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'X-Client-Platform': 'mobile',
+        },
+      ),
+    );
+
+    final payload = _tryDecode(response.body);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final data = payload?['data'];
+      final sessions = data is Map ? data['sessions'] : payload?['sessions'];
+      if (sessions is List) {
+        return sessions
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      }
+      return const [];
+    }
+
+    final error = normalizeApiError(
+      payload: payload,
+      statusCode: response.statusCode,
+      technicalMessage: payload?['error']?.toString() ?? response.body,
+      fallbackMessage: 'Não foi possível carregar as sessões ativas.',
+    );
+    await _report(error, path: '/auth/sessions', method: 'GET');
+    throw error;
+  }
+
+  Future<void> logoutAllDevices() async {
+    final response = await _send(
+      '/auth/logout-all',
+      (uri) => _client.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'X-Client-Platform': 'mobile',
+        },
+        body: jsonEncode({}),
+      ),
+    );
+
+    final payload = _tryDecode(response.body);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      await logout(localOnly: true);
+      return;
+    }
+
+    final error = normalizeApiError(
+      payload: payload,
+      statusCode: response.statusCode,
+      technicalMessage: payload?['error']?.toString() ?? response.body,
+      fallbackMessage: 'Não foi possível encerrar as sessões agora.',
+    );
+    await _report(error, path: '/auth/logout-all', method: 'POST');
+    throw error;
+  }
+
+  Future<void> revokeSession(String sessionId, {bool current = false}) async {
+    final response = await _send(
+      '/auth/sessions/$sessionId',
+      (uri) => _client.delete(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'X-Client-Platform': 'mobile',
+        },
+      ),
+    );
+
+    final payload = _tryDecode(response.body);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final currentSessionRevoked =
+          payload?['data']?['currentSessionRevoked'] == true ||
+              payload?['currentSessionRevoked'] == true ||
+              current;
+      if (currentSessionRevoked) {
+        await logout(localOnly: true);
+      }
+      return;
+    }
+
+    final error = normalizeApiError(
+      payload: payload,
+      statusCode: response.statusCode,
+      technicalMessage: payload?['error']?.toString() ?? response.body,
+      fallbackMessage: 'Não foi possível encerrar a sessão selecionada.',
+    );
+    await _report(error, path: '/auth/sessions/$sessionId', method: 'DELETE');
+    throw error;
   }
 
   bool hasPermission(String permission) {
@@ -332,7 +455,10 @@ class AuthService {
     }
   }
 
-  Future<void> _applyAuthPayload(Map<String, dynamic> payload) async {
+  Future<void> _applyAuthPayload(
+    Map<String, dynamic> payload, {
+    bool persistSession = true,
+  }) async {
     final nextToken = payload['token']?.toString();
     final nextRefreshToken = payload['refreshToken']?.toString();
     final userPayload = payload['user'];
@@ -355,14 +481,22 @@ class AuthService {
       refreshToken: nextRefreshToken,
       user: Map<String, dynamic>.from(userPayload),
     );
+    _persistSessionEnabled = persistSession;
     await _persist();
   }
 
   Future<void> _persist() async {
-    final current = session.value;
-    if (current == null) return;
-
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_rememberMeKey, _persistSessionEnabled);
+
+    final current = session.value;
+    if (current == null || !_persistSessionEnabled) {
+      await prefs.remove(_tokenKey);
+      await prefs.remove(_refreshTokenKey);
+      await prefs.remove(_userKey);
+      return;
+    }
+
     await prefs.setString(_tokenKey, current.token);
     await prefs.setString(_refreshTokenKey, current.refreshToken);
     await prefs.setString(_userKey, jsonEncode(current.user));

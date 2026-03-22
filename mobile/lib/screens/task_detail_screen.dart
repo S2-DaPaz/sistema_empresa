@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -19,12 +19,12 @@ import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../services/offline_task_draft_service.dart';
 import '../services/permissions.dart';
+import '../theme/app_tokens.dart';
 import '../utils/formatters.dart';
 import '../utils/report_text.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/budget_form.dart';
-import '../widgets/brand_logo.dart';
 import '../widgets/form_fields.dart';
 import '../widgets/loading_view.dart';
 
@@ -52,7 +52,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     with TickerProviderStateMixin {
   final ApiService _api = ApiService();
   final ImagePicker _picker = ImagePicker();
-  final TaskOfflineDraftStore _offlineDraftStore = TaskOfflineDraftStore.instance;
+  final TaskOfflineDraftStore _offlineDraftStore =
+      TaskOfflineDraftStore.instance;
   late final TabController _tabController;
 
   bool _loading = true;
@@ -206,7 +207,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       return;
     }
 
-    final templateId = _activeReport?['template_id'] ?? _selectedTemplate?['id'];
+    final templateId =
+        _activeReport?['template_id'] ?? _selectedTemplate?['id'];
     final reportSnapshot = {
       ..._safeMap(_activeReport),
       'id': _activeReportId,
@@ -270,8 +272,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         'signature_tech': _signatureTech,
         'signature_pages': _cloneJson(_signaturePages),
       },
-      reports: _reports.map((item) => Map<String, dynamic>.from(_cloneJson(item) as Map)).toList(),
-      budgets: _budgets.map((item) => Map<String, dynamic>.from(_cloneJson(item) as Map)).toList(),
+      reports: _reports
+          .map((item) => Map<String, dynamic>.from(_cloneJson(item) as Map))
+          .toList(),
+      budgets: _budgets
+          .map((item) => Map<String, dynamic>.from(_cloneJson(item) as Map))
+          .toList(),
     );
   }
 
@@ -328,8 +334,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             .cast<Map<String, dynamic>>();
         _products = (draft.lookups['products'] as List<dynamic>? ?? const [])
             .cast<Map<String, dynamic>>();
-        _equipments = (draft.lookups['equipments'] as List<dynamic>? ?? const [])
-            .cast<Map<String, dynamic>>();
+        _equipments =
+            (draft.lookups['equipments'] as List<dynamic>? ?? const [])
+                .cast<Map<String, dynamic>>();
       }
 
       final task = draft.task;
@@ -356,7 +363,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
       final report = _reports.firstWhere(
         (item) => item['id'] == _activeReportId,
-        orElse: () => _reports.isNotEmpty ? _reports.first : <String, dynamic>{},
+        orElse: () =>
+            _reports.isNotEmpty ? _reports.first : <String, dynamic>{},
       );
 
       if (report.isNotEmpty) {
@@ -488,8 +496,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         ? preservedReport
         : nextReports.firstWhere(
             (item) => item['equipment_id'] == null,
-            orElse: () =>
-                nextReports.isNotEmpty ? nextReports.first : <String, dynamic>{},
+            orElse: () => nextReports.isNotEmpty
+                ? nextReports.first
+                : <String, dynamic>{},
           );
     final nextActiveId = defaultReport['id'] as int?;
     setState(() {
@@ -825,10 +834,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
     try {
       if ((_activeReportId ?? 0) < 0) {
-        final created = await _api.post('/reports', payload) as Map<String, dynamic>;
+        final created =
+            await _api.post('/reports', payload) as Map<String, dynamic>;
         final createdId = created['id'] as int?;
         if (createdId != null) {
-          final reportIndex = _reports.indexWhere((item) => item['id'] == _activeReportId);
+          final reportIndex =
+              _reports.indexWhere((item) => item['id'] == _activeReportId);
           if (reportIndex != -1) {
             _reports[reportIndex] = {
               ...Map<String, dynamic>.from(_reports[reportIndex]),
@@ -842,8 +853,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       } else {
         await _api.put('/reports/$_activeReportId', payload);
       }
-    _reportDirty = false;
-    _reportDraftDirty = false;
+      _reportDirty = false;
+      _reportDraftDirty = false;
       _markReportDraftSynced();
       if (silent && skipReload) {
         await _reconcileOfflineDraftAfterSync();
@@ -951,7 +962,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
     try {
       if ((_activeReportId ?? 0) > 0) {
-        await _api.put('/reports/$_activeReportId', {'equipment_id': equipmentId});
+        await _api
+            .put('/reports/$_activeReportId', {'equipment_id': equipmentId});
       }
     } catch (error) {
       if (_isConnectionError(error)) {
@@ -1063,7 +1075,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     if ((_activeReportId ?? 0) < 0) {
       setState(() {
         _reports.removeWhere((item) => item['id'] == _activeReportId);
-        _activeReportId = _reports.isNotEmpty ? _reports.first['id'] as int? : null;
+        _activeReportId =
+            _reports.isNotEmpty ? _reports.first['id'] as int? : null;
         final nextReport = _reports.firstWhere(
           (item) => item['id'] == _activeReportId,
           orElse: () => <String, dynamic>{},
@@ -1638,8 +1651,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       signatureClient: _signatureClient,
       signatureTech: _signatureTech,
       signaturePages: _signaturePages,
-      signaturePageItems:
-          signaturePageItems.map((item) => item.map((key, value) => MapEntry(key, value.toString()))).toList(),
+      signaturePageItems: signaturePageItems
+          .map((item) =>
+              item.map((key, value) => MapEntry(key, value.toString())))
+          .toList(),
       onSignatureModeChanged: (value) {
         setState(() => _signatureMode = value);
         _markTaskDraftDirty();
@@ -1719,8 +1734,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         for (var index = 0; index < _reports.length; index += 1) {
           final report = Map<String, dynamic>.from(_reports[index]);
           final reportId = report['id'] as int?;
-          final payload =
-              _buildReportPayloadFromReport(report, taskIdOverride: syncedTaskId);
+          final payload = _buildReportPayloadFromReport(report,
+              taskIdOverride: syncedTaskId);
 
           if ((reportId ?? 0) < 0) {
             final created =
@@ -1772,9 +1787,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   Widget _buildOfflineBanner(BuildContext context) {
     final theme = Theme.of(context);
     final waitingConnection = _loadingFromOfflineDraft || _offlineSyncPending;
-    final headline = waitingConnection
-        ? 'Modo offline ativo'
-        : 'Rascunho local disponível';
+    final headline =
+        waitingConnection ? 'Modo offline ativo' : 'Rascunho local disponível';
     final description = waitingConnection
         ? 'As alterações desta tarefa estão salvas neste aparelho e serão sincronizadas quando houver conexão.'
         : 'Existe um rascunho local desta tarefa salvo neste aparelho.';
@@ -1789,7 +1803,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             Row(
               children: [
                 Icon(
-                  waitingConnection ? Icons.cloud_off_outlined : Icons.save_outlined,
+                  waitingConnection
+                      ? Icons.cloud_off_outlined
+                      : Icons.save_outlined,
                   color: theme.colorScheme.onSecondaryContainer,
                 ),
                 const SizedBox(width: 8),
@@ -1810,8 +1826,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
               children: [
                 FilledButton.tonalIcon(
                   onPressed: _syncingOfflineDraft ? null : _syncOfflineDraft,
-                  icon: Icon(_syncingOfflineDraft ? Icons.sync : Icons.cloud_upload_outlined),
-                  label: Text(_syncingOfflineDraft ? 'Sincronizando...' : 'Sincronizar agora'),
+                  icon: Icon(_syncingOfflineDraft
+                      ? Icons.sync
+                      : Icons.cloud_upload_outlined),
+                  label: Text(_syncingOfflineDraft
+                      ? 'Sincronizando...'
+                      : 'Sincronizar agora'),
                 ),
                 TextButton.icon(
                   onPressed: _syncingOfflineDraft ? null : _discardOfflineDraft,
@@ -1848,6 +1868,99 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     }
   }
 
+  Map<String, dynamic> get _selectedClient {
+    return _clients.firstWhere(
+      (item) => item['id'] == _clientId,
+      orElse: () => <String, dynamic>{},
+    );
+  }
+
+  String _clientInitials(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((item) => item.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) {
+      return 'CL';
+    }
+    if (parts.length == 1) {
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+    return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'
+        .toUpperCase();
+  }
+
+  String? _clientPhone() {
+    final source = _selectedClient['contact']?.toString() ?? '';
+    final digits = source.replaceAll(RegExp(r'[^\d]'), '');
+    return digits.length < 10 ? null : digits;
+  }
+
+  Future<void> _callClient() async {
+    final phone = _clientPhone();
+    if (phone == null) return;
+    await launchUrl(Uri.parse('tel:$phone'));
+  }
+
+  Future<void> _openClientWhatsApp() async {
+    final phone = _clientPhone();
+    if (phone == null) return;
+    await launchUrl(
+      Uri.parse('https://wa.me/$phone'),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  Future<void> _openMapsRoute() async {
+    final address = _selectedClient['address']?.toString().trim() ?? '';
+    if (address.isEmpty) return;
+    final query = Uri.encodeComponent(address);
+    await launchUrl(
+      Uri.parse('https://www.google.com/maps/search/?api=1&query=$query'),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  List<Map<String, dynamic>> _buildChecklistEntries() {
+    final entries = <Map<String, dynamic>>[];
+
+    for (final section in _reportSections) {
+      final fields = (section['fields'] as List<dynamic>? ?? const [])
+          .cast<Map<String, dynamic>>();
+      for (final field in fields) {
+        final fieldId = field['id']?.toString() ?? '';
+        final rawValue = _reportAnswers[fieldId];
+        final textValue = rawValue?.toString().trim().toLowerCase() ?? '';
+        final completed = rawValue == true ||
+            textValue.isNotEmpty && textValue != 'nao' && textValue != 'false';
+
+        entries.add({
+          'label': field['label']?.toString() ?? 'Item',
+          'completed': completed,
+        });
+
+        if (entries.length >= 4) {
+          return entries;
+        }
+      }
+    }
+
+    return entries;
+  }
+
+  List<Uint8List> _photoThumbs() {
+    return _reportPhotos.map((photo) {
+      final dataUrl = photo['dataUrl']?.toString() ?? '';
+      return Uint8List.fromList(base64Decode(dataUrl.split(',').last));
+    }).toList();
+  }
+
+  Future<void> _finishTask() async {
+    setState(() => _status = 'concluida');
+    await _saveTask();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -1857,76 +1970,299 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       return AppScaffold(title: 'Tarefa', body: Center(child: Text(_error!)));
     }
 
-    final clientName = _clients
-        .firstWhere(
-          (item) => item['id'] == _clientId,
-          orElse: () => <String, dynamic>{},
-        )['name']
-        ?.toString() ??
-        'Sem cliente';
-    final taskTypeName = _types
-        .firstWhere(
-          (item) => item['id'] == _taskTypeId,
-          orElse: () => <String, dynamic>{},
-        )['name']
-        ?.toString();
-    final heroTitle = _title.text.trim().isEmpty
-        ? (_taskId == null ? 'Nova tarefa' : 'Detalhe da tarefa')
-        : _title.text.trim();
+    final clientName = _selectedClient['name']?.toString() ?? 'Sem cliente';
+    final clientAddress =
+        _selectedClient['address']?.toString().trim().isNotEmpty == true
+            ? _selectedClient['address'].toString().trim()
+            : 'Endereco nao informado';
+    final checklistEntries = _buildChecklistEntries();
+    final checklistCompleted =
+        checklistEntries.where((item) => item['completed'] == true).length;
+    final photoThumbs = _photoThumbs();
+    final canFinish = _taskId != null && _status != 'concluida';
 
     return AppScaffold(
-      title: _taskId == null ? 'Nova tarefa' : 'Tarefa #$_taskId',
+      title: _taskId == null ? 'Nova tarefa' : 'Detalhe da tarefa',
       subtitle: clientName,
       showLogo: false,
+      actions: _taskId == null
+          ? null
+          : [
+              TextButton(
+                onPressed: () => _tabController.animateTo(0),
+                child: const Text(
+                  'Editar',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
       body: Column(
         children: [
-          AppHeroBanner(
-            title: heroTitle,
-            subtitle: [
-              clientName,
-              if (taskTypeName != null && taskTypeName.isNotEmpty) taskTypeName,
-            ].join(' • '),
-            trailing: const CircleAvatar(
-              radius: 24,
-              backgroundColor: Color(0x1FFFFFFF),
-              child: BrandLogo(height: 28),
-            ),
-            metrics: [
-              AppHeroMetric(label: 'Status', value: _statusLabel(_status)),
-              AppHeroMetric(label: 'Prioridade', value: _priorityLabel(_priority)),
-              AppHeroMetric(label: 'Relatórios', value: '${_reports.length}'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              AppStatusPill(
+                label: _statusLabel(_status),
+                color: _status == 'concluida'
+                    ? AppTokens.supportTeal
+                    : _status == 'em_andamento'
+                        ? AppTokens.primaryBlue
+                        : AppTokens.warning,
+              ),
+              if (_taskId != null)
+                AppStatusPill(
+                  label: 'ID #$_taskId',
+                  color: AppTokens.primaryCyan,
+                ),
+              AppStatusPill(
+                label: _priorityLabel(_priority),
+                color: _priority == 'alta'
+                    ? AppTokens.danger
+                    : _priority == 'baixa'
+                        ? AppTokens.supportTeal
+                        : AppTokens.warning,
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          AppSurface(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _SummaryInfo(
-                    title: 'Cliente e local',
-                    value: clientName,
-                    caption: _description.text.trim().isEmpty
-                        ? 'Sem observação inicial registrada.'
-                        : _description.text.trim(),
-                  ),
+          const SizedBox(height: 12),
+          if (_title.text.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _title.text.trim(),
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SummaryInfo(
-                    title: 'Próxima ação',
-                    value: _reports.isEmpty ? 'Criar relatório' : 'Atualizar execução',
-                    caption:
-                        '${_budgets.length} orçamento(s) • ${_equipments.length} equipamento(s)',
-                  ),
+              ),
+            ),
+          AppSurface(
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    AppAvatarInitials(
+                      initials: _clientInitials(clientName),
+                      backgroundColor:
+                          AppTokens.primaryBlue.withValues(alpha: 0.12),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            clientName,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _selectedClient['contact']?.toString() ??
+                                'Contato nao informado',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    AppActionChip(
+                      label: 'Ligar',
+                      icon: Icons.call_outlined,
+                      color: AppTokens.supportTeal,
+                      onTap: _callClient,
+                    ),
+                    AppActionChip(
+                      label: 'WhatsApp',
+                      icon: Icons.chat_rounded,
+                      color: AppTokens.supportTeal,
+                      onTap: _openClientWhatsApp,
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          AppSurface(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppTokens.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  ),
+                  child: const Icon(
+                    Icons.location_on_outlined,
+                    color: AppTokens.warning,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Endereco',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        clientAddress,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: _openMapsRoute,
+                  icon: const Icon(Icons.navigation_outlined),
+                ),
+              ],
+            ),
+          ),
+          if (_description.text.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            AppSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Descricao',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _description.text.trim(),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_equipments.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            AppSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const AppSectionBlock(
+                    title: 'Equipamentos',
+                    subtitle: 'Ativos vinculados a este atendimento.',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 92,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _equipments.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (context, index) {
+                        final equipment = _equipments[index];
+                        return Container(
+                          width: 180,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppTokens.bgSoft,
+                            borderRadius:
+                                BorderRadius.circular(AppTokens.radiusMd),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                equipment['name']?.toString() ?? 'Equipamento',
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                [
+                                  equipment['model']?.toString(),
+                                  equipment['serial']?.toString(),
+                                ]
+                                    .whereType<String>()
+                                    .where((item) => item.trim().isNotEmpty)
+                                    .join(' • '),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (photoThumbs.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            AppSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const AppSectionBlock(
+                    title: 'Fotos do servico',
+                    subtitle: 'Evidencias registradas pela equipe tecnica.',
+                  ),
+                  const SizedBox(height: 12),
+                  AppPhotoThumbGallery(
+                    photos: photoThumbs,
+                    onTap: _openReportTab,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (checklistEntries.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            AppChecklistProgressBlock(
+              title: 'Checklist tecnico',
+              completed: checklistCompleted,
+              total: checklistEntries.length,
+              children: checklistEntries
+                  .map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            entry['completed'] == true
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            size: 18,
+                            color: entry['completed'] == true
+                                ? AppTokens.supportTeal
+                                : AppTokens.textMuted,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              entry['label']?.toString() ?? 'Item',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
           if (_shouldShowOfflineBanner) ...[
             const SizedBox(height: 12),
             _buildOfflineBanner(context),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           AppSurface(
             padding: const EdgeInsets.all(6),
             child: TabBar(
@@ -1953,34 +2289,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
               ],
             ),
           ),
+          if (_taskId != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: canFinish ? _finishTask : _saveTask,
+                child: Text(canFinish ? 'Finalizar tarefa' : 'Salvar tarefa'),
+              ),
+            ),
+          ],
         ],
       ),
-    );
-  }
-}
-
-class _SummaryInfo extends StatelessWidget {
-  const _SummaryInfo({
-    required this.title,
-    required this.value,
-    required this.caption,
-  });
-
-  final String title;
-  final String value;
-  final String caption;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 6),
-        Text(value, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 4),
-        Text(caption, style: Theme.of(context).textTheme.bodySmall),
-      ],
     );
   }
 }

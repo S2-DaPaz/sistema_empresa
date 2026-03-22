@@ -14,6 +14,7 @@ import '../widgets/app_ui.dart';
 import '../widgets/budget_form.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
+import 'budget_detail_screen.dart';
 
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
@@ -58,7 +59,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       _error = null;
     });
     try {
-      final budgets = await _api.get('/budgets?includeItems=1') as List<dynamic>;
+      final budgets =
+          await _api.get('/budgets?includeItems=1') as List<dynamic>;
       final clients = await _api.get('/clients') as List<dynamic>;
       final products = await _api.get('/products') as List<dynamic>;
 
@@ -149,13 +151,17 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       budget['status'],
       items,
     ];
-    return parts.map((value) => value?.toString() ?? '').join(' ').toLowerCase();
+    return parts
+        .map((value) => value?.toString() ?? '')
+        .join(' ')
+        .toLowerCase();
   }
 
   List<Map<String, dynamic>> _filteredBudgets() {
     final query = _searchQuery.trim().toLowerCase();
     return _budgets.where((budget) {
-      if (_statusFilter != null && budget['status']?.toString() != _statusFilter) {
+      if (_statusFilter != null &&
+          budget['status']?.toString() != _statusFilter) {
         return false;
       }
       if (query.isEmpty) return true;
@@ -178,7 +184,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             return Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: SingleChildScrollView(
                 controller: scrollController,
@@ -238,6 +245,20 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
+  void _openBudgetDetail(Map<String, dynamic> budget) {
+    final budgetId = budget['id'] as int?;
+    if (budgetId == null) {
+      return;
+    }
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => BudgetDetailScreen(budgetId: budgetId),
+          ),
+        )
+        .then((_) => _load());
+  }
+
   String _formatStatus(String? value) {
     switch (value) {
       case 'em_andamento':
@@ -291,7 +312,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           children: [
             AppHeroBanner(
               title: 'Pipeline de orçamentos',
-              subtitle: 'Andamento, conversão e propostas da operação comercial.',
+              subtitle:
+                  'Andamento, conversão e propostas da operação comercial.',
               metrics: [
                 AppHeroMetric(label: 'Ativos', value: '$inProgress'),
                 AppHeroMetric(label: 'Aprovados', value: '$approved'),
@@ -335,7 +357,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                   ChoiceChip(
                     label: Text(entry.value),
                     selected: _statusFilter == entry.key,
-                    onSelected: (_) => setState(() => _statusFilter = entry.key),
+                    onSelected: (_) =>
+                        setState(() => _statusFilter = entry.key),
                   ),
               ],
             ),
@@ -361,6 +384,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: AppSurface(
+                  onTap: () => _openBudgetDetail(budget),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -372,7 +396,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                               children: [
                                 Text(
                                   'Orçamento #${budget['id']}',
-                                  style: Theme.of(context).textTheme.titleMedium,
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -395,8 +420,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                               }
                             },
                             itemBuilder: (context) => const [
-                              PopupMenuItem(value: 'edit', child: Text('Editar')),
-                              PopupMenuItem(value: 'delete', child: Text('Remover')),
+                              PopupMenuItem(
+                                  value: 'edit', child: Text('Editar')),
+                              PopupMenuItem(
+                                  value: 'delete', child: Text('Remover')),
                             ],
                           ),
                         ],
@@ -421,12 +448,14 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                             (item) => Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(
                                       item['description']?.toString() ?? 'Item',
-                                      style: Theme.of(context).textTheme.bodySmall,
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
