@@ -34,10 +34,17 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Instalar PostgreSQL client
+      - name: Instalar PostgreSQL 17 client
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client gnupg
+          sudo apt-get install -y -qq gnupg curl
+          # Adicionar repositório oficial do PostgreSQL para obter versão 17
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
 
       - name: Verificar ferramentas
         run: |
