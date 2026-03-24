@@ -7,6 +7,12 @@ const puppeteer = require("puppeteer");
 
 const { NotFoundError, ValidationError } = require("../../core/errors/app-error");
 const { parseJsonFields, safeJsonParse } = require("../../core/utils/json");
+const {
+  formatPublicCurrency,
+  formatPublicDate,
+  injectPublicPageChrome,
+  renderPublicErrorPage
+} = require("./public-page-view");
 
 function createPublicService({ env, logger }) {
   let cachedLogoDataUrl;
@@ -460,6 +466,10 @@ function createPublicService({ env, logger }) {
     budgetWarmTimers.set(budgetId, timer);
   }
 
+  function renderFriendlyPublicError(req, { title, message, detail, statusCode }) {
+    return renderPublicErrorPage(req, { title, message, detail, statusCode });
+  }
+
   function normalizePublicStatusLabel(status) {
     if (!status) return null;
     const value = String(status).toLowerCase();
@@ -701,15 +711,53 @@ function createPublicService({ env, logger }) {
     const encodedToken = encodeURIComponent(token);
     const baseUrl = getPublicBaseUrl(req);
 
-    return injectPublicToolbar(html, {
-      title: `Relatório da tarefa #${taskId}`,
+    const metrics = [
+      {
+        value: String(data.reports.length),
+        label: "Relatorios",
+        helper: data.reports.length === 1 ? "documento tecnico" : "documentos tecnicos"
+      },
+      {
+        value: String(data.budgets.length),
+        label: "Orcamentos",
+        helper: data.budgets.length === 1 ? "proposta vinculada" : "propostas vinculadas"
+      },
+      {
+        value: data.task.signature_client ? "Concluida" : "Pendente",
+        label: "Assinatura",
+        helper: data.task.signature_client ? "cliente confirmou o documento" : "aguardando confirmacao"
+      }
+    ];
+    const details = [
+      { label: "Cliente", value: data.client?.name || "Nao informado" },
+      { label: "Contato", value: data.client?.contact || "Nao informado" },
+      { label: "Endereco", value: data.client?.address || "Nao informado" },
+      { label: "Criado em", value: formatPublicDate(data.task.created_at, { withTime: true }) },
+      { label: "Titulo interno", value: data.task.title || `Relatorio da tarefa #${taskId}` }
+    ];
+
+    return injectPublicPageChrome(html, {
+      env,
+      title: `Relatorio da tarefa #${taskId}`,
+      documentKind: "Relatorio publico",
+      documentTitle: data.task.title || `Relatorio da tarefa #${taskId}`,
+      documentSubtitle: data.client?.name
+        ? `Documento compartilhado com ${data.client.name}. Revise os dados, anexos e assinaturas antes de concluir qualquer aprovacao.`
+        : "Revise os dados, anexos e assinaturas antes de concluir qualquer aprovacao.",
+      metrics,
+      details,
+      note:
+        "A visualizacao abaixo corresponde ao documento completo. Use as acoes laterais para compartilhar, baixar ou registrar a assinatura.",
       token,
       pdfUrl: `${baseUrl}/public/tasks/${taskId}/pdf?token=${encodedToken}`,
       pdfDownloadUrl: `${baseUrl}/public/tasks/${taskId}/pdf?token=${encodedToken}&download=1`,
       pdfFileName: `relatorio_tarefa_${taskId}.pdf`,
       refreshUrl: `${baseUrl}/public/tasks/${taskId}?token=${encodedToken}`,
       approveReport: { taskId },
-      statusLabel: data.task.status
+      statusLabel: data.task.status,
+      signatureMode: data.task.signature_mode,
+      signatureClient: data.task.signature_client,
+      logoUrl
     });
   }
 
@@ -744,15 +792,58 @@ function createPublicService({ env, logger }) {
     const encodedToken = encodeURIComponent(token);
     const baseUrl = getPublicBaseUrl(req);
 
-    return injectPublicToolbar(html, {
-      title: `Orçamento #${budgetId}`,
+    const metrics = [
+      {
+        value: formatPublicCurrency(data.budget.total),
+        label: "Valor total",
+        helper: `${data.budget.items?.length || 0} item(ns) nesta proposta`
+      },
+      {
+        value: String(data.budget.items?.length || 0),
+        label: "Itens",
+        helper: data.budget.task_title ? "relacionado a tarefa" : "composicao comercial"
+      },
+      {
+        value: data.budget.signature_client ? "Concluida" : "Pendente",
+        label: "Assinatura",
+        helper: data.budget.signature_client ? "cliente aprovou o orcamento" : "aguardando aceite"
+      }
+    ];
+    const referenceText =
+      data.budget.task_title ||
+      data.budget.report_title ||
+      data.budget.notes ||
+      `Orcamento #${budgetId}`;
+    const details = [
+      { label: "Cliente", value: data.client?.name || "Nao informado" },
+      { label: "Contato", value: data.client?.contact || "Nao informado" },
+      { label: "Referencia", value: referenceText },
+      { label: "Validade", value: data.budget.proposal_validity || "Nao informada" },
+      { label: "Pagamento", value: data.budget.payment_terms || "Nao informado" }
+    ];
+
+    return injectPublicPageChrome(html, {
+      env,
+      title: `Orcamento #${budgetId}`,
+      documentKind: "Orcamento publico",
+      documentTitle: `Orcamento #${budgetId}`,
+      documentSubtitle: data.client?.name
+        ? `Proposta enviada para ${data.client.name}. Confira itens, condicoes e assinatura antes de confirmar o aceite.`
+        : "Confira itens, condicoes e assinatura antes de confirmar o aceite.",
+      metrics,
+      details,
+      note:
+        "Esta visualizacao foi organizada para leitura rapida em tela, mas o conteudo continua equivalente ao PDF oficial compartilhado.",
       token,
       pdfUrl: `${baseUrl}/public/budgets/${budgetId}/pdf?token=${encodedToken}`,
       pdfDownloadUrl: `${baseUrl}/public/budgets/${budgetId}/pdf?token=${encodedToken}&download=1`,
       pdfFileName: `orcamento_${budgetId}.pdf`,
       refreshUrl: `${baseUrl}/public/budgets/${budgetId}?token=${encodedToken}`,
       approveBudget: { budgetId },
-      statusLabel: data.budget.status
+      statusLabel: data.budget.status,
+      signatureMode: data.budget.signature_mode,
+      signatureClient: data.budget.signature_client,
+      logoUrl
     });
   }
 
@@ -904,6 +995,7 @@ function createPublicService({ env, logger }) {
     scheduleWarmBudgetPdfCache,
     ensureTaskPublicLink,
     ensureBudgetPublicLink,
+    renderFriendlyPublicError,
     renderPublicTaskPage,
     renderPublicBudgetPage,
     approveTask,

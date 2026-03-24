@@ -10,15 +10,30 @@ function createPublicRouter({ db, publicService }) {
   router.get(
     "/tasks/:id",
     asyncHandler(async (req, res) => {
-      const html = await publicService.renderPublicTaskPage(
-        db,
-        req,
-        normalizeId(req.params.id),
-        String(req.query.token || "")
-      );
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader("Cache-Control", "no-store");
-      return res.send(html);
+      try {
+        const html = await publicService.renderPublicTaskPage(
+          db,
+          req,
+          normalizeId(req.params.id),
+          String(req.query.token || "")
+        );
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-store");
+        return res.send(html);
+      } catch (error) {
+        const html = publicService.renderFriendlyPublicError(req, {
+          title: "Nao foi possivel abrir este relatorio",
+          message:
+            error?.statusCode === 404
+              ? "O documento solicitado nao foi encontrado."
+              : "Este link publico esta invalido, expirou ou nao pode mais ser usado.",
+          detail: error?.message || "",
+          statusCode: error?.statusCode || 400
+        });
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(error?.statusCode || 400).send(html);
+      }
     })
   );
 
@@ -75,15 +90,30 @@ function createPublicRouter({ db, publicService }) {
   router.get(
     "/budgets/:id",
     asyncHandler(async (req, res) => {
-      const html = await publicService.renderPublicBudgetPage(
-        db,
-        req,
-        normalizeId(req.params.id),
-        String(req.query.token || "")
-      );
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader("Cache-Control", "no-store");
-      return res.send(html);
+      try {
+        const html = await publicService.renderPublicBudgetPage(
+          db,
+          req,
+          normalizeId(req.params.id),
+          String(req.query.token || "")
+        );
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-store");
+        return res.send(html);
+      } catch (error) {
+        const html = publicService.renderFriendlyPublicError(req, {
+          title: "Nao foi possivel abrir este orcamento",
+          message:
+            error?.statusCode === 404
+              ? "A proposta solicitada nao foi encontrada."
+              : "Este link publico esta invalido, expirou ou nao pode mais ser usado.",
+          detail: error?.message || "",
+          statusCode: error?.statusCode || 400
+        });
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(error?.statusCode || 400).send(html);
+      }
     })
   );
 
