@@ -129,9 +129,17 @@ function createApp({ db, env, logger, publicService, monitoringService, emailSer
   app.use("/api/users", requirePermission(PERMISSIONS.VIEW_USERS), createUsersRouter({ db }));
   app.use("/api/roles", requirePermission(PERMISSIONS.VIEW_USERS), createRolesRouter({ db }));
   app.use("/api/equipments", requirePermission(PERMISSIONS.VIEW_TASKS), createEquipmentsRouter({ db }));
-  app.use("/api/tasks", requirePermission(PERMISSIONS.VIEW_TASKS), createTasksRouter({ db, publicService }));
+  app.use(
+    "/api/tasks",
+    requirePermission(PERMISSIONS.VIEW_TASKS),
+    createTasksRouter({ db, publicService, emailService })
+  );
   app.use("/api/reports", requirePermission(PERMISSIONS.VIEW_TASKS), createReportsRouter({ db, publicService }));
-  app.use("/api/budgets", requirePermission(PERMISSIONS.VIEW_BUDGETS), createBudgetsRouter({ db, publicService }));
+  app.use(
+    "/api/budgets",
+    requirePermission(PERMISSIONS.VIEW_BUDGETS),
+    createBudgetsRouter({ db, publicService, emailService })
+  );
   app.use("/public", createPublicRouter({ db, publicService }));
 
   const staticDir = resolveStaticDir(env.staticDir);

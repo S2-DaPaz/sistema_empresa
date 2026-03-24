@@ -212,6 +212,9 @@ class _EntityListScreenState extends State<EntityListScreen> {
               ),
               ElevatedButton.icon(
                 onPressed: () => _openForm(),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(0, 42),
+                ),
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('Novo'),
               ),
@@ -262,7 +265,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
                             onTap: () => _openForm(item: item),
                             title: Text(
                               item[widget.config.primaryField]?.toString() ??
-                                  'Sem titulo',
+                                  'Sem título',
                             ),
                             subtitle: Text(_buildSubtitle(item)),
                             trailing: PopupMenuButton<String>(

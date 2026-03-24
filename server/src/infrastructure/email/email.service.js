@@ -1,6 +1,7 @@
 const nodemailer = require("nodemailer");
 
 const {
+  buildDocumentLinkEmail,
   buildPasswordResetEmail,
   buildVerificationEmail
 } = require("./email.templates");
@@ -194,7 +195,31 @@ function createEmailService({ env, logger, fetchImpl = global.fetch }) {
     return send({ to, ...template });
   }
 
+  async function sendDocumentLinkEmail({
+    to,
+    name,
+    subject,
+    title,
+    intro,
+    buttonLabel,
+    buttonUrl,
+    details = []
+  }) {
+    const template = buildDocumentLinkEmail({
+      appName: env.email.fromName || "RV Sistema Empresa",
+      name,
+      subject,
+      title,
+      intro,
+      buttonLabel,
+      buttonUrl,
+      details
+    });
+    return send({ to, ...template });
+  }
+
   return {
+    sendDocumentLinkEmail,
     sendVerificationCode,
     sendPasswordResetCode
   };

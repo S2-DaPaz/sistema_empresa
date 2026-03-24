@@ -151,7 +151,7 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
           child: Padding(
             padding: EdgeInsets.all(16),
             child: Text(
-                'VocÃª nÃ£o possui permissÃ£o para visualizar equipamentos.'),
+                'Você não possui permissão para visualizar equipamentos.'),
           ),
         ),
       );
@@ -203,7 +203,7 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
                         final subtitleParts = <String>[
                           'Cliente: ${_clientName(clientId)}',
                           if (model.isNotEmpty) 'Modelo: $model',
-                          if (serial.isNotEmpty) 'SÃƒÂ©rie: $serial',
+                          if (serial.isNotEmpty) 'Série: $serial',
                         ];
                         return Card(
                           child: ListTile(
@@ -353,9 +353,9 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
           ),
           AppTextField(label: 'Nome', controller: _nameController),
           AppTextField(label: 'Modelo', controller: _modelController),
-          AppTextField(label: 'SÃ©rie', controller: _serialController),
+          AppTextField(label: 'Série', controller: _serialController),
           AppTextField(
-              label: 'DescriÃ§Ã£o',
+              label: 'Descrição',
               controller: _descriptionController,
               maxLines: 3),
           const SizedBox(height: 12),

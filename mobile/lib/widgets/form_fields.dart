@@ -96,12 +96,15 @@ class AppDropdownField<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final matches = items.where((item) => item.value == value).length;
+    final safeValue = matches == 1 ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _FieldLabel(text: label),
         DropdownButtonFormField<T>(
-          initialValue: value,
+          initialValue: safeValue,
           items: items,
           onChanged: enabled ? onChanged : null,
           isExpanded: true,

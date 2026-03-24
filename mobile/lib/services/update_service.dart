@@ -147,7 +147,7 @@ class UpdateService {
                     err.type == DioExceptionType.cancel) {
                   error = 'Download cancelado.';
                 } else {
-                  error = 'Falha ao baixar a atualizacao.';
+                  error = 'Falha ao baixar a atualização.';
                 }
                 setState(() {});
               }
@@ -158,7 +158,7 @@ class UpdateService {
           final progressValue = progress > 0 ? progress : null;
 
           return AlertDialog(
-            title: const Text('Baixando atualizacao'),
+            title: const Text('Baixando atualização'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

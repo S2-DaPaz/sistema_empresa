@@ -199,6 +199,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 ),
                 ElevatedButton.icon(
                   onPressed: () => _openClientForm(),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 42),
+                  ),
                   icon: const Icon(Icons.add_rounded),
                   label: const Text('Novo'),
                 ),

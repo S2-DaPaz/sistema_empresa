@@ -78,7 +78,7 @@ function createEquipmentsRouter({ db }) {
       const id = normalizeId(req.params.id);
       const existing = await db.get("SELECT * FROM equipments WHERE id = ?", [id]);
       if (!existing) {
-        throw new NotFoundError("Equipamento nÃ£o encontrado.");
+        throw new NotFoundError("Equipamento não encontrado.");
       }
       const fields = ["client_id", "name", "model", "serial", "description", "created_at"];
       const payload = buildPayload(

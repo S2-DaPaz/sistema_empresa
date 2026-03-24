@@ -111,7 +111,7 @@ function createReportsRouter({ db, publicService }) {
       const id = normalizeId(req.params.id);
       const existing = await db.get("SELECT * FROM reports WHERE id = ?", [id]);
       if (!existing) {
-        throw new NotFoundError("RelatÃ³rio nÃ£o encontrado.");
+        throw new NotFoundError("Relatório não encontrado.");
       }
       const fields = [
         "title",

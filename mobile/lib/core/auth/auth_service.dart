@@ -41,6 +41,8 @@ class AuthService {
 
   final ValueNotifier<AuthSession?> session = ValueNotifier<AuthSession?>(null);
   final http.Client _client = http.Client();
+  Future<bool>? _refreshInProgress;
+  bool _refreshedOnce = false;
 
   String? get token => session.value?.token;
   String? get refreshToken => session.value?.refreshToken;
@@ -124,9 +126,16 @@ class AuthService {
     }
 
     if ((response.statusCode == 401 || response.statusCode == 403) &&
+        !_refreshedOnce &&
         await tryRefreshSession()) {
-      return refreshUser();
+      _refreshedOnce = true;
+      try {
+        return await refreshUser();
+      } finally {
+        _refreshedOnce = false;
+      }
     }
+    _refreshedOnce = false;
 
     if (response.statusCode == 401 || response.statusCode == 403) {
       await logout(localOnly: true);
@@ -202,7 +211,13 @@ class AuthService {
     });
   }
 
-  Future<bool> tryRefreshSession() async {
+  Future<bool> tryRefreshSession() {
+    if (_refreshInProgress != null) return _refreshInProgress!;
+    _refreshInProgress = _performRefresh();
+    return _refreshInProgress!.whenComplete(() => _refreshInProgress = null);
+  }
+
+  Future<bool> _performRefresh() async {
     final storedRefreshToken = refreshToken;
     if (storedRefreshToken == null || storedRefreshToken.isEmpty) {
       return false;

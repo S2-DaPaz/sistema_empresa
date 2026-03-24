@@ -84,6 +84,19 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
     }
   }
 
+  void _applyFilters(VoidCallback updater) {
+    setState(updater);
+    _load();
+  }
+
+  void _resetFilters() {
+    _searchController.clear();
+    _applyFilters(() {
+      _outcome = '';
+      _platform = '';
+    });
+  }
+
   Future<void> _openDetail(Map<String, dynamic> item) async {
     try {
       final detail = await _api.get('/admin/event-logs/${item['id']}');
@@ -422,6 +435,7 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            key: ValueKey('outcome_$_outcome'),
                             initialValue: _outcome.isEmpty ? null : _outcome,
                             decoration:
                                 const InputDecoration(labelText: 'Resultado'),
@@ -436,13 +450,14 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                               ),
                             ],
                             onChanged: (value) {
-                              setState(() => _outcome = value ?? '');
+                              _applyFilters(() => _outcome = value ?? '');
                             },
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            key: ValueKey('platform_$_platform'),
                             initialValue: _platform.isEmpty ? null : _platform,
                             decoration:
                                 const InputDecoration(labelText: 'Plataforma'),
@@ -461,11 +476,20 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                               ),
                             ],
                             onChanged: (value) {
-                              setState(() => _platform = value ?? '');
+                              _applyFilters(() => _platform = value ?? '');
                             },
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _resetFilters,
+                        icon: const Icon(Icons.filter_alt_off_rounded),
+                        label: const Text('Limpar filtros'),
+                      ),
                     ),
                   ],
                 ),

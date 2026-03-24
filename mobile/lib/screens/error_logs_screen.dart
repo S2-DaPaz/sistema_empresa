@@ -76,6 +76,20 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
     }
   }
 
+  void _applyFilters(VoidCallback updater) {
+    setState(updater);
+    _load();
+  }
+
+  void _resetFilters() {
+    _searchController.clear();
+    _applyFilters(() {
+      _severity = '';
+      _platform = '';
+      _resolved = 'false';
+    });
+  }
+
   Future<void> _openDetail(Map<String, dynamic> item) async {
     try {
       final detail = await _api.get('/admin/error-logs/${item['id']}');
@@ -252,6 +266,7 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            key: ValueKey('severity_$_severity'),
                             initialValue: _severity.isEmpty ? null : _severity,
                             decoration:
                                 const InputDecoration(labelText: 'Severidade'),
@@ -265,13 +280,15 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                                 child: Text('Alerta'),
                               ),
                             ],
-                            onChanged: (value) =>
-                                setState(() => _severity = value ?? ''),
+                            onChanged: (value) => _applyFilters(
+                              () => _severity = value ?? '',
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            key: ValueKey('platform_$_platform'),
                             initialValue: _platform.isEmpty ? null : _platform,
                             decoration:
                                 const InputDecoration(labelText: 'Plataforma'),
@@ -289,8 +306,9 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                                 child: Text('Backend'),
                               ),
                             ],
-                            onChanged: (value) =>
-                                setState(() => _platform = value ?? ''),
+                            onChanged: (value) => _applyFilters(
+                              () => _platform = value ?? '',
+                            ),
                           ),
                         ),
                       ],
@@ -313,8 +331,17 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                       ],
                       selected: {_resolved},
                       onSelectionChanged: (selection) {
-                        setState(() => _resolved = selection.first);
+                        _applyFilters(() => _resolved = selection.first);
                       },
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _resetFilters,
+                        icon: const Icon(Icons.filter_alt_off_rounded),
+                        label: const Text('Limpar filtros'),
+                      ),
                     ),
                   ],
                 ),

@@ -38,7 +38,7 @@ class ErrorView extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
-                'Nao foi possivel carregar este conteudo.',
+                'Não foi possível carregar este conteúdo.',
                 style: theme.textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),

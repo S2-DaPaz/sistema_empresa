@@ -109,7 +109,7 @@ class _SplashGate extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        'Uma camada unica de operacao para tarefas, clientes e orcamentos.',
+                        'Uma camada única de operação para tarefas, clientes e orçamentos.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Colors.white.withValues(alpha: 0.82),

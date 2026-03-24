@@ -1,15 +1,25 @@
 const express = require("express");
 
 const { PERMISSIONS } = require("../../config/contracts");
-const { NotFoundError, ValidationError } = require("../../core/errors/app-error");
+const { AppError, NotFoundError, ValidationError } = require("../../core/errors/app-error");
 const { asyncHandler } = require("../../core/http/async-handler");
 const { send, sendCreated } = require("../../core/http/response");
 const { requirePermission } = require("../../core/security/auth");
+const { normalizeEmail } = require("../auth/auth.helpers");
 const { parseJsonFields } = require("../../core/utils/json");
 const { buildPayload, ensureRequiredFields, normalizeId } = require("../../core/utils/validation");
 const { createReportForTask, syncReportForTask, createReportForEquipment } = require("./task-report.service");
 
-function createTasksRouter({ db, publicService }) {
+function ensureRecipientEmail(value) {
+  const normalized = normalizeEmail(value);
+  const emailPattern = /^[^\s@]+@([^\s@]+\.[^\s@]+|local|localhost)$/i;
+  if (!normalized || !emailPattern.test(normalized)) {
+    throw new ValidationError("Informe um endereço de e-mail válido.");
+  }
+  return normalized;
+}
+
+function createTasksRouter({ db, publicService, emailService }) {
   const router = express.Router();
 
   router.get(
@@ -227,6 +237,76 @@ function createTasksRouter({ db, publicService }) {
         equipmentId
       ]);
       return send(res, { ok: true });
+    })
+  );
+
+  router.post(
+    "/:id/email-link",
+    requirePermission(PERMISSIONS.MANAGE_TASKS),
+    asyncHandler(async (req, res) => {
+      ensureRequiredFields(req.body, ["email"]);
+      const taskId = normalizeId(req.params.id);
+      const recipientEmail = ensureRecipientEmail(req.body.email);
+      const reportId = req.body.reportId ? normalizeId(req.body.reportId, "reportId") : null;
+
+      const task = await db.get(
+        `SELECT tasks.id,
+                tasks.title,
+                tasks.client_id,
+                clients.name AS client_name
+         FROM tasks
+         LEFT JOIN clients ON clients.id = tasks.client_id
+         WHERE tasks.id = ?`,
+        [taskId]
+      );
+      if (!task) {
+        throw new NotFoundError("Tarefa nao encontrada.");
+      }
+
+      let reportTitle = null;
+      if (reportId != null) {
+        const report = await db.get("SELECT title FROM reports WHERE id = ? AND task_id = ?", [
+          reportId,
+          taskId
+        ]);
+        if (!report) {
+          throw new NotFoundError("Relatório não encontrado.");
+        }
+        reportTitle = report.title || null;
+      }
+
+      const link = await publicService.ensureTaskPublicLink(db, req, taskId, req.user?.id);
+      publicService.scheduleWarmTaskPdfCache(db, taskId);
+
+      try {
+        await emailService.sendDocumentLinkEmail({
+          to: recipientEmail,
+          name: task.client_name || null,
+          subject: reportTitle ? `Relatório: ${reportTitle}` : `Relatório da tarefa #${taskId}`,
+          title: reportTitle || `Relatório da tarefa #${taskId}`,
+          intro: task.title
+            ? `Preparamos um link seguro para você acessar o relatório relacionado à tarefa "${task.title}".`
+            : "Preparamos um link seguro para você acessar o relatório solicitado.",
+          buttonLabel: "Acessar relatório",
+          buttonUrl: link.url,
+          details: [
+            task.title ? `Tarefa: ${task.title}` : null,
+            task.client_name ? `Cliente: ${task.client_name}` : null,
+            reportTitle ? `Relatório: ${reportTitle}` : null
+          ]
+        });
+      } catch (_error) {
+        throw new AppError(
+          "Não foi possível enviar o relatório por e-mail no momento. Tente novamente em instantes.",
+          { code: "email_delivery_failed", statusCode: 503 }
+        );
+      }
+
+      return send(res, {
+        ok: true,
+        email: recipientEmail,
+        message: "Relatório enviado por e-mail com sucesso."
+      });
     })
   );
 

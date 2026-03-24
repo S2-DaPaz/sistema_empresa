@@ -33,9 +33,12 @@ class _TaskTypesScreenState extends State<TaskTypesScreen> {
                 label: item['name']?.toString() ?? 'Modelo',
               ))
           .toList();
+      if (!mounted) return;
       setState(() => _templateOptions = options);
+    } catch (_) {
+      // Templates are optional for task types; proceed with empty list.
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 

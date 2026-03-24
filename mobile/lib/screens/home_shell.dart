@@ -86,7 +86,7 @@ class _HomeShellState extends State<HomeShell> {
             child: Row(
               children: [
                 _ShellDestination(
-                  label: 'Inicio',
+                  label: 'Início',
                   icon: Icons.home_outlined,
                   selectedIcon: Icons.home_rounded,
                   selected: _index == 0,
