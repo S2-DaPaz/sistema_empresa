@@ -1,11 +1,10 @@
 const express = require("express");
 
 const { PERMISSIONS } = require("../../config/contracts");
-const { AppError, NotFoundError, ValidationError } = require("../../core/errors/app-error");
+const { NotFoundError } = require("../../core/errors/app-error");
 const { asyncHandler } = require("../../core/http/async-handler");
 const { send, sendCreated } = require("../../core/http/response");
 const { requirePermission } = require("../../core/security/auth");
-const { normalizeEmail } = require("../auth/auth.helpers");
 const { parseJsonFields, parseJsonList } = require("../../core/utils/json");
 const { buildPayload, ensureRequiredFields, normalizeId, toNumber } = require("../../core/utils/validation");
 const { calcBudgetTotals } = require("../../core/utils/budgets");
@@ -40,23 +39,7 @@ async function loadBudgetItems(db, budgets) {
   return budgets;
 }
 
-function ensureRecipientEmail(value) {
-  const normalized = normalizeEmail(value);
-  const emailPattern = /^[^\s@]+@([^\s@]+\.[^\s@]+|local|localhost)$/i;
-  if (!normalized || !emailPattern.test(normalized)) {
-    throw new ValidationError("Informe um endereço de e-mail válido.");
-  }
-  return normalized;
-}
-
-function formatCurrencyBr(value) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL"
-  }).format(Number(value || 0));
-}
-
-function createBudgetsRouter({ db, publicService, emailService }) {
+function createBudgetsRouter({ db, publicService }) {
   const router = express.Router();
 
   router.get(
@@ -160,71 +143,6 @@ function createBudgetsRouter({ db, publicService, emailService }) {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="orcamento_${req.params.id}.pdf"`);
       return res.send(pdf);
-    })
-  );
-
-  router.post(
-    "/:id/email-link",
-    requirePermission(PERMISSIONS.MANAGE_BUDGETS),
-    asyncHandler(async (req, res) => {
-      ensureRequiredFields(req.body, ["email"]);
-      const budgetId = normalizeId(req.params.id);
-      const recipientEmail = ensureRecipientEmail(req.body.email);
-
-      const budget = await db.get(
-        `SELECT budgets.id,
-                budgets.total,
-                budgets.client_id,
-                budgets.task_id,
-                budgets.report_id,
-                clients.name AS client_name,
-                reports.title AS report_title,
-                tasks.title AS task_title
-         FROM budgets
-         LEFT JOIN clients ON clients.id = budgets.client_id
-         LEFT JOIN reports ON reports.id = budgets.report_id
-         LEFT JOIN tasks ON tasks.id = budgets.task_id
-         WHERE budgets.id = ?`,
-        [budgetId]
-      );
-      if (!budget) {
-        throw new NotFoundError("Orçamento não encontrado.");
-      }
-
-      const link = await publicService.ensureBudgetPublicLink(db, req, budgetId, req.user?.id);
-      publicService.scheduleWarmBudgetPdfCache(db, budgetId);
-      publicService.scheduleWarmTaskPdfCache(db, budget.task_id);
-
-      try {
-        await emailService.sendDocumentLinkEmail({
-          to: recipientEmail,
-          name: budget.client_name || null,
-          subject: `Orçamento #${budgetId}`,
-          title: `Orçamento #${budgetId}`,
-          intro: budget.task_title
-            ? `Preparamos um link seguro para você acessar o orçamento da tarefa "${budget.task_title}".`
-            : "Preparamos um link seguro para você acessar o orçamento solicitado.",
-          buttonLabel: "Acessar orçamento",
-          buttonUrl: link.url,
-          details: [
-            budget.client_name ? `Cliente: ${budget.client_name}` : null,
-            budget.task_title ? `Tarefa: ${budget.task_title}` : null,
-            budget.report_title ? `Relatório: ${budget.report_title}` : null,
-            `Total: ${formatCurrencyBr(budget.total)}`
-          ]
-        });
-      } catch (_error) {
-        throw new AppError(
-          "Não foi possível enviar o orçamento por e-mail no momento. Tente novamente em instantes.",
-          { code: "email_delivery_failed", statusCode: 503 }
-        );
-      }
-
-      return send(res, {
-        ok: true,
-        email: recipientEmail,
-        message: "Orçamento enviado por e-mail com sucesso."
-      });
     })
   );
 

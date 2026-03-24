@@ -9,13 +9,12 @@ import '../services/entity_refresh_service.dart';
 import '../services/offline_cache_service.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
-import '../utils/contact_utils.dart';
+import '../utils/budget_email.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_search_field.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/budget_form.dart';
-import '../widgets/email_recipient_dialog.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
@@ -262,37 +261,22 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
 
   Future<void> _sendEmail(Map<String, dynamic> budget) async {
     final client = _findClient(budget['client_id'] as int?);
-    final budgetId = budget['id'];
-    if (budgetId == null) return;
+    final subject = 'Orçamento #${budget['id']}';
+    final body = buildBudgetEmailText(budget, client ?? {});
+    final email = RegExp(
+      r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',
+      caseSensitive: false,
+    ).firstMatch(client?['contact']?.toString() ?? '');
 
-    final email = await showEmailRecipientDialog(
-      context,
-      title: 'Enviar orçamento por e-mail',
-      message:
-          'Confirme o e-mail do destinatário para enviar um link seguro do orçamento.',
-      confirmLabel: 'Enviar orçamento',
-      initialEmail: extractEmail(client?['contact']?.toString()),
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email?.group(0) ?? '',
+      queryParameters: {
+        'subject': subject,
+        'body': body,
+      },
     );
-    if (email == null || email.isEmpty) return;
-
-    try {
-      final response = await _api.post('/budgets/$budgetId/email-link', {
-        'email': email,
-      });
-      if (!mounted) return;
-      final message =
-          response is Map<String, dynamic> && response['message'] != null
-              ? response['message'].toString()
-              : 'Orçamento enviado por e-mail com sucesso.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
-    }
+    await launchUrl(uri);
   }
 
   Map<String, dynamic>? _findClient(int? id) {
