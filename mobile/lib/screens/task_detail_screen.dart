@@ -153,22 +153,33 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       _error = null;
     });
     try {
-      final clients = await _api.get('/clients') as List<dynamic>;
-      final users = AuthService.instance.hasPermission(Permissions.viewUsers)
-          ? await _api.get('/users') as List<dynamic>
-          : <dynamic>[];
-      final types = await _api.get('/task-types') as List<dynamic>;
-      final templates = await _api.get('/report-templates') as List<dynamic>;
-      final products = await _api.get('/products') as List<dynamic>;
+      final results = await Future.wait([
+        _api.get('/clients'),
+        AuthService.instance.hasPermission(Permissions.viewUsers)
+            ? _api.get('/users')
+            : Future.value(<dynamic>[]),
+        _api.get('/task-types'),
+        _api.get('/report-templates'),
+        _api.get('/products'),
+        if (_taskId != null) _api.get('/tasks/$_taskId'),
+      ]);
 
-      _clients = clients.cast<Map<String, dynamic>>();
-      _users = users.cast<Map<String, dynamic>>();
-      _types = types.cast<Map<String, dynamic>>();
-      _templates = templates.cast<Map<String, dynamic>>();
-      _products = products.cast<Map<String, dynamic>>();
+      _clients = ((results[0] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
+      _users = ((results[1] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
+      _types = ((results[2] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
+      _templates = ((results[3] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
+      _products = ((results[4] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
 
       if (_taskId != null) {
-        final task = await _api.get('/tasks/$_taskId') as Map<String, dynamic>;
+        const taskIndex = 5;
+        final task = Map<String, dynamic>.from(
+          results[taskIndex] as Map? ?? const {},
+        );
         _title.text = task['title']?.toString() ?? '';
         _description.text = task['description']?.toString() ?? '';
         _clientId = task['client_id'] as int?;
@@ -183,16 +194,30 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         _signatureClient = task['signature_client']?.toString() ?? '';
         _signatureTech = task['signature_tech']?.toString() ?? '';
         _signaturePages = _safeMap(task['signature_pages']);
+      }
+    } catch (error) {
+      _setStateIfMounted(() {
+        _error = error.toString();
+        _loading = false;
+      });
+      return;
+    }
 
+    _setStateIfMounted(() => _loading = false);
+    unawaited(_loadDeferredTaskData());
+  }
+
+  Future<void> _loadDeferredTaskData() async {
+    try {
+      if (_taskId != null) {
         await _loadReports(_taskTypeId);
         await _loadBudgets(_reports);
       }
-
       await _loadClientEquipments();
-    } catch (error) {
-      _error = error.toString();
-    } finally {
-      _setStateIfMounted(() => _loading = false);
+    } catch (_) {
+      _showMessage(
+        'Nao foi possivel atualizar todos os dados complementares da tarefa.',
+      );
     }
   }
 
@@ -261,12 +286,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   Future<void> _loadBudgets(List<Map<String, dynamic>> reportList) async {
     if (_taskId == null) return;
-    final byTaskRaw = await _api.get('/budgets?taskId=$_taskId&includeItems=1');
+    final byTaskRaw = await _api.get('/budgets?taskId=$_taskId');
     final byTask = byTaskRaw is List ? byTaskRaw : <dynamic>[];
     final reportIds =
         reportList.map((report) => report['id']).whereType<int>().toList();
     final byReports = await Future.wait(
-      reportIds.map((id) => _api.get('/budgets?reportId=$id&includeItems=1')),
+      reportIds.map((id) => _api.get('/budgets?reportId=$id')),
     );
 
     final merged = <int, Map<String, dynamic>>{};
@@ -288,6 +313,19 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   }
 
   Future<void> _editBudget(Map<String, dynamic> budget) async {
+    Map<String, dynamic> initialBudget = budget;
+    if (budget['id'] != null && budget['items'] == null) {
+      try {
+        final detail = await _api.get('/budgets/${budget['id']}');
+        if (detail is Map<String, dynamic>) {
+          initialBudget = Map<String, dynamic>.from(detail);
+        }
+      } catch (_) {
+        _showMessage('Nao foi possivel carregar os itens deste orcamento.');
+      }
+    }
+    if (!mounted) return;
+
     final updated = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -314,12 +352,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                   16 + MediaQuery.of(context).viewInsets.bottom,
                 ),
                 child: BudgetForm(
-                  initialBudget: budget,
+                  initialBudget: initialBudget,
                   clients: _clients,
                   products: _products,
-                  clientId: _clientId ?? budget['client_id'] as int?,
-                  taskId: budget['task_id'] as int? ?? _taskId,
-                  reportId: budget['report_id'] as int?,
+                  clientId: _clientId ?? initialBudget['client_id'] as int?,
+                  taskId: initialBudget['task_id'] as int? ?? _taskId,
+                  reportId: initialBudget['report_id'] as int?,
                   onSaved: () => Navigator.pop(context, true),
                 ),
               ),

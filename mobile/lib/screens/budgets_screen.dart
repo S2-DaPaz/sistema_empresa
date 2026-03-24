@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
 import '../services/entity_refresh_service.dart';
+import '../services/offline_cache_service.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/budget_email.dart';
@@ -26,11 +27,14 @@ class BudgetsScreen extends StatefulWidget {
 }
 
 class _BudgetsScreenState extends State<BudgetsScreen> {
+  static const String _cacheKey = 'offline_cache_budgets_list';
+
   final ApiService _api = ApiService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _listController = ScrollController();
 
   StreamSubscription<String>? _entityRefreshSubscription;
+  Future<void>? _lookupsFuture;
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _budgets = [];
@@ -46,6 +50,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       const ['/products', '/clients'],
       (_) => _load(),
     );
+    _primeFromCache();
     _load();
   }
 
@@ -58,29 +63,92 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _load() async {
+    final hadBudgets = _budgets.isNotEmpty;
     setState(() {
-      _loading = true;
+      _loading = !hadBudgets;
       _error = null;
     });
     try {
-      final budgets =
-          await _api.get('/budgets?includeItems=1') as List<dynamic>;
-      final clients = await _api.get('/clients') as List<dynamic>;
-      final products = await _api.get('/products') as List<dynamic>;
+      final budgets = await _api.get('/budgets') as List<dynamic>;
+      final nextBudgets = List<Map<String, dynamic>>.from(budgets);
+      await OfflineCacheService.writeList(_cacheKey, nextBudgets);
       if (!mounted) return;
       setState(() {
-        _budgets = List<Map<String, dynamic>>.from(budgets);
-        _clients = List<Map<String, dynamic>>.from(clients);
-        _products = List<Map<String, dynamic>>.from(products);
+        _budgets = nextBudgets;
         _loading = false;
       });
+      unawaited(_loadLookups());
     } catch (error) {
+      final cached =
+          hadBudgets ? _budgets : await OfflineCacheService.readList(_cacheKey);
       if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _budgets = cached;
+          _loading = false;
+        });
+        _showStaleDataWarning();
+        unawaited(_loadLookups());
+        return;
+      }
       setState(() {
         _error = error.toString();
         _loading = false;
       });
     }
+  }
+
+  Future<void> _primeFromCache() async {
+    final cached = await OfflineCacheService.readList(_cacheKey);
+    if (!mounted || cached == null || cached.isEmpty || _budgets.isNotEmpty) {
+      return;
+    }
+    setState(() {
+      _budgets = cached;
+      _loading = false;
+      _error = null;
+    });
+  }
+
+  Future<void> _loadLookups({bool force = false}) {
+    if (!force && _clients.isNotEmpty && _products.isNotEmpty) {
+      return Future.value();
+    }
+    if (!force && _lookupsFuture != null) {
+      return _lookupsFuture!;
+    }
+
+    late final Future<void> future;
+    future = () async {
+      try {
+        final results = await Future.wait([
+          _api.get('/clients'),
+          _api.get('/products'),
+        ]);
+        if (!mounted) return;
+        setState(() {
+          _clients = List<Map<String, dynamic>>.from(
+            (results[0] as List?) ?? const [],
+          );
+          _products = List<Map<String, dynamic>>.from(
+            (results[1] as List?) ?? const [],
+          );
+        });
+      } catch (_) {
+        // Lookup data should not block the list screen.
+      } finally {
+        if (identical(_lookupsFuture, future)) {
+          _lookupsFuture = null;
+        }
+      }
+    }();
+
+    _lookupsFuture = future;
+    return future;
+  }
+
+  Future<void> _ensureLookupsLoaded() {
+    return _loadLookups(force: _clients.isEmpty || _products.isEmpty);
   }
 
   Map<String, int> get _statusCounts {
@@ -119,6 +187,21 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _openBudgetForm([Map<String, dynamic>? budget]) async {
+    await _ensureLookupsLoaded();
+    if (!mounted) return;
+    Map<String, dynamic>? initialBudget = budget;
+    if (budget != null && budget['id'] != null && budget['items'] == null) {
+      try {
+        final detail = await _api.get('/budgets/${budget['id']}');
+        if (detail is Map<String, dynamic>) {
+          initialBudget = Map<String, dynamic>.from(detail);
+        }
+      } catch (_) {
+        // Keep the list payload if the detail fetch fails.
+      }
+    }
+    if (!mounted) return;
+
     final updated = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -131,7 +214,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             24 + MediaQuery.of(context).viewInsets.bottom,
           ),
           child: BudgetForm(
-            initialBudget: budget,
+            initialBudget: initialBudget,
             clients: _clients,
             products: _products,
             onSaved: () => Navigator.pop(context, true),
@@ -149,8 +232,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remover orÃ§amento'),
-        content: const Text('Deseja remover este orÃ§amento?'),
+        title: const Text('Remover orçamento'),
+        content: const Text('Deseja remover este orçamento?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -178,7 +261,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
 
   Future<void> _sendEmail(Map<String, dynamic> budget) async {
     final client = _findClient(budget['client_id'] as int?);
-    final subject = 'OrÃ§amento #${budget['id']}';
+    final subject = 'Orçamento #${budget['id']}';
     final body = buildBudgetEmailText(budget, client ?? {});
     final email = RegExp(
       r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',
@@ -214,7 +297,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   Future<void> _shareReportLink(Map<String, dynamic> budget) async {
     final url = await _getPublicLink(budget);
     if (url == null || url.isEmpty) return;
-    await Share.share(url, subject: 'OrÃ§amento #${budget['id']}');
+    await Share.share(url, subject: 'Orçamento #${budget['id']}');
   }
 
   Future<void> _openReportLink(Map<String, dynamic> budget) async {
@@ -234,18 +317,30 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
+  void _showStaleDataWarning() {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Orcamentos exibidos com dados salvos enquanto a API responde.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const AppScaffold(
-        title: 'OrÃ§amentos',
-        body: LoadingView(message: 'Carregando orÃ§amentos...'),
+        title: 'Orçamentos',
+        body: LoadingView(message: 'Carregando orçamentos...'),
       );
     }
 
     if (_error != null) {
       return AppScaffold(
-        title: 'OrÃ§amentos',
+        title: 'Orçamentos',
         body: ErrorView(message: _error!, onRetry: _load),
       );
     }
@@ -253,7 +348,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     final budgets = _filteredBudgets;
 
     return AppScaffold(
-      title: 'OrÃ§amentos',
+      title: 'Orçamentos',
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

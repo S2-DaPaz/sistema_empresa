@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/offline_cache_service.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
@@ -30,6 +31,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  static const String _cacheKey = 'offline_cache_dashboard_summary';
+
   final ApiService _api = ApiService();
 
   bool _loading = true;
@@ -44,49 +47,182 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _primeFromCache();
     _load();
   }
 
+  bool get _hasDashboardData =>
+      _summary.isNotEmpty ||
+      _taskMetrics.isNotEmpty ||
+      _budgetMetrics.isNotEmpty ||
+      _recentTasks.isNotEmpty ||
+      _recentBudgets.isNotEmpty;
+
+  Future<void> _primeFromCache() async {
+    final cached = await OfflineCacheService.readMap(_cacheKey);
+    if (!mounted || cached == null || _hasDashboardData) return;
+    _applyPayload(cached);
+  }
+
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _hasDashboardData;
+    if (mounted) {
+      setState(() {
+        _loading = !hadData;
+        _error = null;
+      });
+    }
 
     try {
       final payload = Map<String, dynamic>.from(
         await _api.get('/summary') as Map,
       );
-
+      await OfflineCacheService.writeMap(_cacheKey, payload);
       if (!mounted) return;
-
-      setState(() {
-        _summary = Map<String, dynamic>.from(
-          payload['summary'] as Map? ?? const {},
-        );
-        _taskMetrics = Map<String, dynamic>.from(
-          payload['taskMetrics'] as Map? ?? const {},
-        );
-        _budgetMetrics = Map<String, dynamic>.from(
-          payload['budgetMetrics'] as Map? ?? const {},
-        );
-        _recentTasks = List<Map<String, dynamic>>.from(
-          payload['recentTasks'] as List? ?? const [],
-        );
-        _recentBudgets = List<Map<String, dynamic>>.from(
-          payload['recentBudgets'] as List? ?? const [],
-        );
-        _notificationCount =
-            (payload['notificationCount'] as num?)?.toInt() ?? 0;
-        _loading = false;
-      });
+      _applyPayload(payload);
     } catch (error) {
+      final cached =
+          hadData ? null : await OfflineCacheService.readMap(_cacheKey);
       if (!mounted) return;
+      if (cached != null) {
+        _applyPayload(cached);
+        _showBackgroundRefreshWarning();
+        return;
+      }
+      if (hadData) {
+        setState(() {
+          _loading = false;
+        });
+        _showBackgroundRefreshWarning();
+        return;
+      }
       setState(() {
         _error = error.toString();
         _loading = false;
       });
     }
+  }
+
+  void _applyPayload(Map<String, dynamic> payload) {
+    final normalized = _normalizePayload(payload);
+    setState(() {
+      _summary = normalized['summary'] as Map<String, dynamic>;
+      _taskMetrics = normalized['taskMetrics'] as Map<String, dynamic>;
+      _budgetMetrics = normalized['budgetMetrics'] as Map<String, dynamic>;
+      _recentTasks = normalized['recentTasks'] as List<Map<String, dynamic>>;
+      _recentBudgets =
+          normalized['recentBudgets'] as List<Map<String, dynamic>>;
+      _notificationCount = normalized['notificationCount'] as int;
+      _loading = false;
+      _error = null;
+    });
+  }
+
+  Map<String, dynamic> _normalizePayload(Map<String, dynamic> payload) {
+    final summary = Map<String, dynamic>.from(
+      payload['summary'] as Map? ?? const {},
+    );
+    final legacyMetrics = Map<String, dynamic>.from(
+      payload['metrics'] as Map? ?? const {},
+    );
+    final taskMetrics = Map<String, dynamic>.from(
+      payload['taskMetrics'] as Map? ?? const {},
+    );
+    final budgetMetrics = Map<String, dynamic>.from(
+      payload['budgetMetrics'] as Map? ?? const {},
+    );
+
+    taskMetrics.putIfAbsent(
+        'total', () => (summary['tasks'] as num?)?.toInt() ?? 0);
+    taskMetrics.putIfAbsent('open', () => 0);
+    taskMetrics.putIfAbsent('inProgress', () => 0);
+    taskMetrics.putIfAbsent('completed', () => 0);
+    taskMetrics.putIfAbsent('today', () => 0);
+
+    budgetMetrics.putIfAbsent(
+      'total',
+      () => (summary['budgets'] as num?)?.toInt() ?? 0,
+    );
+    budgetMetrics.putIfAbsent(
+      'inProgress',
+      () => (legacyMetrics['pendingBudgets'] as num?)?.toInt() ?? 0,
+    );
+    budgetMetrics.putIfAbsent('approved', () => 0);
+    budgetMetrics.putIfAbsent('rejected', () => 0);
+
+    final recentTasks = List<Map<String, dynamic>>.from(
+      payload['recentTasks'] as List? ?? const [],
+    );
+    final recentBudgets = List<Map<String, dynamic>>.from(
+      payload['recentBudgets'] as List? ?? const [],
+    );
+
+    final fallbackRecentTasks = recentTasks.isNotEmpty
+        ? recentTasks
+        : _legacyReportsAsRecentTasks(
+            payload['recentReports'] as List? ?? const []);
+
+    final notificationCount = (payload['notificationCount'] as num?)?.toInt() ??
+        (taskMetrics['open'] as num?)?.toInt() ??
+        0;
+
+    return {
+      'summary': summary,
+      'taskMetrics': taskMetrics,
+      'budgetMetrics': budgetMetrics,
+      'recentTasks': fallbackRecentTasks,
+      'recentBudgets': recentBudgets,
+      'notificationCount': notificationCount,
+    };
+  }
+
+  List<Map<String, dynamic>> _legacyReportsAsRecentTasks(
+      List<dynamic> reports) {
+    return reports
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .map(
+          (item) => <String, dynamic>{
+            'id': item['id'],
+            'title': item['task_title']?.toString().isNotEmpty == true
+                ? item['task_title']
+                : (item['title']?.toString().isNotEmpty == true
+                    ? item['title']
+                    : 'Atividade recente'),
+            'status':
+                _legacyReportStatusToTaskStatus(item['status']?.toString()),
+            'priority': 'media',
+            'client_name': item['client_name'],
+            'client_address': '',
+            'created_at': item['created_at'],
+          },
+        )
+        .toList();
+  }
+
+  String _legacyReportStatusToTaskStatus(String? status) {
+    switch (status) {
+      case 'enviado':
+        return 'em_andamento';
+      case 'aprovado':
+      case 'concluido':
+      case 'concluida':
+        return 'concluida';
+      default:
+        return 'aberta';
+    }
+  }
+
+  void _showBackgroundRefreshWarning() {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Painel exibido com dados salvos. A atualizacao do servidor falhou agora.',
+        ),
+      ),
+    );
   }
 
   @override

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/offline_cache_service.dart';
 import '../theme/app_assets.dart';
 import '../utils/contact_utils.dart';
 import '../utils/entity_config.dart';
@@ -22,6 +25,8 @@ class ClientsScreen extends StatefulWidget {
 }
 
 class _ClientsScreenState extends State<ClientsScreen> {
+  static const String _cacheKey = 'offline_cache_clients_list';
+
   final ApiService _api = ApiService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -35,6 +40,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
   @override
   void initState() {
     super.initState();
+    _primeFromCache();
     _load();
   }
 
@@ -45,28 +51,85 @@ class _ClientsScreenState extends State<ClientsScreen> {
   }
 
   Future<void> _load() async {
+    final hadClients = _clients.isNotEmpty;
     setState(() {
-      _loading = true;
+      _loading = !hadClients;
       _error = null;
     });
     try {
       final clients = await _api.get('/clients') as List<dynamic>;
-      final tasks = await _api.get('/tasks') as List<dynamic>;
-      final budgets = await _api.get('/budgets') as List<dynamic>;
+      final nextClients = List<Map<String, dynamic>>.from(clients);
+      await OfflineCacheService.writeList(_cacheKey, nextClients);
       if (!mounted) return;
       setState(() {
-        _clients = List<Map<String, dynamic>>.from(clients);
-        _tasks = List<Map<String, dynamic>>.from(tasks);
-        _budgets = List<Map<String, dynamic>>.from(budgets);
+        _clients = nextClients;
+        _tasks = <Map<String, dynamic>>[];
+        _budgets = <Map<String, dynamic>>[];
         _loading = false;
       });
+      unawaited(_loadClientMetrics());
     } catch (error) {
+      final cached =
+          hadClients ? _clients : await OfflineCacheService.readList(_cacheKey);
       if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _clients = cached;
+          _loading = false;
+        });
+        _showStaleDataWarning();
+        unawaited(_loadClientMetrics());
+        return;
+      }
       setState(() {
         _error = error.toString();
         _loading = false;
       });
     }
+  }
+
+  Future<void> _primeFromCache() async {
+    final cached = await OfflineCacheService.readList(_cacheKey);
+    if (!mounted || cached == null || cached.isEmpty || _clients.isNotEmpty) {
+      return;
+    }
+    setState(() {
+      _clients = cached;
+      _loading = false;
+      _error = null;
+    });
+  }
+
+  Future<void> _loadClientMetrics() async {
+    try {
+      final results = await Future.wait([
+        _api.get('/tasks'),
+        _api.get('/budgets'),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _tasks = List<Map<String, dynamic>>.from(
+          (results[0] as List?) ?? const [],
+        );
+        _budgets = List<Map<String, dynamic>>.from(
+          (results[1] as List?) ?? const [],
+        );
+      });
+    } catch (_) {
+      // Metrics are complementary. Keep the list available even if they fail.
+    }
+  }
+
+  void _showStaleDataWarning() {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Clientes exibidos com dados salvos enquanto a API responde.',
+        ),
+      ),
+    );
   }
 
   Future<void> _openClientForm([Map<String, dynamic>? client]) async {

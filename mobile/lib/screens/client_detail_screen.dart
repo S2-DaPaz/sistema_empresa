@@ -52,14 +52,18 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
 
     try {
       final clientId = _client['id'];
-      final tasks =
-          await _api.get('/tasks?clientId=$clientId') as List<dynamic>;
-      final budgets = await _api
-          .get('/budgets?clientId=$clientId&includeItems=1') as List<dynamic>;
+      final results = await Future.wait([
+        _api.get('/tasks?clientId=$clientId'),
+        _api.get('/budgets?clientId=$clientId'),
+      ]);
       if (!mounted) return;
       setState(() {
-        _tasks = List<Map<String, dynamic>>.from(tasks);
-        _budgets = List<Map<String, dynamic>>.from(budgets);
+        _tasks = List<Map<String, dynamic>>.from(
+          (results[0] as List?) ?? const [],
+        );
+        _budgets = List<Map<String, dynamic>>.from(
+          (results[1] as List?) ?? const [],
+        );
         _loading = false;
       });
     } catch (error) {

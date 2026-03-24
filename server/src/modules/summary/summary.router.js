@@ -43,7 +43,7 @@ function createSummaryRouter({ db }) {
                 clients.address AS client_address
          FROM tasks
          LEFT JOIN clients ON clients.id = tasks.client_id
-         ORDER BY COALESCE(tasks.start_date, tasks.due_date, "0000-00-00") DESC, tasks.id DESC
+         ORDER BY COALESCE(tasks.start_date, tasks.due_date, '1970-01-01') DESC, tasks.id DESC
          LIMIT 6`
       );
 

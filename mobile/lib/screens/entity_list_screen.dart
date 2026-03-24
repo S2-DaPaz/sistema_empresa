@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/entity_refresh_service.dart';
+import '../services/offline_cache_service.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../widgets/app_scaffold.dart';
@@ -30,9 +31,13 @@ class _EntityListScreenState extends State<EntityListScreen> {
   List<Map<String, dynamic>> _items = [];
   String _search = '';
 
+  String get _cacheKey =>
+      OfflineCacheService.endpointKey('entity', widget.config.endpoint);
+
   @override
   void initState() {
     super.initState();
+    _primeFromCache();
     _load();
   }
 
@@ -44,24 +49,61 @@ class _EntityListScreenState extends State<EntityListScreen> {
   }
 
   Future<void> _load() async {
+    final hadItems = _items.isNotEmpty;
     setState(() {
-      _loading = true;
+      _loading = !hadItems;
       _error = null;
     });
     try {
       final data = await _api.get(widget.config.endpoint) as List<dynamic>;
+      final items = List<Map<String, dynamic>>.from(data);
+      await OfflineCacheService.writeList(_cacheKey, items);
       if (!mounted) return;
       setState(() {
-        _items = List<Map<String, dynamic>>.from(data);
+        _items = items;
         _loading = false;
       });
     } catch (error) {
+      final cached =
+          hadItems ? _items : await OfflineCacheService.readList(_cacheKey);
       if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _items = cached;
+          _loading = false;
+        });
+        _showStaleDataWarning();
+        return;
+      }
       setState(() {
         _error = error.toString();
         _loading = false;
       });
     }
+  }
+
+  Future<void> _primeFromCache() async {
+    final cached = await OfflineCacheService.readList(_cacheKey);
+    if (!mounted || cached == null || cached.isEmpty || _items.isNotEmpty) {
+      return;
+    }
+    setState(() {
+      _items = cached;
+      _loading = false;
+      _error = null;
+    });
+  }
+
+  void _showStaleDataWarning() {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Exibindo ${widget.config.title.toLowerCase()} salvos enquanto a API responde.',
+        ),
+      ),
+    );
   }
 
   Future<void> _openForm({Map<String, dynamic>? item}) async {

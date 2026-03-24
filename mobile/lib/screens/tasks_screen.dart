@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/offline_cache_service.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/formatters.dart';
@@ -23,6 +24,8 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
+  static const String _cacheKey = 'offline_cache_tasks_list';
+
   final ApiService _api = ApiService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -38,6 +41,7 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void initState() {
     super.initState();
+    _primeFromCache();
     _load();
   }
 
@@ -48,24 +52,49 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _load() async {
+    final hadTasks = _tasks.isNotEmpty;
     setState(() {
-      _loading = true;
+      _loading = !hadTasks;
       _error = null;
     });
     try {
       final data = await _api.get('/tasks') as List<dynamic>;
+      final nextTasks = List<Map<String, dynamic>>.from(data);
+      await OfflineCacheService.writeList(_cacheKey, nextTasks);
       if (!mounted) return;
       setState(() {
-        _tasks = List<Map<String, dynamic>>.from(data);
+        _tasks = nextTasks;
         _loading = false;
       });
     } catch (error) {
+      final cached =
+          hadTasks ? _tasks : await OfflineCacheService.readList(_cacheKey);
       if (!mounted) return;
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _tasks = cached;
+          _loading = false;
+        });
+        _showStaleDataWarning();
+        return;
+      }
       setState(() {
         _error = error.toString();
         _loading = false;
       });
     }
+  }
+
+  Future<void> _primeFromCache() async {
+    final cached = await OfflineCacheService.readList(_cacheKey);
+    if (!mounted || cached == null || cached.isEmpty || _tasks.isNotEmpty) {
+      return;
+    }
+    setState(() {
+      _tasks = cached;
+      _loading = false;
+      _error = null;
+    });
   }
 
   Future<void> _openTask([int? id]) async {
@@ -172,6 +201,18 @@ class _TasksScreenState extends State<TasksScreen> {
       default:
         return value?.isNotEmpty == true ? value! : 'Média';
     }
+  }
+
+  void _showStaleDataWarning() {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Tarefas exibidas com dados salvos enquanto a API responde.',
+        ),
+      ),
+    );
   }
 
   Map<String, List<Map<String, dynamic>>> _groupTasksByDate(
