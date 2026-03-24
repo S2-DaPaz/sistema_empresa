@@ -20,6 +20,7 @@ class EquipmentsScreen extends StatefulWidget {
 
 class _EquipmentsScreenState extends State<EquipmentsScreen> {
   final ApiService _api = ApiService();
+  final ScrollController _listController = ScrollController();
   StreamSubscription<String>? _entityRefreshSubscription;
   bool _loading = true;
   String? _error;
@@ -44,6 +45,7 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
   @override
   void dispose() {
     _entityRefreshSubscription?.cancel();
+    _listController.dispose();
     super.dispose();
   }
 
@@ -148,8 +150,8 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
         body: Card(
           child: Padding(
             padding: EdgeInsets.all(16),
-            child:
-                Text('Você não possui permissão para visualizar equipamentos.'),
+            child: Text(
+                'VocÃª nÃ£o possui permissÃ£o para visualizar equipamentos.'),
           ),
         ),
       );
@@ -163,55 +165,82 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
               child: const Icon(Icons.add),
             )
           : null,
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          children: [
-            if (_equipments.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Nenhum equipamento cadastrado.'),
-                ),
-              ),
-            ..._equipments.map((equipment) {
-              final clientId = equipment['client_id'] as int?;
-              final name = equipment['name']?.toString() ?? 'Equipamento';
-              final model = equipment['model']?.toString() ?? '';
-              final serial = equipment['serial']?.toString() ?? '';
-              final subtitleParts = <String>[
-                'Cliente: ${_clientName(clientId)}',
-                if (model.isNotEmpty) 'Modelo: $model',
-                if (serial.isNotEmpty) 'Série: $serial',
-              ];
-              return Card(
-                child: ListTile(
-                  title: Text(name),
-                  subtitle: Text(subtitleParts.join(' | ')),
-                  onTap:
-                      _canManage ? () => _openForm(equipment: equipment) : null,
-                  trailing: _canManage
-                      ? PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _openForm(equipment: equipment);
-                            }
-                            if (value == 'delete') {
-                              _deleteEquipment(equipment);
-                            }
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Editar')),
-                            PopupMenuItem(
-                                value: 'delete', child: Text('Remover')),
-                          ],
-                        )
-                      : null,
-                ),
-              );
-            }),
-          ],
-        ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Equipamentos e ativos vinculados aos clientes.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: _equipments.isEmpty
+                  ? ListView(
+                      controller: _listController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('Nenhum equipamento cadastrado.'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      controller: _listController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: _equipments.length,
+                      itemBuilder: (context, index) {
+                        final equipment = _equipments[index];
+                        final clientId = equipment['client_id'] as int?;
+                        final name =
+                            equipment['name']?.toString() ?? 'Equipamento';
+                        final model = equipment['model']?.toString() ?? '';
+                        final serial = equipment['serial']?.toString() ?? '';
+                        final subtitleParts = <String>[
+                          'Cliente: ${_clientName(clientId)}',
+                          if (model.isNotEmpty) 'Modelo: $model',
+                          if (serial.isNotEmpty) 'SÃƒÂ©rie: $serial',
+                        ];
+                        return Card(
+                          child: ListTile(
+                            title: Text(name),
+                            subtitle: Text(subtitleParts.join(' | ')),
+                            onTap: _canManage
+                                ? () => _openForm(equipment: equipment)
+                                : null,
+                            trailing: _canManage
+                                ? PopupMenuButton<String>(
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        _openForm(equipment: equipment);
+                                      }
+                                      if (value == 'delete') {
+                                        _deleteEquipment(equipment);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Editar'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Remover'),
+                                      ),
+                                    ],
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -324,9 +353,9 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
           ),
           AppTextField(label: 'Nome', controller: _nameController),
           AppTextField(label: 'Modelo', controller: _modelController),
-          AppTextField(label: 'Série', controller: _serialController),
+          AppTextField(label: 'SÃ©rie', controller: _serialController),
           AppTextField(
-              label: 'Descrição',
+              label: 'DescriÃ§Ã£o',
               controller: _descriptionController,
               maxLines: 3),
           const SizedBox(height: 12),

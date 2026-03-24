@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_tokens.dart';
+
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.text});
 
@@ -8,21 +10,12 @@ class _FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final baseStyle = theme.textTheme.labelLarge;
-    final color = theme.colorScheme.primary.withValues(alpha: 0.9);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: Text(
         text,
-        softWrap: true,
-        style: baseStyle?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: color,
-            ) ??
-            TextStyle(
-              fontWeight: FontWeight.w600,
-              color: color,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: AppColors.ink,
             ),
       ),
     );
@@ -39,6 +32,11 @@ class AppTextField extends StatelessWidget {
     this.maxLines = 1,
     this.onChanged,
     this.inputFormatters,
+    this.readOnly = false,
+    this.onTap,
+    this.enabled = true,
+    this.hintText,
+    this.suffixIcon,
   });
 
   final String label;
@@ -48,6 +46,11 @@ class AppTextField extends StatelessWidget {
   final int maxLines;
   final ValueChanged<String>? onChanged;
   final List<TextInputFormatter>? inputFormatters;
+  final bool readOnly;
+  final VoidCallback? onTap;
+  final bool enabled;
+  final String? hintText;
+  final Widget? suffixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +63,13 @@ class AppTextField extends StatelessWidget {
           initialValue: controller == null ? initialValue : null,
           keyboardType: keyboardType,
           maxLines: maxLines,
-          decoration: const InputDecoration(),
+          readOnly: readOnly,
+          enabled: enabled,
+          onTap: onTap,
+          decoration: InputDecoration(
+            hintText: hintText,
+            suffixIcon: suffixIcon,
+          ),
           onChanged: onChanged,
           inputFormatters: inputFormatters,
         ),
@@ -76,12 +85,14 @@ class AppDropdownField<T> extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final String label;
   final T? value;
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -90,24 +101,12 @@ class AppDropdownField<T> extends StatelessWidget {
       children: [
         _FieldLabel(text: label),
         DropdownButtonFormField<T>(
-          key: ValueKey(value),
           initialValue: value,
           items: items,
-          onChanged: onChanged,
+          onChanged: enabled ? onChanged : null,
           isExpanded: true,
-          selectedItemBuilder: (context) => items.map((item) {
-            final child = item.child;
-            if (child is Text) {
-              return Text(
-                child.data ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: child.style,
-              );
-            }
-            return child;
-          }).toList(),
           decoration: const InputDecoration(),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
         ),
       ],
     );
@@ -132,8 +131,9 @@ class AppCheckboxField extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       value: value,
       onChanged: onChanged,
-      title: Text(label),
       controlAffinity: ListTileControlAffinity.leading,
+      dense: true,
+      title: Text(label, style: Theme.of(context).textTheme.bodyMedium),
     );
   }
 }
@@ -152,17 +152,13 @@ class AppDateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _FieldLabel(text: label),
-        TextFormField(
-          readOnly: true,
-          decoration: const InputDecoration(),
-          initialValue: value,
-          onTap: onTap,
-        ),
-      ],
+    return AppTextField(
+      label: label,
+      initialValue: value,
+      readOnly: true,
+      onTap: onTap,
+      hintText: 'Selecionar',
+      suffixIcon: const Icon(Icons.calendar_today_outlined),
     );
   }
 }

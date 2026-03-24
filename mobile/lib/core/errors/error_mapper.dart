@@ -79,9 +79,8 @@ AppException normalizeApiError({
     statusCode: statusCode,
     requestId: errorMap['requestId']?.toString(),
     details: errorMap['details'],
-    technicalMessage: rawMessage.isNotEmpty
-        ? rawMessage
-        : 'HTTP ${statusCode ?? 0}',
+    technicalMessage:
+        rawMessage.isNotEmpty ? rawMessage : 'HTTP ${statusCode ?? 0}',
     retryable: category == 'connection_error' || category == 'server_error',
   );
 }
@@ -97,8 +96,7 @@ AppException normalizeNetworkError(
         : _messageForCategory('connection_error'),
     category: 'connection_error',
     code: timedOut ? 'timeout' : 'network_error',
-    technicalMessage:
-        technicalMessage ?? error.toString(),
+    technicalMessage: technicalMessage ?? error.toString(),
     retryable: true,
   );
 }
@@ -109,10 +107,9 @@ AppException normalizeUnexpectedError(Object error, {String? fallbackMessage}) {
   final category = error is AppException
       ? error.category
       : inferErrorCategory(statusCode: statusCode);
-  final safeMessage =
-      rawMessage.isNotEmpty && !_looksTechnical(rawMessage)
-          ? rawMessage
-          : _messageForCategory(category, fallbackMessage);
+  final safeMessage = rawMessage.isNotEmpty && !_looksTechnical(rawMessage)
+      ? rawMessage
+      : _messageForCategory(category, fallbackMessage);
 
   return AppException(
     message: safeMessage,
@@ -122,7 +119,6 @@ AppException normalizeUnexpectedError(Object error, {String? fallbackMessage}) {
     requestId: error is AppException ? error.requestId : null,
     details: error is AppException ? error.details : null,
     technicalMessage: rawMessage,
-    retryable:
-        category == 'connection_error' || category == 'server_error',
+    retryable: category == 'connection_error' || category == 'server_error',
   );
 }

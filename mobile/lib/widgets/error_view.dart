@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_tokens.dart';
+
 class ErrorView extends StatelessWidget {
   const ErrorView({
     super.key,
@@ -13,25 +15,49 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 36, color: theme.colorScheme.error),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFECEC),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.error_outline_rounded,
+                  color: AppColors.danger,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Nao foi possivel carregar este conteudo.',
+                style: theme.textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                message,
+                style: theme.textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                ElevatedButton(
+                  onPressed: onRetry,
+                  child: const Text('Tentar novamente'),
+                ),
+              ],
+            ],
           ),
-          if (onRetry != null) ...[
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: onRetry,
-              child: const Text('Tentar novamente'),
-            ),
-          ]
-        ],
+        ),
       ),
     );
   }

@@ -104,7 +104,7 @@ class _BudgetFormState extends State<BudgetForm> {
     });
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item adicionado com sucesso.')),
+      const SnackBar(content: Text('Item adicionado com sucesso.')),
     );
   }
 
@@ -170,7 +170,7 @@ class _BudgetFormState extends State<BudgetForm> {
     });
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item atualizado com sucesso.')),
+      const SnackBar(content: Text('Item atualizado com sucesso.')),
     );
   }
 
@@ -207,7 +207,7 @@ class _BudgetFormState extends State<BudgetForm> {
     });
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item removido com sucesso.')),
+      const SnackBar(content: Text('Item removido com sucesso.')),
     );
   }
 

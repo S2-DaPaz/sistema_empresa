@@ -34,6 +34,8 @@ function createTasksRouter({ db, publicService }) {
       const rows = await db.all(
         `SELECT tasks.*,
                 clients.name AS client_name,
+                clients.address AS client_address,
+                clients.contact AS client_contact,
                 users.name AS user_name,
                 task_types.name AS task_type_name,
                 task_types.report_template_id AS report_template_id,
@@ -66,6 +68,8 @@ function createTasksRouter({ db, publicService }) {
       const task = await db.get(
         `SELECT tasks.*,
                 clients.name AS client_name,
+                clients.address AS client_address,
+                clients.contact AS client_contact,
                 users.name AS user_name,
                 task_types.name AS task_type_name,
                 task_types.report_template_id AS report_template_id,

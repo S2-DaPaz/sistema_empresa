@@ -486,8 +486,8 @@ class _EventLogsScreenState extends State<EventLogsScreen> {
                           : ListView.builder(
                               itemCount: _items.length,
                               itemBuilder: (context, index) {
-                                final item =
-                                    Map<String, dynamic>.from(_items[index] as Map);
+                                final item = Map<String, dynamic>.from(
+                                    _items[index] as Map);
 
                                 return Card(
                                   child: ListTile(

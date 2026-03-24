@@ -1,0 +1,24 @@
+{
+  "themeName": "RvModern2026",
+  "brightness": "light",
+  "primary": "#245BEB",
+  "primaryContainer": "#EDF4FF",
+  "secondary": "#14C2A3",
+  "surface": "#FFFFFF",
+  "surfaceVariant": "#F7F9FC",
+  "outline": "#E4EAF3",
+  "onPrimary": "#FFFFFF",
+  "onSurface": "#121826",
+  "error": "#F04438",
+  "success": "#12B76A",
+  "warning": "#F79009",
+  "radii": {
+    "card": 24,
+    "input": 16,
+    "chip": 999
+  },
+  "fonts": {
+    "display": "SpaceGrotesk",
+    "body": "Sora"
+  }
+}

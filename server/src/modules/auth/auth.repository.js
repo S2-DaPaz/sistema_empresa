@@ -152,6 +152,24 @@ async function findSessionById(db, sessionId) {
   return db.get("SELECT * FROM auth_sessions WHERE id = ?", [normalizeId(sessionId)]);
 }
 
+async function listUserSessions(db, userId) {
+  return db.all(
+    `SELECT id,
+            user_id,
+            created_at,
+            expires_at,
+            revoked_at,
+            last_used_at,
+            device_info,
+            ip_address,
+            platform
+     FROM auth_sessions
+     WHERE user_id = ?
+     ORDER BY COALESCE(last_used_at, created_at) DESC, id DESC`,
+    [normalizeId(userId)]
+  );
+}
+
 async function findSessionByTokenHash(db, tokenHash) {
   return db.get(
     "SELECT * FROM auth_sessions WHERE token_hash = ? ORDER BY id DESC LIMIT 1",
@@ -265,6 +283,7 @@ module.exports = {
   findRateLimit,
   findSessionById,
   findSessionByTokenHash,
+  listUserSessions,
   incrementAuthCodeAttempt,
   invalidateAuthCodes,
   markUserEmailVerified,

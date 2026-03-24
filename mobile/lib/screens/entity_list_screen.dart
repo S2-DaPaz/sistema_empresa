@@ -5,9 +5,10 @@ import '../services/entity_refresh_service.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_search_field.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
-import '../widgets/section_header.dart';
 import 'entity_form_screen.dart';
 
 class EntityListScreen extends StatefulWidget {
@@ -21,14 +22,25 @@ class EntityListScreen extends StatefulWidget {
 
 class _EntityListScreenState extends State<EntityListScreen> {
   final ApiService _api = ApiService();
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _listController = ScrollController();
+
   bool _loading = true;
   String? _error;
-  List<dynamic> _items = [];
+  List<Map<String, dynamic>> _items = [];
+  String _search = '';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _listController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -37,12 +49,18 @@ class _EntityListScreenState extends State<EntityListScreen> {
       _error = null;
     });
     try {
-      final data = await _api.get(widget.config.endpoint);
-      setState(() => _items = data as List<dynamic>);
+      final data = await _api.get(widget.config.endpoint) as List<dynamic>;
+      if (!mounted) return;
+      setState(() {
+        _items = List<Map<String, dynamic>>.from(data);
+        _loading = false;
+      });
     } catch (error) {
-      setState(() => _error = error.toString());
-    } finally {
-      setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
     }
   }
 
@@ -52,7 +70,9 @@ class _EntityListScreenState extends State<EntityListScreen> {
         builder: (_) => EntityFormScreen(config: widget.config, item: item),
       ),
     );
-    await _load();
+    if (mounted) {
+      await _load();
+    }
   }
 
   Future<void> _deleteItem(Map<String, dynamic> item) async {
@@ -60,19 +80,22 @@ class _EntityListScreenState extends State<EntityListScreen> {
     if (id == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Remover registro'),
         content: const Text('Deseja remover este item?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remover')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remover'),
+          ),
         ],
       ),
     );
+
     if (confirmed != true) return;
 
     try {
@@ -94,18 +117,28 @@ class _EntityListScreenState extends State<EntityListScreen> {
       final value = item[field.name];
       if (value == null || value.toString().isEmpty) continue;
       if (field.type == FieldType.select && field.options.isNotEmpty) {
-        final match = field.options.firstWhere(
-          (option) => option.value.toString() == value.toString(),
+        final option = field.options.firstWhere(
+          (current) => current.value.toString() == value.toString(),
           orElse: () => FieldOption(value: value, label: value.toString()),
         );
-        final formatted = field.formatter?.call(match.label) ?? match.label;
-        parts.add(formatted.toString());
+        parts.add(field.formatter?.call(option.label) ?? option.label);
       } else {
-        final formatted = field.formatter?.call(value) ?? value;
-        parts.add(formatted.toString());
+        parts.add(field.formatter?.call(value) ?? value.toString());
       }
     }
     return parts.join(' • ');
+  }
+
+  List<Map<String, dynamic>> get _filteredItems {
+    final query = _search.trim().toLowerCase();
+    if (query.isEmpty) return _items;
+    return _items.where((item) {
+      final haystack = item.values
+          .map((value) => value?.toString() ?? '')
+          .join(' ')
+          .toLowerCase();
+      return haystack.contains(query);
+    }).toList();
   }
 
   @override
@@ -120,56 +153,101 @@ class _EntityListScreenState extends State<EntityListScreen> {
       );
     }
 
+    final items = _filteredItems;
+
     return AppScaffold(
       title: widget.config.title,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'fab-entity-${widget.config.endpoint}',
-        onPressed: () => _openForm(),
-        child: const Icon(Icons.add),
-      ),
-      body: ListView(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (widget.config.hint != null)
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.config.title,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _openForm(),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Novo'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AppSearchField(
+            controller: _searchController,
+            hintText: 'Buscar ${widget.config.title.toLowerCase()}...',
+            onChanged: (value) => setState(() => _search = value),
+          ),
+          if (widget.config.hint != null) ...[
+            const SizedBox(height: 16),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(widget.config.hint!),
               ),
             ),
-          const SizedBox(height: 12),
-          SectionHeader(
-            title: 'Registros',
-            subtitle: widget.config.emptyMessage ?? 'Nenhum registro.',
-          ),
-          const SizedBox(height: 12),
-          if (_items.isEmpty)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(widget.config.emptyMessage ?? 'Nenhum registro.'),
-              ),
+          ],
+          const SizedBox(height: 16),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: items.isEmpty
+                  ? ListView(
+                      controller: _listController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 36),
+                      children: [
+                        EmptyState(
+                          title: 'Nenhum registro encontrado',
+                          message: widget.config.emptyMessage ??
+                              'Crie um novo item para continuar.',
+                          icon: Icons.list_alt_outlined,
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      controller: _listController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 36),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return Card(
+                          child: ListTile(
+                            onTap: () => _openForm(item: item),
+                            title: Text(
+                              item[widget.config.primaryField]?.toString() ??
+                                  'Sem titulo',
+                            ),
+                            subtitle: Text(_buildSubtitle(item)),
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _openForm(item: item);
+                                } else if (value == 'delete') {
+                                  _deleteItem(item);
+                                }
+                              },
+                              itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Editar'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Remover'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
-          ..._items.map((item) {
-            final map = item as Map<String, dynamic>;
-            return Card(
-              child: ListTile(
-                title: Text(map[widget.config.primaryField]?.toString() ??
-                    'Sem título'),
-                subtitle: Text(_buildSubtitle(map)),
-                onTap: () => _openForm(item: map),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') _openForm(item: map);
-                    if (value == 'delete') _deleteItem(map);
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    PopupMenuItem(value: 'delete', child: Text('Remover')),
-                  ],
-                ),
-              ),
-            );
-          }),
+          ),
         ],
       ),
     );

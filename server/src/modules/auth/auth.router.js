@@ -89,7 +89,7 @@ function createAuthRouter({ db, env, emailService }) {
   router.get(
     "/me",
     asyncHandler(async (req, res) => {
-      const result = await authService.me(db, req.user.id);
+      const result = await authService.me(db, req.user.id, req.auth?.sessionId);
       return send(res, result);
     })
   );

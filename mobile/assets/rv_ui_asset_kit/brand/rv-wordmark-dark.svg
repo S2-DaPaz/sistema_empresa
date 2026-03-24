@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="484" height="120" viewBox="0 0 484 120" fill="none">
+
+<defs>
+  <linearGradient id="monograd" x1="18" y1="18" x2="194" y2="128" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#1EC5F3"/>
+    <stop offset="0.56" stop-color="#2564F2"/>
+    <stop offset="1" stop-color="#0F40B5"/>
+  </linearGradient>
+  <linearGradient id="badgegrad" x1="0" y1="0" x2="48" y2="48"><stop offset="0" stop-color="#62E4DA"/><stop offset="1" stop-color="#17BFA4"/></linearGradient>
+  <linearGradient id="brandbg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#1A4BDB"/>
+    <stop offset="1" stop-color="#12329B"/>
+  </linearGradient>
+  <radialGradient id="glow1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(92 72) rotate(33) scale(280 220)">
+    <stop offset="0" stop-color="rgba(95, 162, 255, 0.45)"/>
+    <stop offset="1" stop-color="rgba(95, 162, 255, 0)"/>
+  </radialGradient>
+  <radialGradient id="glow2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(420 418) rotate(-135) scale(240 220)">
+    <stop offset="0" stop-color="rgba(53, 117, 248, 0.55)"/>
+    <stop offset="1" stop-color="rgba(53, 117, 248, 0)"/>
+  </radialGradient>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#17389A" flood-opacity="0.24"/>
+  </filter>
+</defs>
+<g transform="translate(4 14) scale(0.42)"><path d="M26 106 V28 H62 C85 28 99 40 99 58 C99 75 86 86 63 86 H26 M61 86 L100 128" stroke="url(#monograd)" stroke-width="5.46" stroke-linecap="round" stroke-linejoin="round"/><path d="M123 28 L157 128 L191 28" stroke="url(#monograd)" stroke-width="5.46" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="124" y="53" fill="#121826" font-size="34" font-family="'Inter', 'Segoe UI', Arial, sans-serif" font-weight="700" letter-spacing="-0.02em">RV</text>
+<text x="124" y="84" fill="#5B6475" font-size="26" font-family="'Inter', 'Segoe UI', Arial, sans-serif" font-weight="500" letter-spacing="-0.01em">Sistema Empresa</text>
+</svg>

@@ -123,8 +123,7 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                   ),
                   _DetailBlock(
                     title: 'Stack trace',
-                    value:
-                        map['stack_trace']?.toString() ?? 'Sem stack trace.',
+                    value: map['stack_trace']?.toString() ?? 'Sem stack trace.',
                   ),
                   _DetailBlock(
                     title: 'Contexto',
@@ -228,7 +227,8 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
           else ...[
             const SectionHeader(
               title: 'Falhas técnicas',
-              subtitle: 'Erros do backend e falhas reportadas por web ou mobile.',
+              subtitle:
+                  'Erros do backend e falhas reportadas por web ou mobile.',
             ),
             const SizedBox(height: 16),
             Card(
@@ -335,8 +335,8 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                           : ListView.builder(
                               itemCount: _items.length,
                               itemBuilder: (context, index) {
-                                final item =
-                                    Map<String, dynamic>.from(_items[index] as Map);
+                                final item = Map<String, dynamic>.from(
+                                    _items[index] as Map);
                                 return Card(
                                   child: ListTile(
                                     onTap: () => _openDetail(item),

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 final _currencyFormatter =
     NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 final _dateFormatter = DateFormat('dd/MM/yyyy', 'pt_BR');
+final _dateTimeFormatter = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
 final _isoDateFormatter = DateFormat('yyyy-MM-dd', 'en_US');
 
 String formatCurrency(num? value) {
@@ -15,6 +16,13 @@ String formatDate(String? value) {
   final date = DateTime.tryParse(value);
   if (date == null) return value;
   return _dateFormatter.format(date);
+}
+
+String formatDateTime(String? value) {
+  if (value == null || value.isEmpty) return '-';
+  final date = DateTime.tryParse(value);
+  if (date == null) return value;
+  return _dateTimeFormatter.format(date);
 }
 
 String formatDateInput(String? value) {

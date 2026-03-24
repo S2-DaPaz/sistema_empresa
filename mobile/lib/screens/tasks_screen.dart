@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../theme/app_assets.dart';
+import '../theme/app_tokens.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_search_field.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
+import '../widgets/status_chip.dart';
+import '../widgets/task_card.dart';
 import 'task_detail_screen.dart';
 
 enum TaskViewMode { list, calendar }
@@ -19,6 +25,7 @@ class TasksScreen extends StatefulWidget {
 class _TasksScreenState extends State<TasksScreen> {
   final ApiService _api = ApiService();
   final TextEditingController _searchController = TextEditingController();
+
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _tasks = [];
@@ -47,39 +54,50 @@ class _TasksScreenState extends State<TasksScreen> {
     });
     try {
       final data = await _api.get('/tasks') as List<dynamic>;
+      if (!mounted) return;
       setState(() {
-        _tasks = data.cast<Map<String, dynamic>>();
+        _tasks = List<Map<String, dynamic>>.from(data);
+        _loading = false;
       });
     } catch (error) {
-      setState(() => _error = error.toString());
-    } finally {
-      setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
     }
   }
 
-  void _openTask([int? id]) {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: id)))
-        .then((_) => _load());
+  Future<void> _openTask([int? id]) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: id)),
+    );
+    if (mounted) {
+      await _load();
+    }
   }
 
   Future<void> _deleteTask(int id) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Remover tarefa'),
         content: const Text('Deseja remover esta tarefa?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remover')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remover'),
+          ),
         ],
       ),
     );
+
     if (confirmed != true) return;
+
     try {
       await _api.delete('/tasks/$id');
       await _load();
@@ -91,7 +109,46 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  String _formatStatus(String? value) {
+  Map<String, int> get _statusCounts {
+    final counts = <String, int>{
+      'all': _tasks.length,
+      'aberta': 0,
+      'em_andamento': 0,
+      'concluida': 0,
+    };
+    for (final task in _tasks) {
+      final status = task['status']?.toString() ?? 'aberta';
+      counts[status] = (counts[status] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  String _buildSearchText(Map<String, dynamic> task) {
+    return [
+      task['title'],
+      task['client_name'],
+      task['client_address'],
+      task['task_type_name'],
+      task['status'],
+      task['priority'],
+    ].map((value) => value?.toString() ?? '').join(' ').toLowerCase();
+  }
+
+  List<Map<String, dynamic>> _filteredTasks() {
+    final query = _searchQuery.trim().toLowerCase();
+    return _tasks.where((task) {
+      if (_statusFilter != null &&
+          task['status']?.toString() != _statusFilter) {
+        return false;
+      }
+      if (query.isEmpty) {
+        return true;
+      }
+      return _buildSearchText(task).contains(query);
+    }).toList();
+  }
+
+  String _statusLabel(String? value) {
     switch (value) {
       case 'aberta':
         return 'Aberta';
@@ -104,7 +161,7 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  String _formatPriority(String? value) {
+  String _priorityLabel(String? value) {
     switch (value) {
       case 'alta':
         return 'Alta';
@@ -118,91 +175,29 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Map<String, List<Map<String, dynamic>>> _groupTasksByDate(
-      List<Map<String, dynamic>> tasks) {
-    final map = <String, List<Map<String, dynamic>>>{};
+    List<Map<String, dynamic>> tasks,
+  ) {
+    final grouped = <String, List<Map<String, dynamic>>>{};
     for (final task in tasks) {
-      final key = formatDateKey(task['start_date']?.toString() ?? '')
-          .ifEmpty(formatDateKey(task['due_date']?.toString() ?? ''));
-      if (key == null || key.isEmpty) continue;
-      map.putIfAbsent(key, () => []).add(task);
+      final key = formatDateKey(task['start_date']?.toString() ?? '').isNotEmpty
+          ? formatDateKey(task['start_date']?.toString() ?? '')
+          : formatDateKey(task['due_date']?.toString() ?? '');
+      if (key.isEmpty) continue;
+      grouped.putIfAbsent(key, () => []).add(task);
     }
-    return map;
-  }
-
-  String _buildSearchText(Map<String, dynamic> task) {
-    final parts = [
-      task['title'],
-      task['client_name'],
-      task['task_type_name'],
-      task['status'],
-      task['priority'],
-    ];
-    return parts
-        .map((value) => value?.toString() ?? '')
-        .join(' ')
-        .toLowerCase();
-  }
-
-  List<Map<String, dynamic>> _filteredTasks() {
-    final query = _searchQuery.trim().toLowerCase();
-    return _tasks.where((task) {
-      if (_statusFilter != null &&
-          task['status']?.toString() != _statusFilter) {
-        return false;
-      }
-      if (query.isEmpty) return true;
-      return _buildSearchText(task).contains(query);
-    }).toList();
-  }
-
-  Future<void> _openFilters() async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text('Filtrar por status'),
-            ),
-            ListTile(
-              title: const Text('Todos'),
-              leading: const Icon(Icons.clear_all),
-              onTap: () => Navigator.pop(context, 'todos'),
-            ),
-            ListTile(
-              title: const Text('Aberta'),
-              onTap: () => Navigator.pop(context, 'aberta'),
-            ),
-            ListTile(
-              title: const Text('Em andamento'),
-              onTap: () => Navigator.pop(context, 'em_andamento'),
-            ),
-            ListTile(
-              title: const Text('Concluída'),
-              onTap: () => Navigator.pop(context, 'concluida'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (!mounted || selected == null) return;
-    setState(() => _statusFilter = selected == 'todos' ? null : selected);
+    return grouped;
   }
 
   List<DateTime?> _buildCalendarDays(DateTime monthDate) {
-    final year = monthDate.year;
-    final month = monthDate.month;
-    final firstDay = DateTime(year, month, 1);
+    final firstDay = DateTime(monthDate.year, monthDate.month, 1);
     final startOffset = firstDay.weekday % 7;
-    final daysInMonth = DateTime(year, month + 1, 0).day;
+    final daysInMonth = DateTime(monthDate.year, monthDate.month + 1, 0).day;
     final days = <DateTime?>[];
     for (var i = 0; i < startOffset; i += 1) {
       days.add(null);
     }
     for (var day = 1; day <= daysInMonth; day += 1) {
-      days.add(DateTime(year, month, day));
+      days.add(DateTime(monthDate.year, monthDate.month, day));
     }
     while (days.length % 7 != 0) {
       days.add(null);
@@ -213,346 +208,368 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const AppScaffold(title: 'Tarefas', body: LoadingView());
+      return const AppScaffold(
+        title: 'Tarefas',
+        showAppBar: false,
+        body: LoadingView(message: 'Carregando tarefas...'),
+      );
     }
+
     if (_error != null) {
       return AppScaffold(
         title: 'Tarefas',
-        body: ErrorView(message: _error!, onRetry: _load),
+        showAppBar: false,
+        body: ErrorView(
+          message: _error!,
+          onRetry: _load,
+        ),
       );
     }
 
     final filteredTasks = _filteredTasks();
-    final grouped = _groupTasksByDate(filteredTasks);
+    final groupedTasks = _groupTasksByDate(filteredTasks);
     final calendarDays = _buildCalendarDays(_calendarMonth);
-    final tasksForSelectedDate = _selectedDate != null
-        ? grouped[_selectedDate] ?? <Map<String, dynamic>>[]
-        : <Map<String, dynamic>>[];
+    final tasksForSelectedDate = _selectedDate == null
+        ? const <Map<String, dynamic>>[]
+        : groupedTasks[_selectedDate] ?? const <Map<String, dynamic>>[];
 
     return AppScaffold(
       title: 'Tarefas',
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'fab-tasks',
-        onPressed: () => _openTask(),
-        child: const Icon(Icons.add),
-      ),
-      body: ListView(
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
+      showAppBar: false,
+      padding: EdgeInsets.zero,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            120,
+          ),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Tarefas',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Atualizar',
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+                IconButton(
+                  tooltip: _viewMode == TaskViewMode.list
+                      ? 'Abrir agenda'
+                      : 'Abrir lista',
+                  onPressed: () {
+                    setState(() {
+                      _viewMode = _viewMode == TaskViewMode.list
+                          ? TaskViewMode.calendar
+                          : TaskViewMode.list;
+                    });
+                  },
+                  icon: Icon(
+                    _viewMode == TaskViewMode.list
+                        ? Icons.calendar_month_outlined
+                        : Icons.view_list_rounded,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppSearchField(
+              controller: _searchController,
+              hintText: 'Buscar tarefas...',
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Buscar tarefas',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _searchQuery.isEmpty
-                                ? null
-                                : IconButton(
-                                    icon: const Icon(Icons.close),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  ),
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _searchQuery = value),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: _openFilters,
-                          child: const Icon(Icons.tune),
-                        ),
-                      ),
-                    ],
+                  _TaskFilterChip(
+                    label: 'Todas',
+                    count: _statusCounts['all'] ?? 0,
+                    selected: _statusFilter == null,
+                    onTap: () => setState(() => _statusFilter = null),
                   ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SegmentedButton<TaskViewMode>(
-                      segments: const [
-                        ButtonSegment(
-                            value: TaskViewMode.list, label: Text('Lista')),
-                        ButtonSegment(
-                            value: TaskViewMode.calendar,
-                            label: Text('Calendário')),
-                      ],
-                      selected: {_viewMode},
-                      onSelectionChanged: (value) {
-                        setState(() {
-                          _viewMode = value.first;
-                        });
-                      },
-                    ),
+                  _TaskFilterChip(
+                    label: 'Abertas',
+                    count: _statusCounts['aberta'] ?? 0,
+                    selected: _statusFilter == 'aberta',
+                    onTap: () => setState(() => _statusFilter = 'aberta'),
                   ),
-                  if (_searchQuery.isNotEmpty || _statusFilter != null) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        if (_searchQuery.isNotEmpty)
-                          Chip(
-                            label: Text('Busca: $_searchQuery'),
-                            onDeleted: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          ),
-                        if (_statusFilter != null)
-                          Chip(
-                            label:
-                                Text('Status: ${_formatStatus(_statusFilter)}'),
-                            onDeleted: () =>
-                                setState(() => _statusFilter = null),
-                          ),
-                      ],
-                    ),
-                  ],
+                  _TaskFilterChip(
+                    label: 'Andamento',
+                    count: _statusCounts['em_andamento'] ?? 0,
+                    selected: _statusFilter == 'em_andamento',
+                    onTap: () => setState(() => _statusFilter = 'em_andamento'),
+                  ),
+                  _TaskFilterChip(
+                    label: 'Concluídas',
+                    count: _statusCounts['concluida'] ?? 0,
+                    selected: _statusFilter == 'concluida',
+                    onTap: () => setState(() => _statusFilter = 'concluida'),
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          if (_viewMode == TaskViewMode.list)
-            if (filteredTasks.isEmpty)
-              const Card(
+            const SizedBox(height: AppSpacing.lg),
+            if (_viewMode == TaskViewMode.list) ...[
+              if (filteredTasks.isEmpty)
+                const EmptyState(
+                  title: 'Nenhuma tarefa encontrada',
+                  message:
+                      'Ajuste os filtros ou crie uma nova tarefa para começar.',
+                  icon: Icons.task_alt_outlined,
+                  illustrationAsset: AppAssets.emptyTasks,
+                )
+              else
+                ...filteredTasks.map((task) {
+                  final id = task['id'] as int?;
+                  return TaskCard(
+                    title: task['title']?.toString() ?? 'Tarefa',
+                    clientName:
+                        task['client_name']?.toString() ?? 'Sem cliente',
+                    location: task['client_address']?.toString() ?? '',
+                    statusLabel: _statusLabel(task['status']?.toString()),
+                    priorityLabel: _priorityLabel(task['priority']?.toString()),
+                    codeLabel: '#${id ?? '--'}',
+                    avatarName: task['client_name']?.toString() ?? 'Cliente',
+                    onTap: () => _openTask(id),
+                    onMore: id == null
+                        ? null
+                        : () => _openTaskActions(context, task),
+                  );
+                }),
+            ] else ...[
+              Card(
                 child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child:
-                      Text('Nenhuma tarefa encontrada com os filtros atuais.'),
-                ),
-              )
-            else
-              ...filteredTasks.map((task) {
-                return Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.task_alt),
-                    title: Text(task['title']?.toString() ?? 'Tarefa'),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${task['client_name'] ?? 'Sem cliente'} • ${task['task_type_name'] ?? 'Sem tipo'}',
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 6,
-                          children: [
-                            Chip(
-                                label: Text(
-                                    _formatStatus(task['status']?.toString()))),
-                            Chip(
-                                label: Text(_formatPriority(
-                                    task['priority']?.toString()))),
-                          ],
-                        ),
-                      ],
-                    ),
-                    onTap: () => _openTask(task['id'] as int?),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'delete') {
-                          _deleteTask(task['id'] as int);
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'delete', child: Text('Remover')),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-          if (_viewMode == TaskViewMode.calendar)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Mês anterior',
-                          onPressed: () {
-                            setState(() {
-                              _calendarMonth = DateTime(
-                                _calendarMonth.year,
-                                _calendarMonth.month - 1,
-                                1,
-                              );
-                            });
-                          },
-                          icon: const Icon(Icons.chevron_left),
-                        ),
-                        Expanded(
-                          child: Text(
-                            formatMonthLabel(_calendarMonth),
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _calendarMonth = DateTime(
+                                  _calendarMonth.year,
+                                  _calendarMonth.month - 1,
+                                  1,
+                                );
+                              });
+                            },
+                            icon: const Icon(Icons.chevron_left_rounded),
                           ),
-                        ),
-                        IconButton(
-                          tooltip: 'Próximo mês',
-                          onPressed: () {
-                            setState(() {
-                              _calendarMonth = DateTime(
-                                _calendarMonth.year,
-                                _calendarMonth.month + 1,
-                                1,
-                              );
-                            });
-                          },
-                          icon: const Icon(Icons.chevron_right),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    GridView.count(
-                      shrinkWrap: true,
-                      crossAxisCount: 7,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
-                      childAspectRatio: 0.95,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        ...[
-                          'Dom',
-                          'Seg',
-                          'Ter',
-                          'Qua',
-                          'Qui',
-                          'Sex',
-                          'Sab'
-                        ].map((label) => Center(
+                          Expanded(
+                            child: Text(
+                              formatMonthLabel(_calendarMonth),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _calendarMonth = DateTime(
+                                  _calendarMonth.year,
+                                  _calendarMonth.month + 1,
+                                  1,
+                                );
+                              });
+                            },
+                            icon: const Icon(Icons.chevron_right_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      GridView.count(
+                        crossAxisCount: 7,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisSpacing: AppSpacing.xs,
+                        mainAxisSpacing: AppSpacing.xs,
+                        childAspectRatio: 0.92,
+                        children: [
+                          ...const ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(
+                            (label) => Center(
                               child: Text(
                                 label,
                                 style: Theme.of(context).textTheme.labelSmall,
                               ),
-                            )),
-                        ...calendarDays.map((date) {
-                          if (date == null) {
-                            final outline =
-                                Theme.of(context).colorScheme.outline;
-                            return Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                    color: outline.withValues(alpha: 0.35)),
-                              ),
-                            );
-                          }
-                          final key =
-                              '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-                          final count = grouped[key]?.length ?? 0;
-                          final isSelected = _selectedDate == key;
-                          return InkWell(
-                            onTap: () => setState(() => _selectedDate = key),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context)
+                            ),
+                          ),
+                          ...calendarDays.map((date) {
+                            if (date == null) {
+                              return const SizedBox.shrink();
+                            }
+                            final key =
+                                '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+                            final count = groupedTasks[key]?.length ?? 0;
+                            final selected = _selectedDate == key;
+                            return InkWell(
+                              onTap: () => setState(() => _selectedDate = key),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? Theme.of(context)
                                           .colorScheme
-                                          .outline
-                                          .withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Stack(
-                                children: [
-                                  Center(
-                                    child: Text(
-                                      date.day.toString(),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
+                                          .primary
+                                          .withValues(alpha: 0.1)
+                                      : Theme.of(context).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: selected
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).colorScheme.outline,
                                   ),
-                                  if (count > 0)
-                                    Positioned(
-                                      right: 6,
-                                      top: 6,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .primary
-                                              .withValues(alpha: 0.12),
-                                          borderRadius:
-                                              BorderRadius.circular(999),
-                                        ),
-                                        child: Text(
-                                          count.toString(),
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelSmall
-                                              ?.copyWith(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary,
-                                              ),
-                                        ),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Center(
+                                      child: Text(
+                                        date.day.toString(),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelLarge,
                                       ),
                                     ),
-                                ],
+                                    if (count > 0)
+                                      Positioned(
+                                        top: 6,
+                                        right: 6,
+                                        child: StatusChip(
+                                          label: '$count',
+                                          tone: StatusChipTone.primary,
+                                          compact: true,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          if (_viewMode == TaskViewMode.calendar)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Column(
-                children: [
-                  if (_selectedDate != null && tasksForSelectedDate.isEmpty)
-                    const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('Nenhuma tarefa para este dia.'),
-                      ),
-                    ),
-                  ...tasksForSelectedDate.map((task) => Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.task_alt),
-                          title: Text(task['title']?.toString() ?? 'Tarefa'),
-                          subtitle: Text(
-                              task['client_name']?.toString() ?? 'Sem cliente'),
-                          onTap: () => _openTask(task['id'] as int?),
-                        ),
-                      )),
-                ],
-              ),
-            ),
-        ],
+              const SizedBox(height: AppSpacing.md),
+              if (_selectedDate != null && tasksForSelectedDate.isEmpty)
+                const EmptyState(
+                  title: 'Sem tarefas neste dia',
+                  message: 'Selecione outra data ou crie uma nova tarefa.',
+                  icon: Icons.calendar_today_outlined,
+                  illustrationAsset: AppAssets.emptyTasks,
+                ),
+              ...tasksForSelectedDate.map((task) {
+                final id = task['id'] as int?;
+                return TaskCard(
+                  title: task['title']?.toString() ?? 'Tarefa',
+                  clientName: task['client_name']?.toString() ?? 'Sem cliente',
+                  location: task['client_address']?.toString() ?? '',
+                  statusLabel: _statusLabel(task['status']?.toString()),
+                  priorityLabel: _priorityLabel(task['priority']?.toString()),
+                  codeLabel: '#${id ?? '--'}',
+                  avatarName: task['client_name']?.toString() ?? 'Cliente',
+                  onTap: () => _openTask(id),
+                );
+              }),
+            ],
+          ],
+        ),
       ),
     );
   }
+
+  Future<void> _openTaskActions(
+    BuildContext context,
+    Map<String, dynamic> task,
+  ) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.open_in_new_rounded),
+              title: const Text('Abrir detalhes'),
+              onTap: () => Navigator.pop(context, 'open'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              title: const Text('Remover tarefa'),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || selected == null) return;
+
+    if (selected == 'open') {
+      _openTask(task['id'] as int?);
+    } else if (selected == 'delete' && task['id'] is int) {
+      _deleteTask(task['id'] as int);
+    }
+  }
 }
 
-extension on String {
-  String? ifEmpty(String? fallback) {
-    if (isNotEmpty) return this;
-    return fallback;
+class _TaskFilterChip extends StatelessWidget {
+  const _TaskFilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.xs),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline,
+            ),
+          ),
+          child: Text(
+            '$label  $count',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: selected
+                  ? theme.colorScheme.onPrimary
+                  : theme.textTheme.labelMedium?.color,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

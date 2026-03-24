@@ -1,0 +1,17 @@
+/* Patch sugerido para web/src/styles.css */
+:root {
+  --bg: #F7F9FC;
+  --panel: #FFFFFF;
+  --ink: #121826;
+  --muted: #5B6475;
+  --line: rgba(18, 24, 38, 0.08);
+  --accent: #245BEB;
+  --accent-2: #14C2A3;
+  --accent-3: #3E75FF;
+  --shadow: 0 12px 32px rgba(18, 24, 38, 0.10);
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --radius-sm: 14px;
+  --field-bg: #FFFFFF;
+  --field-border: #E4EAF3;
+}

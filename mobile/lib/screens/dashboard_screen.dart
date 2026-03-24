@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import '../theme/app_assets.dart';
+import '../theme/app_tokens.dart';
+import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/brand_logo.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
+import '../widgets/metric_card.dart';
 import '../widgets/section_header.dart';
-
-enum DashboardShortcut { clients, tasks, products, budgets }
+import '../widgets/status_chip.dart';
+import '../widgets/task_card.dart';
+import 'home_shell.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
@@ -24,10 +31,15 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final ApiService _api = ApiService();
+
   bool _loading = true;
   String? _error;
   Map<String, dynamic> _summary = {};
-  List<dynamic> _reports = [];
+  Map<String, dynamic> _taskMetrics = {};
+  Map<String, dynamic> _budgetMetrics = {};
+  List<Map<String, dynamic>> _recentTasks = [];
+  List<Map<String, dynamic>> _recentBudgets = [];
+  int _notificationCount = 0;
 
   @override
   void initState() {
@@ -45,29 +57,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final payload = Map<String, dynamic>.from(
         await _api.get('/summary') as Map,
       );
-      final summary = Map<String, dynamic>.from(
-        payload['summary'] as Map? ?? const {},
-      );
-      final recentReports = List<dynamic>.from(
-        payload['recentReports'] as List? ?? const [],
-      );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
-        _summary = summary;
-        _reports = recentReports.take(4).toList();
+        _summary = Map<String, dynamic>.from(
+          payload['summary'] as Map? ?? const {},
+        );
+        _taskMetrics = Map<String, dynamic>.from(
+          payload['taskMetrics'] as Map? ?? const {},
+        );
+        _budgetMetrics = Map<String, dynamic>.from(
+          payload['budgetMetrics'] as Map? ?? const {},
+        );
+        _recentTasks = List<Map<String, dynamic>>.from(
+          payload['recentTasks'] as List? ?? const [],
+        );
+        _recentBudgets = List<Map<String, dynamic>>.from(
+          payload['recentBudgets'] as List? ?? const [],
+        );
+        _notificationCount =
+            (payload['notificationCount'] as num?)?.toInt() ?? 0;
         _loading = false;
       });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
+    } catch (error) {
+      if (!mounted) return;
       setState(() {
-        _error = 'Não foi possível carregar os dados do painel.';
+        _error = error.toString();
         _loading = false;
       });
     }
@@ -76,182 +92,568 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const AppScaffold(title: 'Painel', body: LoadingView());
+      return const AppScaffold(
+        title: 'Inicio',
+        showAppBar: false,
+        body: LoadingView(message: 'Preparando o painel...'),
+      );
     }
 
     if (_error != null) {
       return AppScaffold(
-        title: 'Painel',
-        body: ErrorView(message: _error!, onRetry: _load),
+        title: 'Inicio',
+        showAppBar: false,
+        body: ErrorView(
+          message: _error!,
+          onRetry: _load,
+        ),
       );
     }
 
+    final theme = Theme.of(context);
+    final userName = AuthService.instance.user?['name']?.toString();
+    final greetingName = firstNameOf(userName);
+    final openTasks = (_taskMetrics['open'] as num?)?.toInt() ?? 0;
+    final inProgressTasks = (_taskMetrics['inProgress'] as num?)?.toInt() ?? 0;
+    final tasksToday = (_taskMetrics['today'] as num?)?.toInt() ?? 0;
+    final budgetsInProgress =
+        (_budgetMetrics['inProgress'] as num?)?.toInt() ?? 0;
+    final approvedBudgets = (_budgetMetrics['approved'] as num?)?.toInt() ?? 0;
+
     return AppScaffold(
-      title: 'Painel',
-      body: ListView(
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const BrandLogo(height: 46),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'RV TecnoCare',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Assistência técnica e orçamentos',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
+      title: 'Inicio',
+      showAppBar: false,
+      padding: EdgeInsets.zero,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            120,
+          ),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.primary, AppColors.primaryDark],
+                ),
+                borderRadius: BorderRadius.circular(32),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.24),
+                    blurRadius: 32,
+                    offset: const Offset(0, 18),
                   ),
-                  IconButton(
-                    onPressed: _load,
-                    tooltip: 'Atualizar',
-                    icon: const Icon(Icons.refresh),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const BrandLogo(
+                              height: 26,
+                              color: Colors.white,
+                              monogram: true,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            Text(
+                              'Ola, $greetingName',
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              _heroSubtitle(
+                                openTasks: openTasks,
+                                inProgressTasks: inProgressTasks,
+                                tasksToday: tasksToday,
+                              ),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.84),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _NotificationButton(count: _notificationCount),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      _HeroPill(
+                        label: '$tasksToday para hoje',
+                        icon: Icons.calendar_month_rounded,
+                      ),
+                      _HeroPill(
+                        label: '$budgetsInProgress em proposta',
+                        icon: Icons.receipt_long_rounded,
+                      ),
+                      _HeroPill(
+                        label: formatDate(DateTime.now().toIso8601String()),
+                        icon: Icons.schedule_rounded,
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          const SectionHeader(
-            title: 'Visão geral',
-            subtitle: 'Números principais desta operação',
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _SummaryCard(
-                title: 'Clientes',
-                value: _summary['clients'],
-                icon: Icons.people_alt_outlined,
-                onTap: () =>
-                    widget.onOpenShortcut?.call(DashboardShortcut.clients),
-              ),
-              _SummaryCard(
-                title: 'Tarefas',
-                value: _summary['tasks'],
-                icon: Icons.task_alt,
-                onTap: () => widget.onOpenShortcut?.call(DashboardShortcut.tasks),
-              ),
-              _SummaryCard(
-                title: 'Produtos',
-                value: _summary['products'],
-                icon: Icons.inventory_2_outlined,
-                onTap: () =>
-                    widget.onOpenShortcut?.call(DashboardShortcut.products),
-              ),
-              _SummaryCard(
-                title: 'Orçamentos',
-                value: _summary['budgets'],
-                icon: Icons.receipt_long,
-                onTap: () =>
-                    widget.onOpenShortcut?.call(DashboardShortcut.budgets),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          const SectionHeader(
-            title: 'Últimos relatórios',
-            subtitle: 'Acompanhe as atividades mais recentes',
-          ),
-          const SizedBox(height: 12),
-          if (_reports.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Nenhum relatório cadastrado.'),
+            const SizedBox(height: AppSpacing.xl),
+            const SectionHeader(
+              title: 'Atalhos rapidos',
+              subtitle: 'Acesse os fluxos mais usados do dia',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 132,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _ShortcutCard(
+                    title: 'Tarefas',
+                    subtitle: '$openTasks abertas',
+                    icon: Icons.task_alt_rounded,
+                    onTap: () =>
+                        widget.onOpenShortcut?.call(DashboardShortcut.tasks),
+                  ),
+                  _ShortcutCard(
+                    title: 'Clientes',
+                    subtitle: '${_summary['clients'] ?? 0} ativos',
+                    icon: Icons.people_alt_rounded,
+                    accentColor: AppColors.secondary,
+                    onTap: () =>
+                        widget.onOpenShortcut?.call(DashboardShortcut.clients),
+                  ),
+                  _ShortcutCard(
+                    title: 'Orcamentos',
+                    subtitle: '$approvedBudgets aprovados',
+                    icon: Icons.receipt_long_rounded,
+                    accentColor: AppColors.info,
+                    onTap: () =>
+                        widget.onOpenShortcut?.call(DashboardShortcut.budgets),
+                  ),
+                  _ShortcutCard(
+                    title: 'Mais',
+                    subtitle: 'Admin e apoio',
+                    icon: Icons.grid_view_rounded,
+                    accentColor: AppColors.warning,
+                    onTap: () =>
+                        widget.onOpenShortcut?.call(DashboardShortcut.more),
+                  ),
+                ],
               ),
             ),
-          ..._reports.map((report) {
-            final map = Map<String, dynamic>.from(report as Map);
-            final title = map['title'] ?? map['template_name'] ?? 'Relatório';
-            final created = map['created_at']?.toString() ?? '';
+            const SizedBox(height: AppSpacing.xl),
+            const SectionHeader(
+              title: 'Painel operacional',
+              subtitle: 'Status real de tarefas, clientes e propostas',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            GridView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: AppSpacing.sm,
+                mainAxisSpacing: AppSpacing.sm,
+                mainAxisExtent: 166,
+              ),
+              children: [
+                MetricCard(
+                  title: 'Tarefas',
+                  value: '${_taskMetrics['total'] ?? _summary['tasks'] ?? 0}',
+                  subtitle: '$openTasks abertas',
+                  icon: Icons.task_alt_rounded,
+                  onTap: () =>
+                      widget.onOpenShortcut?.call(DashboardShortcut.tasks),
+                ),
+                MetricCard(
+                  title: 'Em andamento',
+                  value: '$inProgressTasks',
+                  subtitle: 'Execucao em campo',
+                  icon: Icons.timelapse_rounded,
+                  accentColor: AppColors.warning,
+                  onTap: () =>
+                      widget.onOpenShortcut?.call(DashboardShortcut.tasks),
+                ),
+                MetricCard(
+                  title: 'Orcamentos',
+                  value:
+                      '${_budgetMetrics['total'] ?? _summary['budgets'] ?? 0}',
+                  subtitle: '$budgetsInProgress aguardando retorno',
+                  icon: Icons.request_quote_rounded,
+                  accentColor: AppColors.info,
+                  onTap: () =>
+                      widget.onOpenShortcut?.call(DashboardShortcut.budgets),
+                ),
+                MetricCard(
+                  title: 'Clientes',
+                  value: '${_summary['clients'] ?? 0}',
+                  subtitle: 'Base comercial ativa',
+                  icon: Icons.people_alt_rounded,
+                  accentColor: AppColors.success,
+                  onTap: () =>
+                      widget.onOpenShortcut?.call(DashboardShortcut.clients),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            SectionHeader(
+              title: 'Tarefas recentes',
+              subtitle: 'Ultimas movimentacoes de atendimento',
+              actionLabel: 'Ver tudo',
+              onAction: () =>
+                  widget.onOpenShortcut?.call(DashboardShortcut.tasks),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (_recentTasks.isEmpty)
+              const EmptyState(
+                title: 'Nenhuma tarefa recente',
+                message:
+                    'Assim que novas tarefas forem criadas elas aparecem aqui.',
+                icon: Icons.task_alt_outlined,
+                illustrationAsset: AppAssets.emptyTasks,
+              )
+            else
+              ..._recentTasks.take(3).map((task) {
+                final title = task['title']?.toString() ?? 'Tarefa';
+                final clientName =
+                    task['client_name']?.toString() ?? 'Sem cliente';
+                final address = task['client_address']?.toString() ?? '';
+                return TaskCard(
+                  title: title,
+                  clientName: clientName,
+                  location: address,
+                  statusLabel: _taskStatusLabel(task['status']?.toString()),
+                  priorityLabel:
+                      _taskPriorityLabel(task['priority']?.toString()),
+                  codeLabel: '#${task['id'] ?? '--'}',
+                  avatarName: clientName,
+                  onTap: () =>
+                      widget.onOpenShortcut?.call(DashboardShortcut.tasks),
+                );
+              }),
+            const SizedBox(height: AppSpacing.xl),
+            SectionHeader(
+              title: 'Orcamentos recentes',
+              subtitle: 'Propostas com retorno mais proximo',
+              actionLabel: 'Abrir modulo',
+              onAction: () =>
+                  widget.onOpenShortcut?.call(DashboardShortcut.budgets),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (_recentBudgets.isEmpty)
+              const EmptyState(
+                title: 'Nenhum orcamento recente',
+                message:
+                    'As propostas criadas pela equipe aparecem aqui com status.',
+                icon: Icons.receipt_long_outlined,
+                illustrationAsset: AppAssets.emptyBudgets,
+              )
+            else
+              ..._recentBudgets.take(3).map(
+                    (budget) => _RecentBudgetCard(
+                      code: 'ORC #${budget['id'] ?? '--'}',
+                      clientName:
+                          budget['client_name']?.toString() ?? 'Sem cliente',
+                      title: budget['task_title']?.toString().isNotEmpty == true
+                          ? budget['task_title'].toString()
+                          : 'Proposta comercial',
+                      total: formatCurrency(budget['total'] as num? ?? 0),
+                      createdAt: formatDate(budget['created_at']?.toString()),
+                      status: _budgetStatusLabel(budget['status']?.toString()),
+                      onTap: () => widget.onOpenShortcut
+                          ?.call(DashboardShortcut.budgets),
+                    ),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
 
-            return Card(
-              child: ListTile(
-                leading: const Icon(Icons.description_outlined),
-                title: Text(title.toString()),
-                subtitle: Text(
-                  '${map['client_name'] ?? 'Sem cliente'} • ${formatDate(created)}',
+  String _heroSubtitle({
+    required int openTasks,
+    required int inProgressTasks,
+    required int tasksToday,
+  }) {
+    if (openTasks == 0 && inProgressTasks == 0) {
+      return 'Operacao tranquila. Voce nao tem pendencias criticas agora.';
+    }
+    if (tasksToday > 0) {
+      return 'Voce tem $tasksToday compromisso(s) para hoje e $openTasks frente(s) abertas.';
+    }
+    return 'Existem $inProgressTasks atendimento(s) em execucao e $openTasks tarefa(s) abertas.';
+  }
+
+  String _taskStatusLabel(String? value) {
+    switch (value) {
+      case 'aberta':
+        return 'Aberta';
+      case 'em_andamento':
+        return 'Em andamento';
+      case 'concluida':
+        return 'Concluida';
+      default:
+        return value?.isNotEmpty == true ? value! : 'Aberta';
+    }
+  }
+
+  String _taskPriorityLabel(String? value) {
+    switch (value) {
+      case 'alta':
+        return 'Alta';
+      case 'media':
+        return 'Media';
+      case 'baixa':
+        return 'Baixa';
+      default:
+        return value?.isNotEmpty == true ? value! : 'Media';
+    }
+  }
+
+  String _budgetStatusLabel(String? value) {
+    switch (value) {
+      case 'aprovado':
+        return 'Aprovado';
+      case 'recusado':
+        return 'Recusado';
+      default:
+        return 'Em andamento';
+    }
+  }
+}
+
+class _NotificationButton extends StatelessWidget {
+  const _NotificationButton({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Center(
+            child: Icon(Icons.notifications_none_rounded, color: Colors.white),
+          ),
+          if (count > 0)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: Text(
+                  count > 9 ? '9+' : '$count',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Colors.white,
+                      ),
                 ),
               ),
-            );
-          }),
+            ),
         ],
       ),
     );
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.title,
-    required this.value,
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({
+    required this.label,
     required this.icon,
-    this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.white),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Colors.white,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShortcutCard extends StatelessWidget {
+  const _ShortcutCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+    this.accentColor,
   });
 
   final String title;
-  final dynamic value;
+  final String subtitle;
   final IconData icon;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = accentColor ?? theme.colorScheme.primary;
 
-    return SizedBox(
-      width: 164,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, color: theme.colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: theme.textTheme.titleSmall,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.sm),
+      child: SizedBox(
+        width: 156,
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Total cadastrado',
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: 8),
-                Chip(label: Text('${value ?? 0}')),
-                const SizedBox(height: 10),
-                Text(
-                  'Toque para abrir',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
+                    alignment: Alignment.center,
+                    child: Icon(icon, color: accent),
                   ),
-                ),
-              ],
+                  const Spacer(),
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentBudgetCard extends StatelessWidget {
+  const _RecentBudgetCard({
+    required this.code,
+    required this.clientName,
+    required this.title,
+    required this.total,
+    required this.createdAt,
+    required this.status,
+    required this.onTap,
+  });
+
+  final String code;
+  final String clientName;
+  final String title;
+  final String total;
+  final String createdAt;
+  final String status;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      code,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  StatusChip(label: status, compact: true),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                clientName,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      createdAt,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  Text(
+                    total,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

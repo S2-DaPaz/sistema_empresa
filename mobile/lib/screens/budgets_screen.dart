@@ -1,18 +1,22 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
 import '../services/entity_refresh_service.dart';
+import '../theme/app_assets.dart';
+import '../theme/app_tokens.dart';
 import '../utils/budget_email.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_search_field.dart';
+import '../widgets/budget_card.dart';
 import '../widgets/budget_form.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
-import '../widgets/section_header.dart';
 
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
@@ -24,6 +28,8 @@ class BudgetsScreen extends StatefulWidget {
 class _BudgetsScreenState extends State<BudgetsScreen> {
   final ApiService _api = ApiService();
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _listController = ScrollController();
+
   StreamSubscription<String>? _entityRefreshSubscription;
   bool _loading = true;
   String? _error;
@@ -47,6 +53,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   void dispose() {
     _entityRefreshSubscription?.cancel();
     _searchController.dispose();
+    _listController.dispose();
     super.dispose();
   }
 
@@ -60,92 +67,37 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           await _api.get('/budgets?includeItems=1') as List<dynamic>;
       final clients = await _api.get('/clients') as List<dynamic>;
       final products = await _api.get('/products') as List<dynamic>;
+      if (!mounted) return;
       setState(() {
-        _budgets = budgets.cast<Map<String, dynamic>>();
-        _clients = clients.cast<Map<String, dynamic>>();
-        _products = products.cast<Map<String, dynamic>>();
+        _budgets = List<Map<String, dynamic>>.from(budgets);
+        _clients = List<Map<String, dynamic>>.from(clients);
+        _products = List<Map<String, dynamic>>.from(products);
+        _loading = false;
       });
     } catch (error) {
-      setState(() => _error = error.toString());
-    } finally {
-      setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
     }
   }
 
-  Map<String, dynamic>? _findClient(int? id) {
-    if (id == null) return null;
-    return _clients.firstWhere(
-      (client) => client['id'] == id,
-      orElse: () => {},
-    );
-  }
-
-  Future<void> _sendEmail(Map<String, dynamic> budget) async {
-    final client = _findClient(budget['client_id'] as int?);
-    final email = extractEmail(client?['contact']?.toString() ?? '');
-    final subject = 'Orçamento #${budget['id']}';
-    final body = buildBudgetEmailText(budget, client ?? {});
-    final uri = Uri(
-      scheme: 'mailto',
-      path: email,
-      queryParameters: {
-        'subject': subject,
-        'body': body,
-      },
-    );
-    await launchUrl(uri);
-  }
-
-  Future<String?> _getPublicLink(Map<String, dynamic> budget) async {
-    final budgetId = budget['id'];
-    if (budgetId == null) return null;
-    try {
-      final response = await _api.post('/budgets/$budgetId/public-link', {});
-      return response['url']?.toString();
-    } catch (error) {
-      if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
-      return null;
+  Map<String, int> get _statusCounts {
+    final counts = <String, int>{
+      'all': _budgets.length,
+      'em_andamento': 0,
+      'aprovado': 0,
+      'recusado': 0,
+    };
+    for (final budget in _budgets) {
+      final status = budget['status']?.toString() ?? 'em_andamento';
+      counts[status] = (counts[status] ?? 0) + 1;
     }
+    return counts;
   }
 
-  Future<void> _shareReportLink(Map<String, dynamic> budget) async {
-    final url = await _getPublicLink(budget);
-    if (url == null || url.isEmpty) return;
-    await Share.share(
-      url,
-      subject: 'Orçamento #${budget['id']}',
-    );
-  }
-
-  Future<void> _openReportLink(Map<String, dynamic> budget) async {
-    final url = await _getPublicLink(budget);
-    if (url == null || url.isEmpty) return;
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-  }
-
-  String _buildSearchText(Map<String, dynamic> budget) {
-    final items = (budget['items'] as List<dynamic>? ?? [])
-        .cast<Map<String, dynamic>>()
-        .map((item) => item['description']?.toString() ?? '')
-        .join(' ');
-    final parts = [
-      budget['id']?.toString(),
-      budget['client_name'],
-      budget['task_title'],
-      budget['report_title'],
-      budget['status'],
-      items,
-    ];
-    return parts
-        .map((value) => value?.toString() ?? '')
-        .join(' ')
-        .toLowerCase();
-  }
-
-  List<Map<String, dynamic>> _filteredBudgets() {
+  List<Map<String, dynamic>> get _filteredBudgets {
     final query = _searchQuery.trim().toLowerCase();
     return _budgets.where((budget) {
       if (_statusFilter != null &&
@@ -153,86 +105,42 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         return false;
       }
       if (query.isEmpty) return true;
-      return _buildSearchText(budget).contains(query);
+      final haystack = [
+        budget['id'],
+        budget['client_name'],
+        budget['task_title'],
+        budget['report_title'],
+        budget['notes'],
+        ...(budget['items'] as List<dynamic>? ?? [])
+            .map((item) => (item as Map)['description']),
+      ].map((value) => value?.toString() ?? '').join(' ').toLowerCase();
+      return haystack.contains(query);
     }).toList();
   }
 
-  Future<void> _openFilters() async {
-    final selected = await showModalBottomSheet<String>(
+  Future<void> _openBudgetForm([Map<String, dynamic>? budget]) async {
+    final updated = await showModalBottomSheet<bool>(
       context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text('Filtrar por status'),
-            ),
-            ListTile(
-              title: const Text('Todos'),
-              leading: const Icon(Icons.clear_all),
-              onTap: () => Navigator.pop(context, 'todos'),
-            ),
-            ListTile(
-              title: const Text('Em andamento'),
-              onTap: () => Navigator.pop(context, 'em_andamento'),
-            ),
-            ListTile(
-              title: const Text('Aprovado'),
-              onTap: () => Navigator.pop(context, 'aprovado'),
-            ),
-            ListTile(
-              title: const Text('Recusado'),
-              onTap: () => Navigator.pop(context, 'recusado'),
-            ),
-          ],
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            24 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: BudgetForm(
+            initialBudget: budget,
+            clients: _clients,
+            products: _products,
+            onSaved: () => Navigator.pop(context, true),
+          ),
         ),
       ),
     );
 
-    if (!mounted || selected == null) return;
-    setState(() => _statusFilter = selected == 'todos' ? null : selected);
-  }
-
-  Future<void> _editBudget(Map<String, dynamic> budget) async {
-    final updated = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.92,
-          minChildSize: 0.6,
-          maxChildSize: 0.98,
-          builder: (context, scrollController) {
-            return Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SingleChildScrollView(
-                controller: scrollController,
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  16 + MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: BudgetForm(
-                  initialBudget: budget,
-                  clients: _clients,
-                  products: _products,
-                  onSaved: () => Navigator.pop(context, true),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (updated == true) {
+    if (updated == true && mounted) {
       await _load();
     }
   }
@@ -240,20 +148,23 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   Future<void> _deleteBudget(int id) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Remover orçamento'),
-        content: const Text('Deseja remover este orçamento?'),
+      builder: (context) => AlertDialog(
+        title: const Text('Remover orÃ§amento'),
+        content: const Text('Deseja remover este orÃ§amento?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remover')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remover'),
+          ),
         ],
       ),
     );
     if (confirmed != true) return;
+
     try {
       await _api.delete('/budgets/$id');
       await _load();
@@ -265,213 +176,304 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
-  String _formatStatus(String? value) {
+  Future<void> _sendEmail(Map<String, dynamic> budget) async {
+    final client = _findClient(budget['client_id'] as int?);
+    final subject = 'OrÃ§amento #${budget['id']}';
+    final body = buildBudgetEmailText(budget, client ?? {});
+    final email = RegExp(
+      r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',
+      caseSensitive: false,
+    ).firstMatch(client?['contact']?.toString() ?? '');
+
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email?.group(0) ?? '',
+      queryParameters: {
+        'subject': subject,
+        'body': body,
+      },
+    );
+    await launchUrl(uri);
+  }
+
+  Map<String, dynamic>? _findClient(int? id) {
+    if (id == null) return null;
+    for (final client in _clients) {
+      if (client['id'] == id) return client;
+    }
+    return null;
+  }
+
+  Future<String?> _getPublicLink(Map<String, dynamic> budget) async {
+    final budgetId = budget['id'];
+    if (budgetId == null) return null;
+    final response = await _api.post('/budgets/$budgetId/public-link', {});
+    return response['url']?.toString();
+  }
+
+  Future<void> _shareReportLink(Map<String, dynamic> budget) async {
+    final url = await _getPublicLink(budget);
+    if (url == null || url.isEmpty) return;
+    await Share.share(url, subject: 'OrÃ§amento #${budget['id']}');
+  }
+
+  Future<void> _openReportLink(Map<String, dynamic> budget) async {
+    final url = await _getPublicLink(budget);
+    if (url == null || url.isEmpty) return;
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  String _statusLabel(String? value) {
     switch (value) {
-      case 'em_andamento':
-        return 'Em andamento';
       case 'aprovado':
         return 'Aprovado';
       case 'recusado':
         return 'Recusado';
       default:
-        return value?.toString() ?? 'Em andamento';
+        return 'Em andamento';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const AppScaffold(title: 'Orçamentos', body: LoadingView());
+      return const AppScaffold(
+        title: 'OrÃ§amentos',
+        body: LoadingView(message: 'Carregando orÃ§amentos...'),
+      );
     }
+
     if (_error != null) {
       return AppScaffold(
-        title: 'Orçamentos',
+        title: 'OrÃ§amentos',
         body: ErrorView(message: _error!, onRetry: _load),
       );
     }
 
-    final filteredBudgets = _filteredBudgets();
+    final budgets = _filteredBudgets;
 
     return AppScaffold(
-      title: 'Orçamentos',
-      body: ListView(
+      title: 'OrÃ§amentos',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          BudgetForm(
-            clients: _clients,
-            products: _products,
-            onSaved: _load,
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Buscar orçamentos',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _searchQuery.isEmpty
-                                ? null
-                                : IconButton(
-                                    icon: const Icon(Icons.close),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  ),
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _searchQuery = value),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: _openFilters,
-                          child: const Icon(Icons.tune),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_searchQuery.isNotEmpty || _statusFilter != null) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        if (_searchQuery.isNotEmpty)
-                          Chip(
-                            label: Text('Busca: $_searchQuery'),
-                            onDeleted: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          ),
-                        if (_statusFilter != null)
-                          Chip(
-                            label:
-                                Text('Status: ${_formatStatus(_statusFilter)}'),
-                            onDeleted: () =>
-                                setState(() => _statusFilter = null),
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const SectionHeader(
-            title: 'Orçamentos cadastrados',
-            subtitle: 'Histórico e andamento dos orçamentos',
-          ),
-          const SizedBox(height: 12),
-          if (_budgets.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Nenhum orçamento cadastrado.'),
-              ),
-            ),
-          if (_budgets.isNotEmpty && filteredBudgets.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child:
-                    Text('Nenhum orçamento encontrado com os filtros atuais.'),
-              ),
-            ),
-          ...filteredBudgets.map((budget) {
-            final clientName = budget['client_name'] ?? 'Sem cliente';
-            final statusLabel = _formatStatus(budget['status']?.toString());
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Orçamento #${budget['id']}',
-                            style: Theme.of(context).textTheme.titleSmall),
-                        Row(
-                          children: [
-                            Chip(label: Text(statusLabel)),
-                            PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'edit') {
-                                  _editBudget(budget);
-                                } else if (value == 'delete') {
-                                  _deleteBudget(budget['id'] as int);
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                    value: 'edit', child: Text('Editar')),
-                                PopupMenuItem(
-                                    value: 'delete', child: Text('Remover')),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                        'Cliente: $clientName • Total: ${formatCurrency(budget['total'] ?? 0)}'),
-                    if (budget['task_title'] != null)
-                      Text('Tarefa: ${budget['task_title']}'),
-                    if (budget['report_title'] != null)
-                      Text('Relatório: ${budget['report_title']}'),
-                    const SizedBox(height: 8),
-                    ...(budget['items'] as List<dynamic>? ?? [])
-                        .cast<Map<String, dynamic>>()
-                        .map((item) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                      child: Text(
-                                          item['description']?.toString() ??
-                                              'Item')),
-                                  Text(formatCurrency(item['total'] ?? 0)),
-                                ],
-                              ),
-                            )),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        OutlinedButton(
-                          onPressed: () => _sendEmail(budget),
-                          child: const Text('Enviar e-mail'),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _shareReportLink(budget),
-                          child: const Text('Compartilhar link'),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _openReportLink(budget),
-                          child: const Text('Abrir PDF'),
-                        ),
-                      ],
-                    ),
-                  ],
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Orcamentos',
+                  style: Theme.of(context).textTheme.headlineMedium,
                 ),
               ),
-            );
-          }),
+              ElevatedButton.icon(
+                onPressed: () => _openBudgetForm(),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Novo'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AppSearchField(
+            controller: _searchController,
+            hintText: 'Buscar orcamentos...',
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 38,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _BudgetFilterChip(
+                  label: 'Todas',
+                  count: _statusCounts['all'] ?? 0,
+                  selected: _statusFilter == null,
+                  onTap: () => setState(() => _statusFilter = null),
+                ),
+                _BudgetFilterChip(
+                  label: 'Abertos',
+                  count: _statusCounts['em_andamento'] ?? 0,
+                  selected: _statusFilter == 'em_andamento',
+                  onTap: () => setState(() => _statusFilter = 'em_andamento'),
+                ),
+                _BudgetFilterChip(
+                  label: 'Aprovados',
+                  count: _statusCounts['aprovado'] ?? 0,
+                  selected: _statusFilter == 'aprovado',
+                  onTap: () => setState(() => _statusFilter = 'aprovado'),
+                ),
+                _BudgetFilterChip(
+                  label: 'Recusados',
+                  count: _statusCounts['recusado'] ?? 0,
+                  selected: _statusFilter == 'recusado',
+                  onTap: () => setState(() => _statusFilter = 'recusado'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: budgets.isEmpty
+                  ? ListView(
+                      controller: _listController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 40),
+                      children: const [
+                        SizedBox(height: 12),
+                        EmptyState(
+                          title: 'Nenhum orcamento encontrado',
+                          message:
+                              'Crie um novo orcamento para comecar a compor propostas.',
+                          icon: Icons.receipt_long_outlined,
+                          illustrationAsset: AppAssets.emptyBudgets,
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      controller: _listController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 40),
+                      itemCount: budgets.length,
+                      itemBuilder: (context, index) {
+                        final budget = budgets[index];
+                        return BudgetCard(
+                          code: 'ORC #${budget['id']}',
+                          clientName: budget['client_name']?.toString() ??
+                              'Sem cliente',
+                          description: budget['task_title']
+                                      ?.toString()
+                                      .isNotEmpty ==
+                                  true
+                              ? budget['task_title'].toString()
+                              : budget['notes']?.toString().isNotEmpty == true
+                                  ? budget['notes'].toString()
+                                  : 'Sem descricao adicional',
+                          dateLabel: budget['created_at']
+                                      ?.toString()
+                                      .isNotEmpty ==
+                                  true
+                              ? 'Enviado em ${formatDate(budget['created_at'].toString())}'
+                              : 'Sem data',
+                          amountLabel: formatCurrency(budget['total'] ?? 0),
+                          statusLabel:
+                              _statusLabel(budget['status']?.toString()),
+                          onTap: () => _openBudgetForm(budget),
+                          onMore: () => _openBudgetActions(budget),
+                        );
+                      },
+                    ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openBudgetActions(Map<String, dynamic> budget) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Editar orcamento'),
+              onTap: () => Navigator.pop(context, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.mail_outline_rounded),
+              title: const Text('Enviar por e-mail'),
+              onTap: () => Navigator.pop(context, 'email'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_outlined),
+              title: const Text('Compartilhar link'),
+              onTap: () => Navigator.pop(context, 'share'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined),
+              title: const Text('Abrir PDF publico'),
+              onTap: () => Navigator.pop(context, 'pdf'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              title: const Text('Remover orcamento'),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case 'edit':
+        await _openBudgetForm(budget);
+        break;
+      case 'email':
+        await _sendEmail(budget);
+        break;
+      case 'share':
+        await _shareReportLink(budget);
+        break;
+      case 'pdf':
+        await _openReportLink(budget);
+        break;
+      case 'delete':
+        if (budget['id'] is int) {
+          await _deleteBudget(budget['id'] as int);
+        }
+        break;
+    }
+  }
+}
+
+class _BudgetFilterChip extends StatelessWidget {
+  const _BudgetFilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline,
+            ),
+          ),
+          child: Text(
+            '$label  $count',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: selected
+                  ? theme.colorScheme.onPrimary
+                  : theme.textTheme.labelMedium?.color,
+            ),
+          ),
+        ),
       ),
     );
   }

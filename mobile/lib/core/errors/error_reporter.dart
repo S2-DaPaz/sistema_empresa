@@ -30,8 +30,9 @@ class ErrorReporter {
 
     final body = jsonEncode({
       'friendlyMessage': error.message,
-      'technicalMessage':
-          error.technicalMessage.isNotEmpty ? error.technicalMessage : error.message,
+      'technicalMessage': error.technicalMessage.isNotEmpty
+          ? error.technicalMessage
+          : error.message,
       'category': error.category,
       'errorCode': error.code,
       'httpStatus': error.statusCode,

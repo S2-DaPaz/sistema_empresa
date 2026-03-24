@@ -1,0 +1,44 @@
+:root {
+  --rv-color-brand-50: #EDF4FF;
+  --rv-color-brand-100: #D9E7FF;
+  --rv-color-brand-200: #B9D0FF;
+  --rv-color-brand-300: #90B2FF;
+  --rv-color-brand-400: #6C94FF;
+  --rv-color-brand-500: #3E75FF;
+  --rv-color-brand-600: #245BEB;
+  --rv-color-brand-700: #1B46C5;
+  --rv-color-brand-800: #17389A;
+  --rv-color-brand-900: #122B73;
+  --rv-color-cyan-500: #18C3EE;
+  --rv-color-mint-500: #14C2A3;
+  --rv-color-surface: #FFFFFF;
+  --rv-color-surface-soft: #F7F9FC;
+  --rv-color-surface-alt: #F2F5FA;
+  --rv-color-border: #E4EAF3;
+  --rv-color-border-strong: #D5DDE8;
+  --rv-color-text: #121826;
+  --rv-color-text-soft: #5B6475;
+  --rv-color-text-muted: #98A2B3;
+  --rv-color-success: #12B76A;
+  --rv-color-warning: #F79009;
+  --rv-color-danger: #F04438;
+  --rv-color-info: #2E90FA;
+
+  --rv-gradient-brand: linear-gradient(135deg, #3E75FF 0%, #1B46C5 100%);
+  --rv-gradient-brand-soft: linear-gradient(180deg, #ffffff 0%, #F7F9FC 100%);
+  --rv-gradient-accent: linear-gradient(135deg, #18C3EE 0%, #14C2A3 100%);
+
+  --rv-radius-xs: 10px;
+  --rv-radius-sm: 14px;
+  --rv-radius-md: 18px;
+  --rv-radius-lg: 24px;
+  --rv-radius-xl: 32px;
+  --rv-shadow-soft: 0 12px 32px rgba(18, 24, 38, 0.10);
+  --rv-shadow-card: 0 10px 24px rgba(18, 24, 38, 0.08);
+  --rv-shadow-brand: 0 20px 40px rgba(36, 91, 235, 0.30);
+  --rv-stroke-soft: 1px solid rgba(18, 24, 38, 0.08);
+  --rv-stroke-brand: 1px solid rgba(36, 91, 235, 0.16);
+
+  --rv-font-heading: 'Space Grotesk', 'Inter', 'Segoe UI', Arial, sans-serif;
+  --rv-font-body: 'Sora', 'Inter', 'Segoe UI', Arial, sans-serif;
+}

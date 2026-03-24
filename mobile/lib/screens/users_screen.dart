@@ -212,7 +212,7 @@ class _UsersScreenState extends State<UsersScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Remover perfil'),
-            content: Text('Deseja remover o perfil "${item['name']}"?'),
+        content: Text('Deseja remover o perfil "${item['name']}"?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),

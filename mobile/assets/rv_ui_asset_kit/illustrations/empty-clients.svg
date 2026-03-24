@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="300" viewBox="0 0 420 300" fill="none">
+
+<defs>
+  <linearGradient id="cardGrad" x1="0" y1="0" x2="420" y2="300" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#FFFFFF"/>
+    <stop offset="1" stop-color="#F7FAFF"/>
+  </linearGradient>
+  <linearGradient id="blueGrad" x1="0" y1="0" x2="420" y2="300" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#4E83FF"/>
+    <stop offset="1" stop-color="#245BEB"/>
+  </linearGradient>
+  <linearGradient id="mintGrad" x1="0" y1="0" x2="420" y2="300" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#6DE4D7"/>
+    <stop offset="1" stop-color="#15C0A5"/>
+  </linearGradient>
+  <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#122B73" flood-opacity="0.09"/>
+  </filter>
+</defs>
+<rect width="420" height="300" fill="none"/>
+
+<circle cx="330" cy="58" r="38" fill="rgba(36,91,235,0.08)"/>
+<circle cx="90" cy="242" r="52" fill="rgba(57,216,200,0.10)"/>
+<rect x="58" y="44" width="304" height="206" rx="28" fill="#FFFFFF" stroke="rgba(18,24,38,0.08)" stroke-width="1.2" filter="url(#cardShadow)"/>
+<circle cx="128" cy="116" r="34" fill="rgba(36,91,235,0.10)"/>
+<circle cx="128" cy="106" r="14" fill="url(#blueGrad)"/>
+<path d="M102 144 C 108 128, 120 120, 128 120 C 136 120, 148 128, 154 144" stroke="url(#blueGrad)" stroke-width="10" stroke-linecap="round"/>
+<rect x="188" y="96" width="112" height="16" rx="8" fill="rgba(18,24,38,0.08)" stroke="none" stroke-width="0" />
+<rect x="188" y="126" width="84" height="14" rx="7" fill="rgba(18,24,38,0.08)" stroke="none" stroke-width="0" />
+<rect x="96" y="178" width="204" height="16" rx="8" fill="rgba(18,24,38,0.08)" stroke="none" stroke-width="0" />
+<rect x="96" y="206" width="172" height="16" rx="8" fill="rgba(18,24,38,0.08)" stroke="none" stroke-width="0" />
+
+</svg>

@@ -24,7 +24,8 @@ class AuthSession {
   String get role => user['role']?.toString() ?? 'visitante';
   bool get roleIsAdmin =>
       user['role_is_admin'] == true || role == 'administracao';
-  List<String> get rolePermissions => parsePermissions(user['role_permissions']);
+  List<String> get rolePermissions =>
+      parsePermissions(user['role_permissions']);
   List<String> get permissions => parsePermissions(user['permissions']);
   List<String> get effectivePermissions => getEffectivePermissions(user);
 }
@@ -259,6 +260,27 @@ class AuthService {
       await prefs.remove(_tokenKey);
       await prefs.remove(_refreshTokenKey);
       await prefs.remove(_userKey);
+    }
+  }
+
+  Future<void> logoutAll() async {
+    try {
+      if (token != null && token!.isNotEmpty) {
+        await _send(
+          '/auth/logout-all',
+          (uri) => _client.post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Client-Platform': 'mobile',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({}),
+          ),
+        );
+      }
+    } finally {
+      await logout(localOnly: true);
     }
   }
 

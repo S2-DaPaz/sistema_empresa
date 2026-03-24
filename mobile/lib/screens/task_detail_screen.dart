@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -14,14 +14,19 @@ import '../core/errors/app_exception.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../services/permissions.dart';
+import '../theme/app_tokens.dart';
+import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
 import '../utils/report_text.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/avatar_initials.dart';
 import '../widgets/budget_form.dart';
-import '../widgets/brand_logo.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/form_fields.dart';
 import '../widgets/loading_view.dart';
+import '../widgets/section_header.dart';
 import '../widgets/signature_pad.dart';
+import '../widgets/status_chip.dart';
 import 'task_detail_options.dart';
 
 enum _PhotoSourceOption { camera, gallery }
@@ -96,6 +101,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     );
   }
 
+  void _setStateIfMounted(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   void _openReportTab() {
     if (!mounted) return;
     if (_tabController.length <= 1) return;
@@ -138,7 +148,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   }
 
   Future<void> _loadAll() async {
-    setState(() {
+    _setStateIfMounted(() {
       _loading = true;
       _error = null;
     });
@@ -182,13 +192,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     } catch (error) {
       _error = error.toString();
     } finally {
-      setState(() => _loading = false);
+      _setStateIfMounted(() => _loading = false);
     }
   }
 
   Future<void> _loadClientEquipments() async {
     if (_clientId == null) {
-      setState(() {
+      _setStateIfMounted(() {
         _equipments = [];
         _equipmentsError = null;
         _equipmentsLoading = false;
@@ -196,14 +206,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       });
       return;
     }
-    setState(() {
+    _setStateIfMounted(() {
       _equipmentsLoading = true;
       _equipmentsError = null;
     });
     try {
       final data =
           await _api.get('/equipments?clientId=$_clientId') as List<dynamic>;
-      setState(() {
+      _setStateIfMounted(() {
         _equipments = data.cast<Map<String, dynamic>>();
         if (_reportEquipmentId != null &&
             !_equipments.any((item) => item['id'] == _reportEquipmentId)) {
@@ -211,9 +221,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         }
       });
     } catch (error) {
-      setState(() => _equipmentsError = error.toString());
+      _setStateIfMounted(() => _equipmentsError = error.toString());
     } finally {
-      setState(() => _equipmentsLoading = false);
+      _setStateIfMounted(() => _equipmentsLoading = false);
     }
   }
 
@@ -229,11 +239,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         ? preservedReport
         : nextReports.firstWhere(
             (item) => item['equipment_id'] == null,
-            orElse: () =>
-                nextReports.isNotEmpty ? nextReports.first : <String, dynamic>{},
+            orElse: () => nextReports.isNotEmpty
+                ? nextReports.first
+                : <String, dynamic>{},
           );
     final nextActiveId = defaultReport['id'] as int?;
-    setState(() {
+    _setStateIfMounted(() {
       _reports = nextReports;
       _activeReportId = nextActiveId;
       if (nextActiveId != null) {
@@ -273,7 +284,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       }
     }
 
-    setState(() => _budgets = merged.values.toList());
+    _setStateIfMounted(() => _budgets = merged.values.toList());
   }
 
   Future<void> _editBudget(Map<String, dynamic> budget) async {
@@ -401,7 +412,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   }
 
   Future<void> _saveTask() async {
-    setState(() => _error = null);
+    _setStateIfMounted(() => _error = null);
     final previousActiveReportId = _activeReportId;
     final payload = {
       'title': _title.text,
@@ -426,6 +437,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       if (_taskId == null) {
         final saved =
             await _api.post('/tasks', payload) as Map<String, dynamic>;
+        if (!mounted) return;
         setState(() {
           _taskId = saved['id'] as int?;
         });
@@ -488,7 +500,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   Future<void> _saveReport(
       {bool silent = false, bool skipReload = false}) async {
     if (_activeReportId == null) {
-      setState(() => _reportMessage = 'Salve a tarefa para gerar o Relatório.');
+      _setStateIfMounted(
+        () => _reportMessage = 'Salve a tarefa para gerar o Relatório.',
+      );
       return;
     }
     final previousActiveReportId = _activeReportId;
@@ -517,14 +531,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       if (silent && skipReload) {
         return;
       }
-      setState(() => _reportMessage = 'Relatório salvo com sucesso.');
+      _setStateIfMounted(
+        () => _reportMessage = 'Relatório salvo com sucesso.',
+      );
       await _loadReports(
         _taskTypeId,
         preferredReportId: previousActiveReportId,
       );
     } catch (error) {
       if (silent) return;
-      setState(() => _reportMessage = error.toString());
+      _setStateIfMounted(() => _reportMessage = error.toString());
     }
   }
 
@@ -588,7 +604,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             orElse: () => <String, dynamic>{},
           )['name']
           ?.toString();
-      setState(() {
+      _setStateIfMounted(() {
         _reportEquipmentId = equipmentId;
         final reportIndex =
             _reports.indexWhere((item) => item['id'] == _activeReportId);
@@ -611,14 +627,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   Future<void> _createReport() async {
     if (_taskId == null) return;
     if (_clientId == null) {
-      setState(() =>
-          _reportMessage = 'Selecione um cliente antes de criar o Relatório.');
+      _setStateIfMounted(() {
+        _reportMessage = 'Selecione um cliente antes de criar o Relatório.';
+      });
       return;
     }
     final template = _selectedTemplate;
     if (template == null) {
-      setState(() => _reportMessage =
-          'Este tipo de tarefa não possui modelo de Relatório.');
+      _setStateIfMounted(() {
+        _reportMessage = 'Este tipo de tarefa não possui modelo de Relatório.';
+      });
       return;
     }
 
@@ -642,12 +660,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       final created =
           await _api.post('/reports', payload) as Map<String, dynamic>;
       await _loadReports(_taskTypeId);
-      setState(() {
+      _setStateIfMounted(() {
         _activeReportId = created['id'] as int?;
         _reportMessage = 'Relatório criado com sucesso.';
       });
     } catch (error) {
-      setState(() => _reportMessage = error.toString());
+      _setStateIfMounted(() => _reportMessage = error.toString());
     }
   }
 
@@ -870,89 +888,320 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     setState(() {});
   }
 
+  Map<String, dynamic>? get _selectedClient {
+    for (final client in _clients) {
+      if (client['id'] == _clientId) {
+        return client;
+      }
+    }
+    return null;
+  }
+
+  List<Map<String, String>> _progressItems() {
+    final hasTask = _taskId != null;
+    final hasReport = _reports.isNotEmpty;
+    final hasBudget = _budgets.isNotEmpty;
+    final hasSignature = _signatureMode != 'none' &&
+        ((_signatureClient.isNotEmpty || _signatureTech.isNotEmpty) ||
+            _signaturePages.isNotEmpty);
+
+    return [
+      {'title': 'Tarefa criada', 'status': hasTask ? 'Concluído' : 'Pendente'},
+      {
+        'title': 'Relatório iniciado',
+        'status': hasReport ? 'Concluído' : 'Pendente'
+      },
+      {
+        'title': 'Orçamento vinculado',
+        'status': hasBudget ? 'Concluído' : 'Pendente'
+      },
+      {
+        'title': 'Assinaturas',
+        'status': hasSignature ? 'Concluído' : 'Pendente'
+      },
+    ];
+  }
+
+  Future<void> _launchContact(String scheme, String value) async {
+    if (value.isEmpty) return;
+    await launchUrl(
+      Uri.parse(scheme + value),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
   Widget _buildDetailsTab() {
+    final client = _selectedClient;
+    final clientName = client?['name']?.toString() ?? 'Sem cliente';
+    final clientEmail = extractEmail(client?['contact']?.toString());
+    final clientPhone = extractPhone(client?['contact']?.toString());
+    final clientAddress = client?['address']?.toString() ?? '';
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        AppTextField(label: 'Título', controller: _title),
-        const SizedBox(height: 8),
-        AppDropdownField<String>(
-          label: 'Status',
-          value: _status,
-          items: TaskDetailOptions.taskStatusItems,
-          onChanged: (value) => setState(() => _status = value ?? 'aberta'),
-        ),
-        const SizedBox(height: 8),
-        AppDropdownField<String>(
-          label: 'Prioridade',
-          value: _priority,
-          items: TaskDetailOptions.taskPriorityItems,
-          onChanged: (value) => setState(() => _priority = value ?? 'media'),
-        ),
-        const SizedBox(height: 8),
-        AppDropdownField<int>(
-          label: 'Cliente',
-          value: _clientId,
-          items: _clients
-              .map((client) => DropdownMenuItem<int>(
-                    value: client['id'] as int?,
-                    child: Text(client['name']?.toString() ?? 'Cliente'),
-                  ))
-              .toList(),
-          onChanged: (value) async {
-            setState(() {
-              _clientId = value;
-              _reportEquipmentId = null;
-            });
-            await _loadClientEquipments();
-            if (_taskId != null) {
-              await _loadReports(_taskTypeId);
-              await _loadBudgets(_reports);
-            }
-          },
-        ),
-        const SizedBox(height: 8),
-        if (_users.isNotEmpty) ...[
-          AppDropdownField<int>(
-            label: 'Responsavel',
-            value: _userId,
-            items: _users
-                .map((user) => DropdownMenuItem<int>(
-                      value: user['id'] as int?,
-                      child: Text(user['name']?.toString() ?? 'usuário'),
-                    ))
-                .toList(),
-            onChanged: (value) => setState(() => _userId = value),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    StatusChip(
+                      label: _taskId == null
+                          ? 'Nova tarefa'
+                          : '#${_taskId ?? '--'}',
+                      compact: true,
+                    ),
+                    StatusChip(
+                      label: _status == 'em_andamento'
+                          ? 'Em andamento'
+                          : _status == 'concluida'
+                              ? 'Concluída'
+                              : 'Aberta',
+                      compact: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _title.text.isEmpty ? 'Nova tarefa' : _title.text,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.schedule_rounded, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${formatDateInput(_startDate.text).isEmpty ? 'Sem início' : formatDateInput(_startDate.text)} • ${formatDateInput(_dueDate.text).isEmpty ? 'Sem prazo' : formatDateInput(_dueDate.text)}',
+                      ),
+                    ),
+                  ],
+                ),
+                if (clientAddress.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(clientAddress)),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-        ],
-        AppDropdownField<int>(
-          label: 'Tipo de tarefa',
-          value: _taskTypeId,
-          items: _types
-              .map((type) => DropdownMenuItem<int>(
-                    value: type['id'] as int?,
-                    child: Text(type['name']?.toString() ?? 'Tipo'),
-                  ))
-              .toList(),
-          onChanged: (value) => setState(() => _taskTypeId = value),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    AvatarInitials(name: clientName),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(clientName,
+                              style: Theme.of(context).textTheme.titleMedium),
+                          if (clientEmail.isNotEmpty)
+                            Text(clientEmail,
+                                style: Theme.of(context).textTheme.bodySmall),
+                          if (clientPhone.isNotEmpty)
+                            Text(clientPhone,
+                                style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    OutlinedButton(
+                      onPressed: clientPhone.isEmpty
+                          ? null
+                          : () => _launchContact(
+                                'tel:',
+                                clientPhone.replaceAll(RegExp(r'[^0-9]'), ''),
+                              ),
+                      child: const Text('Ligar'),
+                    ),
+                    OutlinedButton(
+                      onPressed: clientEmail.isEmpty
+                          ? null
+                          : () => _launchContact('mailto:', clientEmail),
+                      child: const Text('E-mail'),
+                    ),
+                    OutlinedButton(
+                      onPressed: clientPhone.isEmpty
+                          ? null
+                          : () => _launchContact(
+                                'https://wa.me/',
+                                clientPhone.replaceAll(RegExp(r'[^0-9]'), ''),
+                              ),
+                      child: const Text('WhatsApp'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const SectionHeader(
+          title: 'Progresso',
+          subtitle: 'Etapas ligadas à execução da tarefa',
         ),
         const SizedBox(height: 8),
-        AppDateField(
-          key: ValueKey(_startDate.text),
-          label: 'Inicio',
-          value: formatDateInput(_startDate.text),
-          onTap: () => _pickDate(_startDate),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: _progressItems()
+                  .map((item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              item['status'] == 'Concluído'
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              color: item['status'] == 'Concluído'
+                                  ? AppColors.success
+                                  : AppColors.muted,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(item['title'] ?? 'Etapa')),
+                            StatusChip(
+                              label: item['status'] ?? 'Pendente',
+                              compact: true,
+                            ),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const SectionHeader(
+          title: 'Editar tarefa',
+          subtitle: 'Ajuste as informações operacionais',
         ),
         const SizedBox(height: 8),
-        AppDateField(
-          key: ValueKey(_dueDate.text),
-          label: 'Fim',
-          value: formatDateInput(_dueDate.text),
-          onTap: () => _pickDate(_dueDate),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                AppTextField(label: 'Título', controller: _title),
+                const SizedBox(height: 8),
+                AppDropdownField<String>(
+                  label: 'Status',
+                  value: _status,
+                  items: TaskDetailOptions.taskStatusItems,
+                  onChanged: (value) =>
+                      setState(() => _status = value ?? 'aberta'),
+                ),
+                const SizedBox(height: 8),
+                AppDropdownField<String>(
+                  label: 'Prioridade',
+                  value: _priority,
+                  items: TaskDetailOptions.taskPriorityItems,
+                  onChanged: (value) =>
+                      setState(() => _priority = value ?? 'media'),
+                ),
+                const SizedBox(height: 8),
+                AppDropdownField<int>(
+                  label: 'Cliente',
+                  value: _clientId,
+                  items: _clients
+                      .map((client) => DropdownMenuItem<int>(
+                            value: client['id'] as int?,
+                            child:
+                                Text(client['name']?.toString() ?? 'Cliente'),
+                          ))
+                      .toList(),
+                  onChanged: (value) async {
+                    setState(() {
+                      _clientId = value;
+                      _reportEquipmentId = null;
+                    });
+                    await _loadClientEquipments();
+                    if (_taskId != null) {
+                      await _loadReports(_taskTypeId);
+                      await _loadBudgets(_reports);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                if (_users.isNotEmpty) ...[
+                  AppDropdownField<int>(
+                    label: 'Responsável',
+                    value: _userId,
+                    items: _users
+                        .map((user) => DropdownMenuItem<int>(
+                              value: user['id'] as int?,
+                              child:
+                                  Text(user['name']?.toString() ?? 'Usuário'),
+                            ))
+                        .toList(),
+                    onChanged: (value) => setState(() => _userId = value),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                AppDropdownField<int>(
+                  label: 'Tipo de tarefa',
+                  value: _taskTypeId,
+                  items: _types
+                      .map((type) => DropdownMenuItem<int>(
+                            value: type['id'] as int?,
+                            child: Text(type['name']?.toString() ?? 'Tipo'),
+                          ))
+                      .toList(),
+                  onChanged: (value) => setState(() => _taskTypeId = value),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppDateField(
+                        key: ValueKey(_startDate.text),
+                        label: 'Data inicial',
+                        value: formatDateInput(_startDate.text),
+                        onTap: () => _pickDate(_startDate),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: AppDateField(
+                        key: ValueKey(_dueDate.text),
+                        label: 'Prazo',
+                        value: formatDateInput(_dueDate.text),
+                        onTap: () => _pickDate(_dueDate),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                AppTextField(
+                    label: 'Descrição', controller: _description, maxLines: 4),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(height: 8),
-        AppTextField(label: 'Descrição', controller: _description, maxLines: 3),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
@@ -960,9 +1209,38 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                 Text(_error!, style: const TextStyle(color: Colors.redAccent)),
           ),
         const SizedBox(height: 12),
-        ElevatedButton(
-          onPressed: _saveTask,
-          child: Text(_taskId == null ? 'Salvar tarefa' : 'Atualizar tarefa'),
+        if (_taskId == null &&
+            _title.text.isEmpty &&
+            _clientId == null &&
+            _description.text.isEmpty)
+          const EmptyState(
+            title: 'Preencha os dados principais',
+            message:
+                'Assim que salvar a tarefa você libera relatório, orçamento e assinaturas.',
+            icon: Icons.assignment_outlined,
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _taskId != null && _status != 'em_andamento'
+                    ? () {
+                        setState(() => _status = 'em_andamento');
+                        _saveTask();
+                      }
+                    : null,
+                child: const Text('Iniciar trabalho'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _saveTask,
+                child: Text(
+                    _taskId == null ? 'Salvar tarefa' : 'Atualizar tarefa'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -1550,10 +1828,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             }),
           ],
           const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _saveTask,
-              child: const Text('Salvar assinaturas'),
-            ),
+          ElevatedButton(
+            onPressed: _saveTask,
+            child: const Text('Salvar assinaturas'),
+          ),
         ],
       ],
     );
@@ -1570,18 +1848,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            const BrandLogo(height: 22),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _taskId == null ? 'Nova tarefa' : 'Tarefa #$_taskId',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        title: Text(
+          _taskId == null ? 'Nova tarefa' : 'Detalhes da tarefa',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         bottom: TabBar(
           controller: _tabController,

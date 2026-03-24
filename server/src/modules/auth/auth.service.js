@@ -675,13 +675,41 @@ async function logoutAll(db, req) {
   return { ok: true };
 }
 
-async function me(db, userId) {
+async function me(db, userId, currentSessionId = null) {
   const user = await repository.findAuthUserById(db, userId);
   if (!user) {
     throw new UnauthorizedError("Sua sessão expirou. Faça login novamente para continuar.");
   }
 
-  return { user: buildUserPayload(user) };
+  const sessions = await repository.listUserSessions(db, userId);
+  const activeSessions = sessions.filter((session) => !session.revoked_at);
+
+  return {
+    user: buildUserPayload(user),
+    account: {
+      status: user.status,
+      emailVerified: Boolean(user.email_verified),
+      emailVerifiedAt: user.email_verified_at,
+      lastLoginAt: user.last_login_at,
+      passwordChangedAt: user.password_changed_at
+    },
+    sessions: sessions.map((session) => ({
+      id: session.id,
+      createdAt: session.created_at,
+      expiresAt: session.expires_at,
+      revokedAt: session.revoked_at,
+      lastUsedAt: session.last_used_at,
+      deviceInfo: session.device_info,
+      ipAddress: session.ip_address,
+      platform: session.platform,
+      isCurrent: currentSessionId != null && Number(session.id) == Number(currentSessionId),
+      isActive: !session.revoked_at
+    })),
+    sessionSummary: {
+      total: sessions.length,
+      active: activeSessions.length
+    }
+  };
 }
 
 module.exports = {
