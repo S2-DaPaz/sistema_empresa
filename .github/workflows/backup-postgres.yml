@@ -58,6 +58,7 @@ jobs:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
           chmod +x scripts/backup-postgres.sh
           bash scripts/backup-postgres.sh
 
