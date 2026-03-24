@@ -9,6 +9,8 @@ const { notFoundHandler } = require("../core/http/not-found-handler");
 const { send } = require("../core/http/response");
 const { createAuthMiddleware, requirePermission } = require("../core/security/auth");
 const { createAuthRouter } = require("../modules/auth/auth.router");
+const { createBackupsRouter } = require("../modules/backups/backups.router");
+const { createBackupsService } = require("../modules/backups/backups.service");
 const { createBudgetsRouter } = require("../modules/budgets/budgets.router");
 const { createEquipmentsRouter } = require("../modules/equipments/equipments.router");
 const { createMonitoringRouter } = require("../modules/monitoring/monitoring.router");
@@ -36,6 +38,7 @@ function createCorsOptions(env) {
 
 function createApp({ db, env, logger, publicService, monitoringService, emailService }) {
   const app = express();
+  const backupsService = createBackupsService({ logger });
 
   app.use(cors(createCorsOptions(env)));
   app.use(express.json({ limit: "10mb" }));
@@ -64,6 +67,7 @@ function createApp({ db, env, logger, publicService, monitoringService, emailSer
   app.use("/api/auth", createAuthRouter({ db, env, emailService }));
 
   app.use("/api/admin", createMonitoringRouter({ db, monitoringService }));
+  app.use("/api/backups", createBackupsRouter({ db, backupsService }));
   app.use("/api/summary", requirePermission(PERMISSIONS.VIEW_DASHBOARD), createSummaryRouter({ db }));
   app.use(
     "/api/clients",

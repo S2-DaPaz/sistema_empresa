@@ -13,7 +13,8 @@ const PUBLIC_PATHS = new Set([
   "/auth/email/resend-code",
   "/auth/password/forgot",
   "/auth/password/verify-code",
-  "/auth/password/reset"
+  "/auth/password/reset",
+  "/backups/webhook"
 ]);
 
 function signToken(user, env, session = null) {

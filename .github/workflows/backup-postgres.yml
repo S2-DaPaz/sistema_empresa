@@ -1,0 +1,145 @@
+name: Backup PostgreSQL (Neon)
+
+on:
+  schedule:
+    # Diário às 03:00 UTC (00:00 BRT)
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Ambiente (production, staging)"
+        required: false
+        default: "production"
+
+concurrency:
+  group: backup-postgres
+  cancel-in-progress: false
+
+env:
+  BACKUP_DIR: /tmp/backup
+  APP_ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+
+jobs:
+  backup:
+    name: Backup & Upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client gnupg
+
+      - name: Verificar ferramentas
+        run: |
+          echo "pg_dump: $(pg_dump --version)"
+          echo "gpg: $(gpg --version | head -1)"
+          echo "node: $(node --version)"
+
+      - name: Executar backup (pg_dump + validação + criptografia)
+        id: backup
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          chmod +x scripts/backup-postgres.sh
+          bash scripts/backup-postgres.sh
+
+      - name: Upload para Google Drive
+        id: upload
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          GDRIVE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON_B64 }}
+          BACKUP_RETENTION_COUNT: ${{ vars.BACKUP_RETENTION_COUNT || '30' }}
+        run: |
+          node scripts/upload-drive.js \
+            "${{ steps.backup.outputs.encrypted_file }}" \
+            "${{ steps.backup.outputs.sha256_file }}" \
+            "${{ steps.backup.outputs.manifest_file }}"
+
+      - name: Notificar API (webhook - opcional)
+        if: always()
+        continue-on-error: true
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || '' }}
+          BACKUP_WEBHOOK_SECRET: ${{ secrets.BACKUP_WEBHOOK_SECRET }}
+        run: |
+          if [ -z "${APP_BASE_URL}" ] || [ -z "${BACKUP_WEBHOOK_SECRET}" ]; then
+            echo "Webhook não configurado (APP_BASE_URL ou BACKUP_WEBHOOK_SECRET ausente). Pulando."
+            exit 0
+          fi
+
+          # Notificar início (ou resultado se já temos dados)
+          STATUS="${{ job.status }}"
+          SUCCESS="false"
+          ERROR_MSG=""
+
+          if [ "${STATUS}" = "success" ]; then
+            SUCCESS="true"
+          else
+            ERROR_MSG="Workflow finalizado com status: ${STATUS}"
+          fi
+
+          # Enviar resultado
+          curl -sf -X POST "${APP_BASE_URL}/api/backups/webhook" \
+            -H "Content-Type: application/json" \
+            -H "x-backup-secret: ${BACKUP_WEBHOOK_SECRET}" \
+            -d "{
+              \"action\": \"start\",
+              \"trigger_source\": \"github_actions\",
+              \"run_id\": \"${GITHUB_RUN_ID}\",
+              \"commit_sha\": \"${GITHUB_SHA}\"
+            }" || echo "Webhook start falhou (não crítico)"
+
+          # Se temos dados do backup, enviar complete
+          if [ -n "${{ steps.backup.outputs.base_name }}" ]; then
+            BACKUP_RUN_ID=$(curl -sf -X POST "${APP_BASE_URL}/api/backups/webhook" \
+              -H "Content-Type: application/json" \
+              -H "x-backup-secret: ${BACKUP_WEBHOOK_SECRET}" \
+              -d "{
+                \"action\": \"start\",
+                \"trigger_source\": \"github_actions\"
+              }" 2>/dev/null | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).data.backup_run_id)}catch(e){}})" || echo "")
+
+            if [ -n "${BACKUP_RUN_ID}" ]; then
+              curl -sf -X POST "${APP_BASE_URL}/api/backups/webhook" \
+                -H "Content-Type: application/json" \
+                -H "x-backup-secret: ${BACKUP_WEBHOOK_SECRET}" \
+                -d "{
+                  \"action\": \"complete\",
+                  \"backup_run_id\": ${BACKUP_RUN_ID},
+                  \"success\": ${SUCCESS},
+                  \"file_name\": \"${{ steps.backup.outputs.base_name }}.dump\",
+                  \"encrypted_file_name\": \"${{ steps.backup.outputs.base_name }}.dump.gpg\",
+                  \"sha256\": \"${{ steps.backup.outputs.original_sha256 }}\",
+                  \"file_size_bytes\": ${{ steps.backup.outputs.dump_size || '0' }},
+                  \"storage_provider\": \"google_drive\",
+                  \"error_message\": \"${ERROR_MSG}\"
+                }" || echo "Webhook complete falhou (não crítico)"
+            fi
+          fi
+
+      - name: Resumo
+        if: always()
+        run: |
+          echo "## Backup PostgreSQL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Ambiente | ${APP_ENVIRONMENT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Arquivo | ${{ steps.backup.outputs.base_name }}.dump.gpg |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tamanho dump | ${{ steps.backup.outputs.dump_size }} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tamanho criptografado | ${{ steps.backup.outputs.encrypted_size }} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA-256 | \`${{ steps.backup.outputs.original_sha256 }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tabelas | ${{ steps.backup.outputs.table_count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Duração | ${{ steps.backup.outputs.duration }}s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY

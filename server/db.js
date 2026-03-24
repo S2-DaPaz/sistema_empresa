@@ -320,6 +320,30 @@ const SQLITE_SCHEMA = `
     ON event_logs (module);
   CREATE INDEX IF NOT EXISTS idx_event_logs_platform
     ON event_logs (platform);
+
+  CREATE TABLE IF NOT EXISTS backup_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    trigger_source TEXT NOT NULL,
+    storage_provider TEXT,
+    file_name TEXT,
+    encrypted_file_name TEXT,
+    sha256 TEXT,
+    file_size_bytes INTEGER,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    error_message TEXT,
+    metadata_json TEXT,
+    triggered_by_user_id INTEGER,
+    FOREIGN KEY (triggered_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_backup_runs_created_at
+    ON backup_runs (created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_backup_runs_status
+    ON backup_runs (status);
 `;
 
 const POSTGRES_SCHEMA = `
@@ -625,6 +649,30 @@ const POSTGRES_SCHEMA = `
     ON event_logs (module);
   CREATE INDEX IF NOT EXISTS idx_event_logs_platform
     ON event_logs (platform);
+
+  CREATE TABLE IF NOT EXISTS backup_runs (
+    id SERIAL PRIMARY KEY,
+    status TEXT NOT NULL DEFAULT 'pending',
+    trigger_source TEXT NOT NULL,
+    storage_provider TEXT,
+    file_name TEXT,
+    encrypted_file_name TEXT,
+    sha256 TEXT,
+    file_size_bytes INTEGER,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    error_message TEXT,
+    metadata_json TEXT,
+    triggered_by_user_id INTEGER,
+    FOREIGN KEY (triggered_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_backup_runs_created_at
+    ON backup_runs (created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_backup_runs_status
+    ON backup_runs (status);
 `;
 
 function shouldUsePostgres() {
