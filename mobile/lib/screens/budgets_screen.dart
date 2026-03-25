@@ -9,18 +9,22 @@ import '../services/entity_refresh_service.dart';
 import '../services/offline_cache_service.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
-import '../utils/budget_email.dart';
+import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_search_field.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/budget_form.dart';
+import '../widgets/email_recipient_dialog.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
 
 class BudgetsScreen extends StatefulWidget {
-  const BudgetsScreen({super.key});
+  const BudgetsScreen({super.key, this.clientId, this.clientName});
+
+  final int? clientId;
+  final String? clientName;
 
   @override
   State<BudgetsScreen> createState() => _BudgetsScreenState();
@@ -69,7 +73,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       _error = null;
     });
     try {
-      final budgets = await _api.get('/budgets') as List<dynamic>;
+      final endpoint = widget.clientId != null
+          ? '/budgets?clientId=${widget.clientId}'
+          : '/budgets';
+      final budgets = await _api.get(endpoint) as List<dynamic>;
       final nextBudgets = List<Map<String, dynamic>>.from(budgets);
       await OfflineCacheService.writeList(_cacheKey, nextBudgets);
       if (!mounted) return;
@@ -202,23 +209,12 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
     if (!mounted) return;
 
-    final updated = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            16,
-            16,
-            24 + MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: BudgetForm(
-            initialBudget: initialBudget,
-            clients: _clients,
-            products: _products,
-            onSaved: () => Navigator.pop(context, true),
-          ),
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => _BudgetFormPage(
+          initialBudget: initialBudget,
+          clients: _clients,
+          products: _products,
         ),
       ),
     );
@@ -261,22 +257,37 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
 
   Future<void> _sendEmail(Map<String, dynamic> budget) async {
     final client = _findClient(budget['client_id'] as int?);
-    final subject = 'Orçamento #${budget['id']}';
-    final body = buildBudgetEmailText(budget, client ?? {});
-    final email = RegExp(
-      r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',
-      caseSensitive: false,
-    ).firstMatch(client?['contact']?.toString() ?? '');
+    final budgetId = budget['id'];
+    if (budgetId == null) return;
 
-    final uri = Uri(
-      scheme: 'mailto',
-      path: email?.group(0) ?? '',
-      queryParameters: {
-        'subject': subject,
-        'body': body,
-      },
+    final email = await showEmailRecipientDialog(
+      context,
+      title: 'Enviar orçamento por e-mail',
+      message:
+          'Confirme o e-mail do destinatário para enviar um link seguro do orçamento.',
+      confirmLabel: 'Enviar orçamento',
+      initialEmail: extractEmail(client?['contact']?.toString()),
     );
-    await launchUrl(uri);
+    if (email == null || email.isEmpty) return;
+
+    try {
+      final response = await _api.post('/budgets/$budgetId/email-link', {
+        'email': email,
+      });
+      if (!mounted) return;
+      final message =
+          response is Map<String, dynamic> && response['message'] != null
+              ? response['message'].toString()
+              : 'Orçamento enviado por e-mail com sucesso.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 
   Map<String, dynamic>? _findClient(int? id) {
@@ -331,16 +342,20 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showBar = widget.clientId != null;
+
     if (_loading) {
-      return const AppScaffold(
+      return AppScaffold(
         title: 'Orçamentos',
-        body: LoadingView(message: 'Carregando orçamentos...'),
+        showAppBar: showBar,
+        body: const LoadingView(message: 'Carregando orçamentos...'),
       );
     }
 
     if (_error != null) {
       return AppScaffold(
         title: 'Orçamentos',
+        showAppBar: showBar,
         body: ErrorView(message: _error!, onRetry: _load),
       );
     }
@@ -349,6 +364,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
 
     return AppScaffold(
       title: 'Orçamentos',
+      showAppBar: showBar,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -356,8 +372,12 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'Orçamentos',
+                  widget.clientName != null
+                      ? 'Orçamentos — ${widget.clientName}'
+                      : 'Orçamentos',
                   style: Theme.of(context).textTheme.headlineMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               ElevatedButton.icon(
@@ -526,6 +546,38 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         }
         break;
     }
+  }
+}
+
+class _BudgetFormPage extends StatelessWidget {
+  const _BudgetFormPage({
+    required this.clients,
+    required this.products,
+    this.initialBudget,
+  });
+
+  final Map<String, dynamic>? initialBudget;
+  final List<Map<String, dynamic>> clients;
+  final List<Map<String, dynamic>> products;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          initialBudget != null ? 'Editar orçamento' : 'Novo orçamento',
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+        child: BudgetForm(
+          initialBudget: initialBudget,
+          clients: clients,
+          products: products,
+          onSaved: () => Navigator.pop(context, true),
+        ),
+      ),
+    );
   }
 }
 

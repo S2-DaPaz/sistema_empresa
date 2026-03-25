@@ -17,7 +17,10 @@ import 'task_detail_screen.dart';
 enum TaskViewMode { list, calendar }
 
 class TasksScreen extends StatefulWidget {
-  const TasksScreen({super.key});
+  const TasksScreen({super.key, this.clientId, this.clientName});
+
+  final int? clientId;
+  final String? clientName;
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -58,7 +61,10 @@ class _TasksScreenState extends State<TasksScreen> {
       _error = null;
     });
     try {
-      final data = await _api.get('/tasks') as List<dynamic>;
+      final endpoint = widget.clientId != null
+          ? '/tasks?clientId=${widget.clientId}'
+          : '/tasks';
+      final data = await _api.get(endpoint) as List<dynamic>;
       final nextTasks = List<Map<String, dynamic>>.from(data);
       await OfflineCacheService.writeList(_cacheKey, nextTasks);
       if (!mounted) return;
@@ -249,17 +255,17 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const AppScaffold(
+      return AppScaffold(
         title: 'Tarefas',
-        showAppBar: false,
-        body: LoadingView(message: 'Carregando tarefas...'),
+        showAppBar: widget.clientId != null,
+        body: const LoadingView(message: 'Carregando tarefas...'),
       );
     }
 
     if (_error != null) {
       return AppScaffold(
         title: 'Tarefas',
-        showAppBar: false,
+        showAppBar: widget.clientId != null,
         body: ErrorView(
           message: _error!,
           onRetry: _load,
@@ -292,8 +298,12 @@ class _TasksScreenState extends State<TasksScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    'Tarefas',
+                    widget.clientName != null
+                        ? 'Tarefas — ${widget.clientName}'
+                        : 'Tarefas',
                     style: Theme.of(context).textTheme.headlineMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(

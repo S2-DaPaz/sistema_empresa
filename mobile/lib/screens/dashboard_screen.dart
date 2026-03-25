@@ -323,7 +323,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         ),
                       ),
-                      _NotificationButton(count: _notificationCount),
+                      _NotificationButton(
+                        count: _notificationCount,
+                        onTap: () => _openNotificationCenter(
+                          openTasks: openTasks,
+                          inProgressTasks: inProgressTasks,
+                          budgetsInProgress: budgetsInProgress,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -572,50 +579,182 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return 'Em andamento';
     }
   }
+
+  Future<void> _openNotificationCenter({
+    required int openTasks,
+    required int inProgressTasks,
+    required int budgetsInProgress,
+  }) async {
+    final alerts = <_DashboardAlertItem>[
+      if (openTasks > 0)
+        _DashboardAlertItem(
+          title: '$openTasks tarefa(s) aberta(s)',
+          subtitle: 'Pendências que precisam de andamento da equipe.',
+          icon: Icons.task_alt_rounded,
+          accentColor: AppColors.warning,
+          onTap: () => widget.onOpenShortcut?.call(DashboardShortcut.tasks),
+        ),
+      if (inProgressTasks > 0)
+        _DashboardAlertItem(
+          title: '$inProgressTasks atendimento(s) em execução',
+          subtitle: 'Serviços em campo com atividade em andamento.',
+          icon: Icons.timelapse_rounded,
+          accentColor: AppColors.primary,
+          onTap: () => widget.onOpenShortcut?.call(DashboardShortcut.tasks),
+        ),
+      if (budgetsInProgress > 0)
+        _DashboardAlertItem(
+          title: '$budgetsInProgress orçamento(s) aguardando retorno',
+          subtitle: 'Propostas que pedem acompanhamento comercial.',
+          icon: Icons.receipt_long_rounded,
+          accentColor: AppColors.info,
+          onTap: () => widget.onOpenShortcut?.call(DashboardShortcut.budgets),
+        ),
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.xl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Notificações operacionais',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  alerts.isEmpty
+                      ? 'Nenhum alerta crítico no momento.'
+                      : 'Resumo rápido do que merece atenção agora.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                if (alerts.isEmpty)
+                  const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.notifications_off_outlined),
+                    title: Text('Tudo em ordem'),
+                    subtitle: Text(
+                      'Quando surgirem pendências ou retornos pendentes, elas aparecem aqui.',
+                    ),
+                  )
+                else
+                  ...alerts.map(
+                    (item) => Card(
+                      child: ListTile(
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          item.onTap();
+                        },
+                        leading: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: item.accentColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(item.icon, color: item.accentColor),
+                        ),
+                        title: Text(item.title),
+                        subtitle: Text(item.subtitle),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _NotificationButton extends StatelessWidget {
-  const _NotificationButton({required this.count});
+  const _NotificationButton({
+    required this.count,
+    required this.onTap,
+  });
 
   final int count;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          const Center(
-            child: Icon(Icons.notifications_none_rounded, color: Colors.white),
+        child: Ink(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(16),
           ),
-          if (count > 0)
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.danger,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: Text(
-                  count > 9 ? '9+' : '$count',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Colors.white,
-                      ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Center(
+                child: Icon(
+                  Icons.notifications_none_rounded,
+                  color: Colors.white,
                 ),
               ),
-            ),
-        ],
+              if (count > 0)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Text(
+                      count > 9 ? '9+' : '$count',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Colors.white,
+                          ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+class _DashboardAlertItem {
+  const _DashboardAlertItem({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color accentColor;
+  final VoidCallback onTap;
 }
 
 class _HeroPill extends StatelessWidget {

@@ -14,7 +14,9 @@ import '../widgets/metric_card.dart';
 import '../widgets/profile_hero_card.dart';
 import '../widgets/section_header.dart';
 import '../widgets/status_chip.dart';
+import 'budgets_screen.dart';
 import 'entity_form_screen.dart';
+import 'tasks_screen.dart';
 
 class ClientDetailScreen extends StatefulWidget {
   const ClientDetailScreen({
@@ -177,7 +179,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
           const SizedBox(height: AppSpacing.lg),
           GridView.count(
             crossAxisCount: 2,
-            childAspectRatio: 1.24,
+            childAspectRatio: 1.0,
             crossAxisSpacing: AppSpacing.sm,
             mainAxisSpacing: AppSpacing.sm,
             shrinkWrap: true,
@@ -188,6 +190,14 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 value: '${_tasks.length}',
                 subtitle: '$activeTasks em andamento',
                 icon: Icons.task_alt_rounded,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => TasksScreen(
+                      clientId: _client['id'] as int?,
+                      clientName: _client['name']?.toString(),
+                    ),
+                  ),
+                ),
               ),
               MetricCard(
                 title: 'Orçamentos',
@@ -195,6 +205,14 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 subtitle: formatCurrency(totalBudget),
                 icon: Icons.receipt_long_rounded,
                 accentColor: AppColors.success,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => BudgetsScreen(
+                      clientId: _client['id'] as int?,
+                      clientName: _client['name']?.toString(),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

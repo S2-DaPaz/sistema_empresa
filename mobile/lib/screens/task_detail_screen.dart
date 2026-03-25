@@ -17,10 +17,10 @@ import '../services/permissions.dart';
 import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
-import '../utils/report_text.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/avatar_initials.dart';
 import '../widgets/budget_form.dart';
+import '../widgets/email_recipient_dialog.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/form_fields.dart';
 import '../widgets/loading_view.dart';
@@ -101,6 +101,23 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     );
   }
 
+  ButtonStyle get _compactOutlinedButtonStyle => OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 42),
+      );
+
+  ButtonStyle get _compactElevatedButtonStyle => ElevatedButton.styleFrom(
+        minimumSize: const Size(0, 42),
+      );
+
+  Uint8List? _tryDecodeReportPhoto(String? dataUrl) {
+    if (dataUrl == null || dataUrl.isEmpty) return null;
+    try {
+      return base64Decode(dataUrl.split(',').last);
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _setStateIfMounted(VoidCallback fn) {
     if (!mounted) return;
     setState(fn);
@@ -164,16 +181,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         if (_taskId != null) _api.get('/tasks/$_taskId'),
       ]);
 
-      _clients = ((results[0] as List?) ?? const [])
-          .cast<Map<String, dynamic>>();
-      _users = ((results[1] as List?) ?? const [])
-          .cast<Map<String, dynamic>>();
-      _types = ((results[2] as List?) ?? const [])
-          .cast<Map<String, dynamic>>();
-      _templates = ((results[3] as List?) ?? const [])
-          .cast<Map<String, dynamic>>();
-      _products = ((results[4] as List?) ?? const [])
-          .cast<Map<String, dynamic>>();
+      _clients =
+          ((results[0] as List?) ?? const []).cast<Map<String, dynamic>>();
+      _users = ((results[1] as List?) ?? const []).cast<Map<String, dynamic>>();
+      _types = ((results[2] as List?) ?? const []).cast<Map<String, dynamic>>();
+      _templates =
+          ((results[3] as List?) ?? const []).cast<Map<String, dynamic>>();
+      _products =
+          ((results[4] as List?) ?? const []).cast<Map<String, dynamic>>();
 
       if (_taskId != null) {
         const taskIndex = 5;
@@ -877,33 +892,34 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   }
 
   Future<void> _sendReportEmail() async {
-    if (_activeReport == null) return;
+    if (_activeReport == null || _taskId == null) return;
     final client = _clients.firstWhere(
       (item) => item['id'] == _clientId,
       orElse: () => <String, dynamic>{},
     );
-    final emailMatch =
-        RegExp(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}', caseSensitive: false)
-            .firstMatch(client['contact']?.toString() ?? '');
-    final email = emailMatch?.group(0) ?? '';
-    final body = buildReportText(
-      reportTitle: _activeReport?['title']?.toString() ?? '',
-      taskTitle: _title.text,
-      clientName: client['name']?.toString(),
-      equipmentName: _activeReport?['equipment_name']?.toString(),
-      sections: _reportSections,
-      answers: _reportAnswers,
+    final email = await showEmailRecipientDialog(
+      context,
+      title: 'Enviar relatório por e-mail',
+      message:
+          'Confirme o e-mail do destinatário para enviar um link seguro do relatório.',
+      confirmLabel: 'Enviar relatório',
+      initialEmail: extractEmail(client['contact']?.toString()),
     );
-    final subject = 'Relatório - ${_title.text}';
-    final uri = Uri(
-      scheme: 'mailto',
-      path: email,
-      queryParameters: {
-        'subject': subject,
-        'body': body,
-      },
-    );
-    await launchUrl(uri);
+    if (email == null || email.isEmpty) return;
+    try {
+      final response = await _api.post('/tasks/$_taskId/email-link', {
+        'email': email,
+        'reportId': _activeReportId,
+      });
+      if (!mounted) return;
+      final message =
+          response is Map<String, dynamic> && response['message'] != null
+              ? response['message'].toString()
+              : 'Relatório enviado por e-mail com sucesso.';
+      _showMessage(message);
+    } catch (error) {
+      _showMessage(error.toString());
+    }
   }
 
   void _updateSignaturePage(String key, String role, String value) {
@@ -1068,6 +1084,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                   spacing: 8,
                   children: [
                     OutlinedButton(
+                      style: _compactOutlinedButtonStyle,
                       onPressed: clientPhone.isEmpty
                           ? null
                           : () => _launchContact(
@@ -1077,12 +1094,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                       child: const Text('Ligar'),
                     ),
                     OutlinedButton(
+                      style: _compactOutlinedButtonStyle,
                       onPressed: clientEmail.isEmpty
                           ? null
                           : () => _launchContact('mailto:', clientEmail),
                       child: const Text('E-mail'),
                     ),
                     OutlinedButton(
+                      style: _compactOutlinedButtonStyle,
                       onPressed: clientPhone.isEmpty
                           ? null
                           : () => _launchContact(
@@ -1322,18 +1341,22 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Relatórios da tarefa',
                           style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
+                        runSpacing: 8,
                         children: [
                           OutlinedButton(
+                              style: _compactOutlinedButtonStyle,
                               onPressed: _createReport,
                               child: const Text('Adicionar')),
                           OutlinedButton(
+                              style: _compactOutlinedButtonStyle,
                               onPressed: _deleteReport,
                               child: const Text('Excluir')),
                         ],
@@ -1360,12 +1383,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                     },
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Fotos',
                           style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
                       OutlinedButton(
+                          style: _compactOutlinedButtonStyle,
                           onPressed: _addPhotos,
                           child: const Text('Adicionar')),
                     ],
@@ -1377,26 +1402,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                       spacing: 8,
                       runSpacing: 8,
                       children: _reportPhotos
-                          .map((photo) => SizedBox(
-                                width: 120,
-                                child: Column(
-                                  children: [
-                                    Image.memory(
-                                      base64Decode(photo['dataUrl']
-                                          .toString()
-                                          .split(',')
-                                          .last),
-                                      height: 90,
-                                      fit: BoxFit.cover,
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          _removePhoto(photo['id'].toString()),
-                                      child: const Text('Remover'),
-                                    ),
-                                  ],
-                                ),
-                              ))
+                          .map((photo) => _buildReportPhotoTile(photo))
                           .toList(),
                     ),
                   const SizedBox(height: 12),
@@ -1431,16 +1437,20 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                     spacing: 8,
                     children: [
                       ElevatedButton(
+                          style: _compactElevatedButtonStyle,
                           onPressed: _saveReport,
                           child: const Text('Salvar Relatório')),
                       OutlinedButton(
+                          style: _compactOutlinedButtonStyle,
                           onPressed: _sendReportEmail,
                           child: const Text('Enviar e-mail')),
                       OutlinedButton(
+                        style: _compactOutlinedButtonStyle,
                         onPressed: _shareTaskPublicLink,
                         child: const Text('Compartilhar link'),
                       ),
                       OutlinedButton(
+                        style: _compactOutlinedButtonStyle,
                         onPressed: _openTaskPublicPage,
                         child: const Text('Abrir PDF'),
                       ),
@@ -1521,6 +1531,44 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             child: Text('Nenhum equipamento encontrado para este cliente.'),
           ),
       ],
+    );
+  }
+
+  Widget _buildReportPhotoTile(Map<String, dynamic> photo) {
+    final bytes = _tryDecodeReportPhoto(photo['dataUrl']?.toString());
+
+    return SizedBox(
+      width: 120,
+      child: Column(
+        children: [
+          Container(
+            height: 90,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: bytes == null
+                ? Icon(
+                    Icons.broken_image_outlined,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  )
+                : Image.memory(
+                    bytes,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Icon(
+                      Icons.broken_image_outlined,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+          ),
+          TextButton(
+            onPressed: () => _removePhoto(photo['id'].toString()),
+            child: const Text('Remover'),
+          ),
+        ],
+      ),
     );
   }
 
