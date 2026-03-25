@@ -7,6 +7,7 @@ import '../utils/contact_utils.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../utils/formatters.dart';
+import '../utils/label_mappers.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
@@ -279,7 +280,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                                       task['title']?.toString() ?? 'Tarefa'),
                                 ),
                                 StatusChip(
-                                  label: _taskStatusLabel(
+                                  label: taskStatusLabel(
                                       task['status']?.toString()),
                                   compact: true,
                                 ),
@@ -309,7 +310,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                                   child: Text('ORÇ #${budget['id']}'),
                                 ),
                                 StatusChip(
-                                  label: _budgetStatusLabel(
+                                  label: budgetStatusLabel(
                                       budget['status']?.toString()),
                                   compact: true,
                                 ),
@@ -326,27 +327,6 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
     );
   }
 
-  String _taskStatusLabel(String? value) {
-    switch (value) {
-      case 'em_andamento':
-        return 'Em andamento';
-      case 'concluida':
-        return 'Concluída';
-      default:
-        return 'Aberta';
-    }
-  }
-
-  String _budgetStatusLabel(String? value) {
-    switch (value) {
-      case 'aprovado':
-        return 'Aprovado';
-      case 'recusado':
-        return 'Recusado';
-      default:
-        return 'Em andamento';
-    }
-  }
 }
 
 class _QuickAction extends StatelessWidget {

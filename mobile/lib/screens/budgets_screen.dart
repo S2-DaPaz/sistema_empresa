@@ -11,6 +11,7 @@ import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
+import '../utils/label_mappers.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_search_field.dart';
 import '../widgets/budget_card.dart';
@@ -317,16 +318,6 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
-  String _statusLabel(String? value) {
-    switch (value) {
-      case 'aprovado':
-        return 'Aprovado';
-      case 'recusado':
-        return 'Recusado';
-      default:
-        return 'Em andamento';
-    }
-  }
 
   void _showStaleDataWarning() {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -476,7 +467,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                               : 'Sem data',
                           amountLabel: formatCurrency(budget['total'] ?? 0),
                           statusLabel:
-                              _statusLabel(budget['status']?.toString()),
+                              budgetStatusLabel(budget['status']?.toString()),
                           onTap: () => _openBudgetForm(budget),
                           onMore: () => _openBudgetActions(budget),
                         );

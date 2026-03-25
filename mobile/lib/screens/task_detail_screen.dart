@@ -1,3 +1,14 @@
+/// Tela de detalhe / criação de tarefa — orquestrador de estado.
+///
+/// Concentra toda a lógica de negócio (CRUD de tarefa, relatórios,
+/// orçamentos, fotos, assinaturas, autosave e links públicos).
+/// A interface de cada aba foi extraída para widgets dedicados:
+///   - [TaskDetailDetailsTab]    → aba "Detalhes"
+///   - [TaskDetailReportTab]     → aba "Relatório"
+///   - [TaskDetailBudgetsTab]    → aba "Orçamentos"
+///   - [TaskDetailSignaturesTab] → aba "Assinaturas"
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -14,20 +25,16 @@ import '../core/errors/app_exception.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../services/permissions.dart';
-import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/avatar_initials.dart';
 import '../widgets/budget_form.dart';
 import '../widgets/email_recipient_dialog.dart';
-import '../widgets/empty_state.dart';
-import '../widgets/form_fields.dart';
 import '../widgets/loading_view.dart';
-import '../widgets/section_header.dart';
-import '../widgets/signature_pad.dart';
-import '../widgets/status_chip.dart';
-import 'task_detail_options.dart';
+import 'task_detail_budgets_tab.dart';
+import 'task_detail_details_tab.dart';
+import 'task_detail_report_tab.dart';
+import 'task_detail_signatures_tab.dart';
 
 enum _PhotoSourceOption { camera, gallery }
 
@@ -101,22 +108,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     );
   }
 
-  ButtonStyle get _compactOutlinedButtonStyle => OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 42),
-      );
-
-  ButtonStyle get _compactElevatedButtonStyle => ElevatedButton.styleFrom(
-        minimumSize: const Size(0, 42),
-      );
-
-  Uint8List? _tryDecodeReportPhoto(String? dataUrl) {
-    if (dataUrl == null || dataUrl.isEmpty) return null;
-    try {
-      return base64Decode(dataUrl.split(',').last);
-    } catch (_) {
-      return null;
-    }
-  }
 
   void _setStateIfMounted(VoidCallback fn) {
     if (!mounted) return;
@@ -942,40 +933,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     setState(() {});
   }
 
-  Map<String, dynamic>? get _selectedClient {
-    for (final client in _clients) {
-      if (client['id'] == _clientId) {
-        return client;
-      }
-    }
-    return null;
-  }
-
-  List<Map<String, String>> _progressItems() {
-    final hasTask = _taskId != null;
-    final hasReport = _reports.isNotEmpty;
-    final hasBudget = _budgets.isNotEmpty;
-    final hasSignature = _signatureMode != 'none' &&
-        ((_signatureClient.isNotEmpty || _signatureTech.isNotEmpty) ||
-            _signaturePages.isNotEmpty);
-
-    return [
-      {'title': 'Tarefa criada', 'status': hasTask ? 'Concluído' : 'Pendente'},
-      {
-        'title': 'Relatório iniciado',
-        'status': hasReport ? 'Concluído' : 'Pendente'
-      },
-      {
-        'title': 'Orçamento vinculado',
-        'status': hasBudget ? 'Concluído' : 'Pendente'
-      },
-      {
-        'title': 'Assinaturas',
-        'status': hasSignature ? 'Concluído' : 'Pendente'
-      },
-    ];
-  }
-
   Future<void> _launchContact(String scheme, String value) async {
     if (value.isEmpty) return;
     await launchUrl(
@@ -984,943 +941,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     );
   }
 
-  Widget _buildDetailsTab() {
-    final client = _selectedClient;
-    final clientName = client?['name']?.toString() ?? 'Sem cliente';
-    final clientEmail = extractEmail(client?['contact']?.toString());
-    final clientPhone = extractPhone(client?['contact']?.toString());
-    final clientAddress = client?['address']?.toString() ?? '';
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    StatusChip(
-                      label: _taskId == null
-                          ? 'Nova tarefa'
-                          : '#${_taskId ?? '--'}',
-                      compact: true,
-                    ),
-                    StatusChip(
-                      label: _status == 'em_andamento'
-                          ? 'Em andamento'
-                          : _status == 'concluida'
-                              ? 'Concluída'
-                              : 'Aberta',
-                      compact: true,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _title.text.isEmpty ? 'Nova tarefa' : _title.text,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Icon(Icons.schedule_rounded, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${formatDateInput(_startDate.text).isEmpty ? 'Sem início' : formatDateInput(_startDate.text)} • ${formatDateInput(_dueDate.text).isEmpty ? 'Sem prazo' : formatDateInput(_dueDate.text)}',
-                      ),
-                    ),
-                  ],
-                ),
-                if (clientAddress.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(clientAddress)),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    AvatarInitials(name: clientName),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(clientName,
-                              style: Theme.of(context).textTheme.titleMedium),
-                          if (clientEmail.isNotEmpty)
-                            Text(clientEmail,
-                                style: Theme.of(context).textTheme.bodySmall),
-                          if (clientPhone.isNotEmpty)
-                            Text(clientPhone,
-                                style: Theme.of(context).textTheme.bodySmall),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    OutlinedButton(
-                      style: _compactOutlinedButtonStyle,
-                      onPressed: clientPhone.isEmpty
-                          ? null
-                          : () => _launchContact(
-                                'tel:',
-                                clientPhone.replaceAll(RegExp(r'[^0-9]'), ''),
-                              ),
-                      child: const Text('Ligar'),
-                    ),
-                    OutlinedButton(
-                      style: _compactOutlinedButtonStyle,
-                      onPressed: clientEmail.isEmpty
-                          ? null
-                          : () => _launchContact('mailto:', clientEmail),
-                      child: const Text('E-mail'),
-                    ),
-                    OutlinedButton(
-                      style: _compactOutlinedButtonStyle,
-                      onPressed: clientPhone.isEmpty
-                          ? null
-                          : () => _launchContact(
-                                'https://wa.me/',
-                                clientPhone.replaceAll(RegExp(r'[^0-9]'), ''),
-                              ),
-                      child: const Text('WhatsApp'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const SectionHeader(
-          title: 'Progresso',
-          subtitle: 'Etapas ligadas à execução da tarefa',
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: _progressItems()
-                  .map((item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            Icon(
-                              item['status'] == 'Concluído'
-                                  ? Icons.check_circle_rounded
-                                  : Icons.radio_button_unchecked_rounded,
-                              color: item['status'] == 'Concluído'
-                                  ? AppColors.success
-                                  : AppColors.muted,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(child: Text(item['title'] ?? 'Etapa')),
-                            StatusChip(
-                              label: item['status'] ?? 'Pendente',
-                              compact: true,
-                            ),
-                          ],
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const SectionHeader(
-          title: 'Editar tarefa',
-          subtitle: 'Ajuste as informações operacionais',
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                AppTextField(label: 'Título', controller: _title),
-                const SizedBox(height: 8),
-                AppDropdownField<String>(
-                  label: 'Status',
-                  value: _status,
-                  items: TaskDetailOptions.taskStatusItems,
-                  onChanged: (value) =>
-                      setState(() => _status = value ?? 'aberta'),
-                ),
-                const SizedBox(height: 8),
-                AppDropdownField<String>(
-                  label: 'Prioridade',
-                  value: _priority,
-                  items: TaskDetailOptions.taskPriorityItems,
-                  onChanged: (value) =>
-                      setState(() => _priority = value ?? 'media'),
-                ),
-                const SizedBox(height: 8),
-                AppDropdownField<int>(
-                  label: 'Cliente',
-                  value: _clientId,
-                  items: _clients
-                      .map((client) => DropdownMenuItem<int>(
-                            value: client['id'] as int?,
-                            child:
-                                Text(client['name']?.toString() ?? 'Cliente'),
-                          ))
-                      .toList(),
-                  onChanged: (value) async {
-                    setState(() {
-                      _clientId = value;
-                      _reportEquipmentId = null;
-                    });
-                    await _loadClientEquipments();
-                    if (_taskId != null) {
-                      await _loadReports(_taskTypeId);
-                      await _loadBudgets(_reports);
-                    }
-                  },
-                ),
-                const SizedBox(height: 8),
-                if (_users.isNotEmpty) ...[
-                  AppDropdownField<int>(
-                    label: 'Responsável',
-                    value: _userId,
-                    items: _users
-                        .map((user) => DropdownMenuItem<int>(
-                              value: user['id'] as int?,
-                              child:
-                                  Text(user['name']?.toString() ?? 'Usuário'),
-                            ))
-                        .toList(),
-                    onChanged: (value) => setState(() => _userId = value),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                AppDropdownField<int>(
-                  label: 'Tipo de tarefa',
-                  value: _taskTypeId,
-                  items: _types
-                      .map((type) => DropdownMenuItem<int>(
-                            value: type['id'] as int?,
-                            child: Text(type['name']?.toString() ?? 'Tipo'),
-                          ))
-                      .toList(),
-                  onChanged: (value) => setState(() => _taskTypeId = value),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppDateField(
-                        key: ValueKey(_startDate.text),
-                        label: 'Data inicial',
-                        value: formatDateInput(_startDate.text),
-                        onTap: () => _pickDate(_startDate),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: AppDateField(
-                        key: ValueKey(_dueDate.text),
-                        label: 'Prazo',
-                        value: formatDateInput(_dueDate.text),
-                        onTap: () => _pickDate(_dueDate),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                AppTextField(
-                    label: 'Descrição', controller: _description, maxLines: 4),
-              ],
-            ),
-          ),
-        ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child:
-                Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-          ),
-        const SizedBox(height: 12),
-        if (_taskId == null &&
-            _title.text.isEmpty &&
-            _clientId == null &&
-            _description.text.isEmpty)
-          const EmptyState(
-            title: 'Preencha os dados principais',
-            message:
-                'Assim que salvar a tarefa você libera relatório, orçamento e assinaturas.',
-            icon: Icons.assignment_outlined,
-          ),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _taskId != null && _status != 'em_andamento'
-                    ? () {
-                        setState(() => _status = 'em_andamento');
-                        _saveTask();
-                      }
-                    : null,
-                child: const Text('Iniciar trabalho'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _saveTask,
-                child: Text(
-                    _taskId == null ? 'Salvar tarefa' : 'Atualizar tarefa'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildReportTab() {
-    final reportOptions = _reports
-        .map((report) => DropdownMenuItem<int>(
-              value: report['id'] as int?,
-              child: Text(
-                report['title']?.toString() ??
-                    (report['equipment_name'] != null
-                        ? 'Relatório - ${report['equipment_name']}'
-                        : 'Relatório'),
-              ),
-            ))
-        .toList();
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_taskId == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para habilitar o Relatório.'),
-            ),
-          ),
-        if (_taskId != null && _selectedTemplate == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child:
-                  Text('Este tipo de tarefa não possui modelo de Relatório.'),
-            ),
-          ),
-        if (_taskId != null && _selectedTemplate != null)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Relatórios da tarefa',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton(
-                              style: _compactOutlinedButtonStyle,
-                              onPressed: _createReport,
-                              child: const Text('Adicionar')),
-                          OutlinedButton(
-                              style: _compactOutlinedButtonStyle,
-                              onPressed: _deleteReport,
-                              child: const Text('Excluir')),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  AppDropdownField<int>(
-                    label: 'Relatório',
-                    value: _activeReportId,
-                    items: reportOptions,
-                    onChanged: (value) => _handleActiveReportChange(value),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildEquipmentField(),
-                  const SizedBox(height: 8),
-                  AppDropdownField<String>(
-                    label: 'Status',
-                    value: _reportStatus,
-                    items: TaskDetailOptions.reportStatusItems,
-                    onChanged: (value) {
-                      setState(() => _reportStatus = value ?? 'rascunho');
-                      _markReportDirty();
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Fotos',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: 8),
-                      OutlinedButton(
-                          style: _compactOutlinedButtonStyle,
-                          onPressed: _addPhotos,
-                          child: const Text('Adicionar')),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (_reportPhotos.isEmpty) const Text('Sem fotos anexadas.'),
-                  if (_reportPhotos.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _reportPhotos
-                          .map((photo) => _buildReportPhotoTile(photo))
-                          .toList(),
-                    ),
-                  const SizedBox(height: 12),
-                  Text('Formulario',
-                      style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  if (_reportSections.isEmpty)
-                    const Text('Este modelo ainda não possui campos.'),
-                  ..._reportSections.map((section) => Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(section['title']?.toString() ?? 'Seção',
-                                  style:
-                                      Theme.of(context).textTheme.titleSmall),
-                              const SizedBox(height: 8),
-                              ..._buildReportFields(section),
-                            ],
-                          ),
-                        ),
-                      )),
-                  if (_reportMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(_reportMessage!,
-                          style: const TextStyle(color: Colors.blueGrey)),
-                    ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      ElevatedButton(
-                          style: _compactElevatedButtonStyle,
-                          onPressed: _saveReport,
-                          child: const Text('Salvar Relatório')),
-                      OutlinedButton(
-                          style: _compactOutlinedButtonStyle,
-                          onPressed: _sendReportEmail,
-                          child: const Text('Enviar e-mail')),
-                      OutlinedButton(
-                        style: _compactOutlinedButtonStyle,
-                        onPressed: _shareTaskPublicLink,
-                        child: const Text('Compartilhar link'),
-                      ),
-                      OutlinedButton(
-                        style: _compactOutlinedButtonStyle,
-                        onPressed: _openTaskPublicPage,
-                        child: const Text('Abrir PDF'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildEquipmentField() {
-    final shouldDisable =
-        _clientId == null || _equipmentsLoading || _equipmentsError != null;
-    final items = <DropdownMenuItem<int?>>[
-      const DropdownMenuItem<int?>(value: null, child: Text('Sem equipamento')),
-      ..._equipments.map(
-        (equipment) => DropdownMenuItem<int?>(
-          value: equipment['id'] as int?,
-          child: Text(equipment['name']?.toString() ?? 'Equipamento'),
-        ),
-      ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Opacity(
-          opacity: shouldDisable ? 0.55 : 1,
-          child: AbsorbPointer(
-            absorbing: shouldDisable || _activeReportId == null,
-            child: AppDropdownField<int?>(
-              label: 'Equipamento',
-              value: _reportEquipmentId,
-              items: items,
-              onChanged: (value) => _updateReportEquipment(value),
-            ),
-          ),
-        ),
-        if (_clientId == null)
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Text('Selecione um cliente primeiro.'),
-          ),
-        if (_activeReportId == null && _clientId != null)
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Text('Selecione um relatório para vincular o equipamento.'),
-          ),
-        if (_equipmentsLoading)
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: LinearProgressIndicator(),
-          ),
-        if (_clientId != null &&
-            !_equipmentsLoading &&
-            _equipmentsError != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Row(
-              children: [
-                const Expanded(child: Text('Erro ao carregar equipamentos.')),
-                TextButton(
-                  onPressed: _loadClientEquipments,
-                  child: const Text('Tentar novamente'),
-                ),
-              ],
-            ),
-          ),
-        if (_clientId != null &&
-            !_equipmentsLoading &&
-            _equipmentsError == null &&
-            _equipments.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Text('Nenhum equipamento encontrado para este cliente.'),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildReportPhotoTile(Map<String, dynamic> photo) {
-    final bytes = _tryDecodeReportPhoto(photo['dataUrl']?.toString());
-
-    return SizedBox(
-      width: 120,
-      child: Column(
-        children: [
-          Container(
-            height: 90,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: bytes == null
-                ? Icon(
-                    Icons.broken_image_outlined,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  )
-                : Image.memory(
-                    bytes,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.broken_image_outlined,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-          ),
-          TextButton(
-            onPressed: () => _removePhoto(photo['id'].toString()),
-            child: const Text('Remover'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildReportFields(Map<String, dynamic> section) {
-    final fields = (section['fields'] as List<dynamic>? ?? [])
-        .cast<Map<String, dynamic>>();
-    return fields.map((field) {
-      final fieldId = field['id']?.toString() ?? '';
-      final label = field['label']?.toString() ?? 'Campo';
-      final type = field['type']?.toString() ?? 'text';
-      final value = _reportAnswers[fieldId];
-
-      if (type == 'textarea') {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: AppTextField(
-            key: ValueKey('field-${_activeReportId ?? "new"}-$fieldId'),
-            label: label,
-            initialValue: value?.toString() ?? '',
-            maxLines: 3,
-            onChanged: (val) {
-              setState(() => _reportAnswers[fieldId] = val);
-              _markReportDirty();
-            },
-          ),
-        );
-      }
-      if (type == 'select') {
-        final options = (field['options'] as List<dynamic>? ?? [])
-            .map((option) => DropdownMenuItem<String>(
-                  value: option.toString(),
-                  child: Text(
-                    option.toString(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ))
-            .toList();
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: AppDropdownField<String>(
-            label: label,
-            value: value?.toString(),
-            items: options,
-            onChanged: (val) {
-              setState(() => _reportAnswers[fieldId] = val);
-              _markReportDirty();
-            },
-          ),
-        );
-      }
-      if (type == 'yesno') {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: AppDropdownField<String>(
-            label: label,
-            value: value?.toString(),
-            items: const [
-              DropdownMenuItem(value: 'sim', child: Text('Sim')),
-              DropdownMenuItem(value: 'nao', child: Text('não')),
-            ],
-            onChanged: (val) {
-              setState(() => _reportAnswers[fieldId] = val);
-              _markReportDirty();
-            },
-          ),
-        );
-      }
-      if (type == 'checkbox') {
-        return SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(label),
-          value: value == true,
-          onChanged: (val) {
-            setState(() => _reportAnswers[fieldId] = val);
-            _markReportDirty();
-          },
-        );
-      }
-      if (type == 'date') {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: AppDateField(
-            key: ValueKey(
-                'date-${_activeReportId ?? "new"}-$fieldId-${value ?? ""}'),
-            label: label,
-            value: formatDateInput(value?.toString()),
-            onTap: () async {
-              final now = DateTime.now();
-              final selected = await showDatePicker(
-                context: context,
-                firstDate: DateTime(now.year - 5),
-                lastDate: DateTime(now.year + 5),
-                initialDate: now,
-              );
-              if (selected == null) return;
-              final formatted = formatDateFromDate(selected);
-              setState(() => _reportAnswers[fieldId] = formatted);
-              _markReportDirty();
-            },
-          ),
-        );
-      }
-
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: AppTextField(
-          key: ValueKey('field-${_activeReportId ?? "new"}-$fieldId'),
-          label: label,
-          initialValue: value?.toString() ?? '',
-          onChanged: (val) {
-            setState(() => _reportAnswers[fieldId] = val);
-            _markReportDirty();
-          },
-        ),
-      );
-    }).toList();
-  }
-
-  Widget _buildBudgetsTab() {
-    final generalReport = _reports.firstWhere(
-      (item) => item['equipment_id'] == null,
-      orElse: () => <String, dynamic>{},
-    );
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_taskId == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para liberar os Orçamentos.'),
-            ),
-          ),
-        if (_taskId != null) ...[
-          BudgetForm(
-            clientId: _clientId,
-            taskId: _taskId,
-            reportId: generalReport['id'] as int?,
-            products: _products,
-            onSaved: () => _loadBudgets(_reports),
-          ),
-          const SizedBox(height: 12),
-          ..._budgets.map((budget) {
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('orçamento #${budget['id']}',
-                            style: Theme.of(context).textTheme.titleSmall),
-                        Row(
-                          children: [
-                            Chip(
-                                label: Text(budget['status']?.toString() ??
-                                    'rascunho')),
-                            PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'edit') {
-                                  _editBudget(budget);
-                                } else if (value == 'delete') {
-                                  _deleteBudget(budget['id'] as int);
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                    value: 'edit', child: Text('Editar')),
-                                PopupMenuItem(
-                                    value: 'delete', child: Text('Remover')),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Total: ${formatCurrency(budget['total'] ?? 0)}'),
-                    const SizedBox(height: 8),
-                    ...(budget['items'] as List<dynamic>? ?? [])
-                        .cast<Map<String, dynamic>>()
-                        .map((item) => Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                    child: Text(
-                                        item['description']?.toString() ??
-                                            'Item')),
-                                Text(formatCurrency(item['total'] ?? 0)),
-                              ],
-                            )),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildSignatureTab() {
-    final signaturePageItems = [
-      ..._reports.map((report) => {
-            'key': 'report:${report['id']}',
-            'label': report['title']?.toString() ??
-                (report['equipment_name'] != null
-                    ? 'Relatório - ${report['equipment_name']}'
-                    : 'Relatório'),
-          }),
-      ..._budgets.map((budget) => {
-            'key': 'budget:${budget['id']}',
-            'label': 'orçamento #${budget['id']}',
-          }),
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_taskId == null)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Salve a tarefa para configurar Assinaturas.'),
-            ),
-          ),
-        if (_taskId != null) ...[
-          AppDropdownField<String>(
-            label: 'Assinaturas',
-            value: _signatureMode,
-            items: TaskDetailOptions.signatureModeItems,
-            onChanged: (value) =>
-                setState(() => _signatureMode = value ?? 'none'),
-          ),
-          const SizedBox(height: 8),
-          AppDropdownField<String>(
-            label: 'Aplicação',
-            value: _signatureScope,
-            items: TaskDetailOptions.signatureScopeItems,
-            onChanged: (value) =>
-                setState(() => _signatureScope = value ?? 'last_page'),
-          ),
-          const SizedBox(height: 12),
-          if (_signatureScope == 'last_page') ...[
-            if (_signatureMode == 'client' || _signatureMode == 'both')
-              SignaturePadField(
-                label: 'Assinatura do cliente*',
-                value: _signatureClient,
-                onChanged: (value) => setState(() => _signatureClient = value),
-              ),
-            if (_signatureMode == 'client' || _signatureMode == 'both')
-              if (_signatureClient.isNotEmpty)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => setState(() => _signatureClient = ''),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Remover assinatura'),
-                  ),
-                ),
-            const SizedBox(height: 12),
-            if (_signatureMode == 'tech' || _signatureMode == 'both')
-              SignaturePadField(
-                label: 'Assinatura do técnico*',
-                value: _signatureTech,
-                onChanged: (value) => setState(() => _signatureTech = value),
-              ),
-            if (_signatureMode == 'tech' || _signatureMode == 'both')
-              if (_signatureTech.isNotEmpty)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => setState(() => _signatureTech = ''),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Remover assinatura'),
-                  ),
-                ),
-          ],
-          if (_signatureScope == 'all_pages' && _signatureMode != 'none') ...[
-            ...signaturePageItems.map((page) {
-              final key = page['key'] as String;
-              final label = page['label'] as String;
-              final pageSignatures =
-                  _signaturePages[key] as Map<String, dynamic>? ?? {};
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label,
-                          style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: 8),
-                      if (_signatureMode == 'client' ||
-                          _signatureMode == 'both')
-                        SignaturePadField(
-                          label: 'Assinatura do cliente*',
-                          value: pageSignatures['client']?.toString() ?? '',
-                          onChanged: (value) =>
-                              _updateSignaturePage(key, 'client', value),
-                        ),
-                      if (_signatureMode == 'client' ||
-                          _signatureMode == 'both')
-                        if ((pageSignatures['client']?.toString() ?? '')
-                            .isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () =>
-                                  _updateSignaturePage(key, 'client', ''),
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Remover assinatura'),
-                            ),
-                          ),
-                      const SizedBox(height: 12),
-                      if (_signatureMode == 'tech' || _signatureMode == 'both')
-                        SignaturePadField(
-                          label: 'Assinatura do técnico*',
-                          value: pageSignatures['tech']?.toString() ?? '',
-                          onChanged: (value) =>
-                              _updateSignaturePage(key, 'tech', value),
-                        ),
-                      if (_signatureMode == 'tech' || _signatureMode == 'both')
-                        if ((pageSignatures['tech']?.toString() ?? '')
-                            .isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () =>
-                                  _updateSignaturePage(key, 'tech', ''),
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Remover assinatura'),
-                            ),
-                          ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ],
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: _saveTask,
-            child: const Text('Salvar assinaturas'),
-          ),
-        ],
-      ],
-    );
+  void _onReportAnswerChanged(String fieldId, dynamic value) {
+    setState(() => _reportAnswers[fieldId] = value);
+    _markReportDirty();
   }
 
   @override
@@ -1963,10 +986,118 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         child: TabBarView(
           controller: _tabController,
           children: [
-            _buildDetailsTab(),
-            _buildReportTab(),
-            _buildBudgetsTab(),
-            _buildSignatureTab(),
+            TaskDetailDetailsTab(
+              taskId: _taskId,
+              status: _status,
+              priority: _priority,
+              clientId: _clientId,
+              userId: _userId,
+              taskTypeId: _taskTypeId,
+              titleController: _title,
+              descriptionController: _description,
+              startDateController: _startDate,
+              dueDateController: _dueDate,
+              error: _error,
+              clients: _clients,
+              users: _users,
+              types: _types,
+              reports: _reports,
+              budgets: _budgets,
+              signatureMode: _signatureMode,
+              signatureClient: _signatureClient,
+              signatureTech: _signatureTech,
+              signaturePages: _signaturePages,
+              onStatusChanged: (v) =>
+                  setState(() => _status = v ?? 'aberta'),
+              onPriorityChanged: (v) =>
+                  setState(() => _priority = v ?? 'media'),
+              onClientChanged: (v) async {
+                setState(() {
+                  _clientId = v;
+                  _reportEquipmentId = null;
+                });
+                await _loadClientEquipments();
+                if (_taskId != null) {
+                  await _loadReports(_taskTypeId);
+                  await _loadBudgets(_reports);
+                }
+              },
+              onUserChanged: (v) => setState(() => _userId = v),
+              onTaskTypeChanged: (v) =>
+                  setState(() => _taskTypeId = v),
+              onPickStartDate: () => _pickDate(_startDate),
+              onPickDueDate: () => _pickDate(_dueDate),
+              onSaveTask: _saveTask,
+              onStartWork: _taskId != null && _status != 'em_andamento'
+                  ? () {
+                      setState(() => _status = 'em_andamento');
+                      _saveTask();
+                    }
+                  : null,
+              onLaunchContact: _launchContact,
+            ),
+            TaskDetailReportTab(
+              taskId: _taskId,
+              clientId: _clientId,
+              activeReportId: _activeReportId,
+              reports: _reports,
+              reportSections: _reportSections,
+              reportAnswers: _reportAnswers,
+              reportPhotos: _reportPhotos,
+              reportStatus: _reportStatus,
+              reportMessage: _reportMessage,
+              reportEquipmentId: _reportEquipmentId,
+              equipments: _equipments,
+              equipmentsLoading: _equipmentsLoading,
+              equipmentsError: _equipmentsError,
+              selectedTemplate: _selectedTemplate,
+              onActiveReportChanged: _handleActiveReportChange,
+              onReportStatusChanged: (v) {
+                setState(() => _reportStatus = v ?? 'rascunho');
+                _markReportDirty();
+              },
+              onReportAnswerChanged: _onReportAnswerChanged,
+              onEquipmentChanged: _updateReportEquipment,
+              onAddPhotos: _addPhotos,
+              onRemovePhoto: _removePhoto,
+              onCreateReport: _createReport,
+              onDeleteReport: _deleteReport,
+              onSaveReport: _saveReport,
+              onSendEmail: _sendReportEmail,
+              onShareLink: _shareTaskPublicLink,
+              onOpenPdf: _openTaskPublicPage,
+              onRetryEquipments: _loadClientEquipments,
+            ),
+            TaskDetailBudgetsTab(
+              taskId: _taskId,
+              clientId: _clientId,
+              reports: _reports,
+              budgets: _budgets,
+              products: _products,
+              onBudgetsSaved: () => _loadBudgets(_reports),
+              onEditBudget: _editBudget,
+              onDeleteBudget: _deleteBudget,
+            ),
+            TaskDetailSignaturesTab(
+              taskId: _taskId,
+              signatureMode: _signatureMode,
+              signatureScope: _signatureScope,
+              signatureClient: _signatureClient,
+              signatureTech: _signatureTech,
+              signaturePages: _signaturePages,
+              reports: _reports,
+              budgets: _budgets,
+              onSignatureModeChanged: (v) =>
+                  setState(() => _signatureMode = v ?? 'none'),
+              onSignatureScopeChanged: (v) =>
+                  setState(() => _signatureScope = v ?? 'last_page'),
+              onSignatureClientChanged: (v) =>
+                  setState(() => _signatureClient = v),
+              onSignatureTechChanged: (v) =>
+                  setState(() => _signatureTech = v),
+              onSignaturePageChanged: _updateSignaturePage,
+              onSave: _saveTask,
+            ),
           ],
         ),
       ),

@@ -7,6 +7,7 @@ import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
+import '../utils/label_mappers.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/empty_state.dart';
@@ -481,9 +482,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   title: title,
                   clientName: clientName,
                   location: address,
-                  statusLabel: _taskStatusLabel(task['status']?.toString()),
+                  statusLabel: taskStatusLabel(task['status']?.toString()),
                   priorityLabel:
-                      _taskPriorityLabel(task['priority']?.toString()),
+                      taskPriorityLabel(task['priority']?.toString()),
                   codeLabel: '#${task['id'] ?? '--'}',
                   avatarName: clientName,
                   onTap: () =>
@@ -518,7 +519,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           : 'Proposta comercial',
                       total: formatCurrency(budget['total'] as num? ?? 0),
                       createdAt: formatDate(budget['created_at']?.toString()),
-                      status: _budgetStatusLabel(budget['status']?.toString()),
+                      status: budgetStatusLabel(budget['status']?.toString()),
                       onTap: () => widget.onOpenShortcut
                           ?.call(DashboardShortcut.budgets),
                     ),
@@ -543,42 +544,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return 'Existem $inProgressTasks atendimento(s) em execução e $openTasks tarefa(s) abertas.';
   }
 
-  String _taskStatusLabel(String? value) {
-    switch (value) {
-      case 'aberta':
-        return 'Aberta';
-      case 'em_andamento':
-        return 'Em andamento';
-      case 'concluida':
-        return 'Concluída';
-      default:
-        return value?.isNotEmpty == true ? value! : 'Aberta';
-    }
-  }
-
-  String _taskPriorityLabel(String? value) {
-    switch (value) {
-      case 'alta':
-        return 'Alta';
-      case 'media':
-        return 'Media';
-      case 'baixa':
-        return 'Baixa';
-      default:
-        return value?.isNotEmpty == true ? value! : 'Media';
-    }
-  }
-
-  String _budgetStatusLabel(String? value) {
-    switch (value) {
-      case 'aprovado':
-        return 'Aprovado';
-      case 'recusado':
-        return 'Recusado';
-      default:
-        return 'Em andamento';
-    }
-  }
 
   Future<void> _openNotificationCenter({
     required int openTasks,

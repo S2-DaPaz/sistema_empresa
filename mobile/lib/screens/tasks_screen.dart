@@ -5,6 +5,7 @@ import '../services/offline_cache_service.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/formatters.dart';
+import '../utils/label_mappers.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_search_field.dart';
 import '../widgets/empty_state.dart';
@@ -183,31 +184,6 @@ class _TasksScreenState extends State<TasksScreen> {
     }).toList();
   }
 
-  String _statusLabel(String? value) {
-    switch (value) {
-      case 'aberta':
-        return 'Aberta';
-      case 'em_andamento':
-        return 'Em andamento';
-      case 'concluida':
-        return 'Concluída';
-      default:
-        return value?.isNotEmpty == true ? value! : 'Aberta';
-    }
-  }
-
-  String _priorityLabel(String? value) {
-    switch (value) {
-      case 'alta':
-        return 'Alta';
-      case 'media':
-        return 'Média';
-      case 'baixa':
-        return 'Baixa';
-      default:
-        return value?.isNotEmpty == true ? value! : 'Média';
-    }
-  }
 
   void _showStaleDataWarning() {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -387,8 +363,8 @@ class _TasksScreenState extends State<TasksScreen> {
                     clientName:
                         task['client_name']?.toString() ?? 'Sem cliente',
                     location: task['client_address']?.toString() ?? '',
-                    statusLabel: _statusLabel(task['status']?.toString()),
-                    priorityLabel: _priorityLabel(task['priority']?.toString()),
+                    statusLabel: taskStatusLabel(task['status']?.toString()),
+                    priorityLabel: taskPriorityLabel(task['priority']?.toString()),
                     codeLabel: '#${id ?? '--'}',
                     avatarName: task['client_name']?.toString() ?? 'Cliente',
                     onTap: () => _openTask(id),
@@ -526,8 +502,8 @@ class _TasksScreenState extends State<TasksScreen> {
                   title: task['title']?.toString() ?? 'Tarefa',
                   clientName: task['client_name']?.toString() ?? 'Sem cliente',
                   location: task['client_address']?.toString() ?? '',
-                  statusLabel: _statusLabel(task['status']?.toString()),
-                  priorityLabel: _priorityLabel(task['priority']?.toString()),
+                  statusLabel: taskStatusLabel(task['status']?.toString()),
+                  priorityLabel: taskPriorityLabel(task['priority']?.toString()),
                   codeLabel: '#${id ?? '--'}',
                   avatarName: task['client_name']?.toString() ?? 'Cliente',
                   onTap: () => _openTask(id),

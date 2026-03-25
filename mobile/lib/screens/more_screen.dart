@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/permissions.dart';
 import '../services/theme_service.dart';
 import '../utils/formatters.dart';
+import '../utils/label_mappers.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
@@ -148,7 +149,7 @@ class _MoreScreenState extends State<MoreScreen> {
                 ),
                 _HeroStat(
                   label: 'Status',
-                  value: _accountStatusLabel(accountStatus),
+                  value: accountStatusLabel(accountStatus),
                 ),
               ],
             ),
@@ -157,7 +158,7 @@ class _MoreScreenState extends State<MoreScreen> {
               children: [
                 Expanded(
                   child: StatusChip(
-                    label: _accountStatusLabel(accountStatus),
+                    label: accountStatusLabel(accountStatus),
                     tone: _accountStatusTone(accountStatus),
                   ),
                 ),
@@ -343,17 +344,6 @@ class _MoreScreenState extends State<MoreScreen> {
   String _safeDate(String? value) {
     if (value == null || value.isEmpty) return 'Agora';
     return formatDateTime(value);
-  }
-
-  String _accountStatusLabel(String status) {
-    switch (status) {
-      case 'blocked':
-        return 'Bloqueada';
-      case 'pending_verification':
-        return 'Pendente';
-      default:
-        return 'Ativa';
-    }
   }
 
   StatusChipTone _accountStatusTone(String status) {
