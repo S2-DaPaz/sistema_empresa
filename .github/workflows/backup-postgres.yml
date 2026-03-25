@@ -62,20 +62,43 @@ jobs:
           chmod +x scripts/backup-postgres.sh
           bash scripts/backup-postgres.sh
 
+      - name: Instalar rclone
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+
       - name: Upload para Google Drive
         id: upload
         env:
-          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
-          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
-          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
-          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
-          GDRIVE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON_B64 }}
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_SCOPE: drive.file
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_RCLONE_TOKEN }}
+          RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
           BACKUP_RETENTION_COUNT: ${{ vars.BACKUP_RETENTION_COUNT || '30' }}
         run: |
-          node scripts/upload-drive.js \
-            "${{ steps.backup.outputs.encrypted_file }}" \
-            "${{ steps.backup.outputs.sha256_file }}" \
-            "${{ steps.backup.outputs.manifest_file }}"
+          echo "Verificando configuração rclone..."
+          rclone about gdrive: --json || { echo "ERRO: rclone não conseguiu conectar ao Drive"; exit 1; }
+
+          echo "Fazendo upload dos arquivos de backup..."
+          rclone copy "${{ steps.backup.outputs.encrypted_file }}" gdrive: -v
+          rclone copy "${{ steps.backup.outputs.sha256_file }}" gdrive: -v
+          rclone copy "${{ steps.backup.outputs.manifest_file }}" gdrive: -v
+
+          echo "Listando backups no Drive..."
+          rclone ls gdrive: --include "*.dump.gpg"
+
+          # Retenção: contar e remover backups antigos
+          BACKUPS=$(rclone lsf gdrive: --include "*.dump.gpg" --files-only | sort)
+          COUNT=$(echo "${BACKUPS}" | grep -c . || true)
+          MAX=${BACKUP_RETENTION_COUNT}
+          echo "Backups no Drive: ${COUNT}/${MAX}"
+
+          if [ "${COUNT}" -gt "${MAX}" ]; then
+            REMOVE_COUNT=$((COUNT - MAX))
+            echo "Removendo ${REMOVE_COUNT} backups antigos..."
+            echo "${BACKUPS}" | head -n "${REMOVE_COUNT}" | while read -r FILE; do
+              PREFIX="${FILE%.dump.gpg}"
+              rclone delete gdrive: --include "${PREFIX}*" -v
+            done
+          fi
 
       - name: Notificar API (webhook - opcional)
         if: always()
