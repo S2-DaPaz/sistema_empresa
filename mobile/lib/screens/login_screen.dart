@@ -1,24 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../core/errors/app_exception.dart';
-import '../services/auth_service.dart';
+import '../features/auth/presentation/auth_flow_controller.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/otp_input_group.dart';
-
-enum _AuthFlow {
-  login,
-  register,
-  verifyEmail,
-  forgotPassword,
-  verifyResetCode,
-  resetPassword,
-}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,22 +15,12 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const _rememberEmailKey = 'auth_remember_email';
-  static const _rememberFlagKey = 'auth_remember_enabled';
+  late final AuthFlowController _authFlowController;
 
-  _AuthFlow _flow = _AuthFlow.login;
-  bool _loading = false;
-  bool _rememberMe = true;
-  bool _acceptTerms = false;
   bool _obscurePassword = true;
   bool _obscurePasswordConfirm = true;
   bool _obscureNewPassword = true;
   bool _obscureNewPasswordConfirm = true;
-  String? _error;
-  String? _notice;
-  Map<String, dynamic>? _verificationMeta;
-  Timer? _resendTimer;
-  int _resendSeconds = 0;
 
   final TextEditingController _name = TextEditingController();
   final TextEditingController _email = TextEditingController();
@@ -56,12 +33,19 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _authFlowController = AuthFlowController();
     _restoreRememberedEmail();
+  }
+
+  Future<void> _restoreRememberedEmail() async {
+    final rememberedEmail = await _authFlowController.restoreRememberedEmail();
+    if (!mounted || rememberedEmail == null || rememberedEmail.isEmpty) return;
+    _email.text = rememberedEmail;
   }
 
   @override
   void dispose() {
-    _resendTimer?.cancel();
+    _authFlowController.dispose();
     _name.dispose();
     _email.dispose();
     _password.dispose();
@@ -72,370 +56,197 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _restoreRememberedEmail() async {
-    final prefs = await SharedPreferences.getInstance();
-    final remembered = prefs.getBool(_rememberFlagKey) ?? true;
-    final rememberedEmail = prefs.getString(_rememberEmailKey) ?? '';
-    if (!mounted) return;
-    setState(() {
-      _rememberMe = remembered;
-      if (rememberedEmail.isNotEmpty) {
-        _email.text = rememberedEmail;
-      }
-    });
-  }
+  AuthFlowStep get _step => _authFlowController.state.step;
 
-  Future<void> _persistRememberedEmail() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_rememberFlagKey, _rememberMe);
-    if (_rememberMe) {
-      await prefs.setString(_rememberEmailKey, _email.text.trim());
-    } else {
-      await prefs.remove(_rememberEmailKey);
+  void _switchTo(AuthFlowStep step) {
+    if (step == AuthFlowStep.login || step == AuthFlowStep.register) {
+      _code.clear();
     }
-  }
-
-  void _switchTo(_AuthFlow flow) {
-    setState(() {
-      _flow = flow;
-      _error = null;
-      _notice = null;
-      if (flow == _AuthFlow.login || flow == _AuthFlow.register) {
-        _code.clear();
-      }
-    });
-  }
-
-  void _setError(Object error, {String? fallback}) {
-    setState(() {
-      _error = error is AppException
-          ? error.message
-          : fallback ?? 'Não foi possível concluir a operação agora.';
-    });
-  }
-
-  void _startResendTimer([int seconds = 60]) {
-    _resendTimer?.cancel();
-    setState(() => _resendSeconds = seconds);
-    if (seconds <= 0) return;
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_resendSeconds <= 1) {
-        timer.cancel();
-        setState(() => _resendSeconds = 0);
-      } else {
-        setState(() => _resendSeconds -= 1);
-      }
-    });
-  }
-
-  void _applyVerificationMeta(Map<String, dynamic>? meta) {
-    _verificationMeta = meta;
-    final seconds = (meta?['resendCooldownSeconds'] as num?)?.toInt() ?? 60;
-    _startResendTimer(seconds);
-  }
-
-  void _validatePasswordMatch(String password, String confirmation) {
-    if (password != confirmation) {
-      throw AppException(
-        message: 'As senhas informadas não coincidem.',
-        category: 'validation_error',
-        code: 'password_mismatch',
-      );
-    }
+    _authFlowController.switchTo(step);
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
     try {
-      switch (_flow) {
-        case _AuthFlow.login:
-          await AuthService.instance.login(
-            _email.text.trim(),
-            _password.text,
-          );
-          await _persistRememberedEmail();
-          return;
-        case _AuthFlow.register:
-          if (!_acceptTerms) {
-            throw AppException(
-              message: 'Você precisa aceitar os termos para criar a conta.',
-              category: 'validation_error',
-              code: 'legal_terms_required',
-            );
-          }
-          _validatePasswordMatch(_password.text, _passwordConfirm.text);
-          final data = await AuthService.instance.register(
-            _name.text.trim(),
-            _email.text.trim(),
-            _password.text,
-          );
-          if (!mounted) return;
-          setState(() {
-            _notice = data['message']?.toString();
-            _flow = _AuthFlow.verifyEmail;
-          });
-          _applyVerificationMeta(_asMap(data['verification']));
-          return;
-        case _AuthFlow.verifyEmail:
-          await AuthService.instance.verifyEmail(
-            _email.text.trim(),
-            _code.text.trim(),
-          );
-          await _persistRememberedEmail();
-          return;
-        case _AuthFlow.forgotPassword:
-          final data = await AuthService.instance.requestPasswordReset(
-            _email.text.trim(),
-          );
-          if (!mounted) return;
-          setState(() {
-            _notice = data['message']?.toString();
-            _flow = _AuthFlow.verifyResetCode;
-          });
-          _startResendTimer();
-          return;
-        case _AuthFlow.verifyResetCode:
-          final data = await AuthService.instance.verifyPasswordResetCode(
-            _email.text.trim(),
-            _code.text.trim(),
-          );
-          if (!mounted) return;
-          setState(() {
-            _notice = data['message']?.toString();
-            _flow = _AuthFlow.resetPassword;
-          });
-          return;
-        case _AuthFlow.resetPassword:
-          _validatePasswordMatch(
-            _newPassword.text,
-            _newPasswordConfirm.text,
-          );
-          final data = await AuthService.instance.resetPassword(
-            _email.text.trim(),
-            _code.text.trim(),
-            _newPassword.text,
-          );
-          if (!mounted) return;
-          setState(() {
-            _notice =
-                data['message']?.toString() ?? 'Senha atualizada com sucesso.';
-            _flow = _AuthFlow.login;
-            _password.clear();
-            _passwordConfirm.clear();
-            _newPassword.clear();
-            _newPasswordConfirm.clear();
-            _code.clear();
-          });
-          return;
+      final outcome = await _authFlowController.submit(
+        name: _name.text.trim(),
+        email: _email.text.trim(),
+        password: _password.text,
+        passwordConfirmation: _passwordConfirm.text,
+        code: _code.text.trim(),
+        newPassword: _newPassword.text,
+        newPasswordConfirmation: _newPasswordConfirm.text,
+      );
+      if (!mounted) return;
+
+      if (outcome.prefillEmail != null && outcome.prefillEmail!.isNotEmpty) {
+        _email.text = outcome.prefillEmail!;
       }
-    } catch (error) {
-      if (_flow == _AuthFlow.login &&
-          error is AppException &&
-          error.code == 'email_verification_required') {
-        final details = _asMap(error.details);
-        if (!mounted) return;
-        setState(() {
-          _flow = _AuthFlow.verifyEmail;
-          _notice = error.message;
-          if (details?['email'] != null) {
-            _email.text = details!['email'].toString();
-          }
-        });
-        _applyVerificationMeta(details);
-      } else {
-        _setError(error);
+
+      if (outcome.clearSensitiveFields) {
+        _password.clear();
+        _passwordConfirm.clear();
+        _newPassword.clear();
+        _newPasswordConfirm.clear();
+        _code.clear();
       }
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+    } catch (_) {
+      // O controller já normaliza e publica a mensagem de erro.
     }
   }
 
   Future<void> _resendCode() async {
-    if (_resendSeconds > 0 || _loading) return;
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
     try {
-      if (_flow == _AuthFlow.verifyEmail) {
-        final data = await AuthService.instance.resendVerificationCode(
-          _email.text.trim(),
-        );
-        if (!mounted) return;
-        setState(() => _notice = data['message']?.toString());
-        _applyVerificationMeta(_asMap(data['verification']));
-      } else if (_flow == _AuthFlow.verifyResetCode) {
-        final data = await AuthService.instance.requestPasswordReset(
-          _email.text.trim(),
-        );
-        if (!mounted) return;
-        setState(() => _notice = data['message']?.toString());
-        _startResendTimer();
-      }
-    } catch (error) {
-      _setError(error, fallback: 'Não foi possível reenviar o código agora.');
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      await _authFlowController.resendCode(_email.text.trim());
+    } catch (_) {
+      // O controller já mantém o feedback amigável no estado.
     }
   }
 
-  Map<String, dynamic>? _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return Map<String, dynamic>.from(value);
-    return null;
-  }
-
   String get _title {
-    switch (_flow) {
-      case _AuthFlow.login:
+    switch (_step) {
+      case AuthFlowStep.login:
         return 'Bem-vindo de volta!';
-      case _AuthFlow.register:
+      case AuthFlowStep.register:
         return 'Criar conta';
-      case _AuthFlow.verifyEmail:
+      case AuthFlowStep.verifyEmail:
         return 'Verifique seu e-mail';
-      case _AuthFlow.forgotPassword:
+      case AuthFlowStep.forgotPassword:
         return 'Recuperar senha';
-      case _AuthFlow.verifyResetCode:
+      case AuthFlowStep.verifyResetCode:
         return 'Validar código';
-      case _AuthFlow.resetPassword:
+      case AuthFlowStep.resetPassword:
         return 'Definir nova senha';
     }
   }
 
   String get _subtitle {
-    switch (_flow) {
-      case _AuthFlow.login:
+    switch (_step) {
+      case AuthFlowStep.login:
         return 'Acesse sua conta para continuar.';
-      case _AuthFlow.register:
+      case AuthFlowStep.register:
         return 'Vamos começar com seus dados.';
-      case _AuthFlow.verifyEmail:
-        final maskedEmail = _verificationMeta?['maskedEmail']?.toString();
+      case AuthFlowStep.verifyEmail:
+        final maskedEmail =
+            _authFlowController.state.verificationMeta?.maskedEmail;
         if (maskedEmail != null && maskedEmail.isNotEmpty) {
           return 'Enviamos um código de 6 dígitos para $maskedEmail.';
         }
         return 'Digite o código de 6 dígitos enviado para o seu e-mail.';
-      case _AuthFlow.forgotPassword:
+      case AuthFlowStep.forgotPassword:
         return 'Digite seu e-mail e enviaremos um código para redefinir a senha.';
-      case _AuthFlow.verifyResetCode:
+      case AuthFlowStep.verifyResetCode:
         return 'Informe o código recebido para continuar a redefinição.';
-      case _AuthFlow.resetPassword:
+      case AuthFlowStep.resetPassword:
         return 'Crie uma nova senha para concluir o processo.';
     }
   }
 
-  String get _submitLabel {
-    if (_loading) return 'Aguarde...';
-    switch (_flow) {
-      case _AuthFlow.login:
+  String _submitLabel(AuthFlowState state) {
+    if (state.loading) return 'Aguarde...';
+    switch (state.step) {
+      case AuthFlowStep.login:
         return 'Entrar';
-      case _AuthFlow.register:
+      case AuthFlowStep.register:
         return 'Criar conta';
-      case _AuthFlow.verifyEmail:
+      case AuthFlowStep.verifyEmail:
         return 'Verificar código';
-      case _AuthFlow.forgotPassword:
+      case AuthFlowStep.forgotPassword:
         return 'Enviar código';
-      case _AuthFlow.verifyResetCode:
+      case AuthFlowStep.verifyResetCode:
         return 'Validar código';
-      case _AuthFlow.resetPassword:
+      case AuthFlowStep.resetPassword:
         return 'Salvar nova senha';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                24,
-                16,
-                24,
-                24 + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: ConstrainedBox(
-                constraints:
-                    BoxConstraints(minHeight: constraints.maxHeight - 40),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 12),
-                    _buildHeader(),
-                    const SizedBox(height: 28),
-                    Text(
-                      _title,
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.muted,
+    return AnimatedBuilder(
+      animation: _authFlowController,
+      builder: (context, _) {
+        final state = _authFlowController.state;
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    16,
+                    24,
+                    24 + MediaQuery.of(context).viewInsets.bottom,
+                  ),
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight - 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 12),
+                        _buildHeader(state),
+                        const SizedBox(height: 28),
+                        Text(
+                          _title,
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _subtitle,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.muted,
+                                  ),
+                        ),
+                        const SizedBox(height: 24),
+                        if (state.notice != null) ...[
+                          _InlineMessage(
+                            text: state.notice!,
+                            color: AppColors.primary,
+                            background: AppColors.primarySoft,
                           ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (state.error != null) ...[
+                          _InlineMessage(
+                            text: state.error!,
+                            color: AppColors.danger,
+                            background: const Color(0xFFFFECEC),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        _buildForm(state),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: state.loading ? null : _submit,
+                          child: Text(_submitLabel(state)),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFooter(state),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                    if (_notice != null) ...[
-                      _InlineMessage(
-                        text: _notice!,
-                        color: AppColors.primary,
-                        background: AppColors.primarySoft,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (_error != null) ...[
-                      _InlineMessage(
-                        text: _error!,
-                        color: AppColors.danger,
-                        background: const Color(0xFFFFECEC),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    _buildForm(),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _loading ? null : _submit,
-                      child: Text(_submitLabel),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildFooter(),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildHeader() {
-    switch (_flow) {
-      case _AuthFlow.verifyEmail:
-      case _AuthFlow.forgotPassword:
-      case _AuthFlow.verifyResetCode:
-      case _AuthFlow.resetPassword:
+  Widget _buildHeader(AuthFlowState state) {
+    switch (state.step) {
+      case AuthFlowStep.verifyEmail:
+      case AuthFlowStep.forgotPassword:
+      case AuthFlowStep.verifyResetCode:
+      case AuthFlowStep.resetPassword:
         return Align(
           alignment: Alignment.centerLeft,
           child: Row(
             children: [
               IconButton(
-                onPressed: () => _switchTo(_AuthFlow.login),
+                onPressed: () => _switchTo(AuthFlowStep.login),
                 icon: const Icon(Icons.arrow_back_ios_new_rounded),
               ),
               const SizedBox(width: 4),
@@ -443,15 +254,15 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         );
-      case _AuthFlow.login:
-      case _AuthFlow.register:
+      case AuthFlowStep.login:
+      case AuthFlowStep.register:
         return Align(
           alignment: Alignment.centerLeft,
           child: Row(
             children: [
-              if (_flow != _AuthFlow.login)
+              if (state.step != AuthFlowStep.login)
                 IconButton(
-                  onPressed: () => _switchTo(_AuthFlow.login),
+                  onPressed: () => _switchTo(AuthFlowStep.login),
                   icon: const Icon(Icons.arrow_back_ios_new_rounded),
                 ),
               const SizedBox(width: 4),
@@ -462,9 +273,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Widget _buildForm() {
-    switch (_flow) {
-      case _AuthFlow.login:
+  Widget _buildForm(AuthFlowState state) {
+    switch (state.step) {
+      case AuthFlowStep.login:
         return Column(
           children: [
             _AppInput(
@@ -484,30 +295,25 @@ class _LoginScreenState extends State<LoginScreen> {
             Row(
               children: [
                 Checkbox(
-                  value: _rememberMe,
+                  value: state.rememberMe,
                   onChanged: (value) =>
-                      setState(() => _rememberMe = value ?? true),
+                      _authFlowController.setRememberMe(value ?? true),
                 ),
-                const Expanded(
-                  child: Text('Lembrar de mim'),
-                ),
+                const Expanded(child: Text('Lembrar de mim')),
                 TextButton(
-                  onPressed: _loading
+                  onPressed: state.loading
                       ? null
-                      : () => _switchTo(_AuthFlow.forgotPassword),
+                      : () => _switchTo(AuthFlowStep.forgotPassword),
                   child: const Text('Esqueci minha senha'),
                 ),
               ],
             ),
           ],
         );
-      case _AuthFlow.register:
+      case AuthFlowStep.register:
         return Column(
           children: [
-            _AppInput(
-              label: 'Nome completo',
-              controller: _name,
-            ),
+            _AppInput(label: 'Nome completo', controller: _name),
             const SizedBox(height: 12),
             _AppInput(
               label: 'E-mail',
@@ -536,9 +342,9 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Checkbox(
-                  value: _acceptTerms,
+                  value: state.acceptTerms,
                   onChanged: (value) =>
-                      setState(() => _acceptTerms = value ?? false),
+                      _authFlowController.setAcceptTerms(value ?? false),
                 ),
                 const Expanded(
                   child: Padding(
@@ -552,12 +358,12 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         );
-      case _AuthFlow.verifyEmail:
-      case _AuthFlow.verifyResetCode:
+      case AuthFlowStep.verifyEmail:
+      case AuthFlowStep.verifyResetCode:
         return Column(
           children: [
             _TopIllustration(
-              asset: _flow == _AuthFlow.verifyEmail
+              asset: state.step == AuthFlowStep.verifyEmail
                   ? AppAssets.authEmailVerify
                   : AppAssets.authCode,
             ),
@@ -572,22 +378,22 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: _resendSeconds > 0 ? null : _resendCode,
+              onPressed: state.resendSeconds > 0 ? null : _resendCode,
               child: Text(
-                _resendSeconds > 0
-                    ? 'Reenviar código (00:${_resendSeconds.toString().padLeft(2, '0')})'
+                state.resendSeconds > 0
+                    ? 'Reenviar código (00:${state.resendSeconds.toString().padLeft(2, '0')})'
                     : 'Reenviar código',
               ),
             ),
             const SizedBox(height: 8),
             _HintCard(
-              text: _flow == _AuthFlow.verifyEmail
+              text: state.step == AuthFlowStep.verifyEmail
                   ? 'Não recebeu o código? Verifique sua caixa de spam ou solicite um novo envio.'
                   : 'Se o código expirou, solicite um novo envio para continuar.',
             ),
           ],
         );
-      case _AuthFlow.forgotPassword:
+      case AuthFlowStep.forgotPassword:
         return Column(
           children: [
             const _TopIllustration(asset: AppAssets.authLock),
@@ -599,7 +405,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         );
-      case _AuthFlow.resetPassword:
+      case AuthFlowStep.resetPassword:
         return Column(
           children: [
             _PasswordInput(
@@ -615,7 +421,8 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _newPasswordConfirm,
               obscureText: _obscureNewPasswordConfirm,
               onToggle: () => setState(
-                () => _obscureNewPasswordConfirm = !_obscureNewPasswordConfirm,
+                () =>
+                    _obscureNewPasswordConfirm = !_obscureNewPasswordConfirm,
               ),
             ),
           ],
@@ -623,53 +430,54 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Widget _buildFooter() {
-    switch (_flow) {
-      case _AuthFlow.login:
+  Widget _buildFooter(AuthFlowState state) {
+    switch (state.step) {
+      case AuthFlowStep.login:
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text('Não tem uma conta?'),
             TextButton(
-              onPressed: _loading ? null : () => _switchTo(_AuthFlow.register),
+              onPressed:
+                  state.loading ? null : () => _switchTo(AuthFlowStep.register),
               child: const Text('Criar conta'),
             ),
           ],
         );
-      case _AuthFlow.register:
+      case AuthFlowStep.register:
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text('Já tem uma conta?'),
             TextButton(
-              onPressed: _loading ? null : () => _switchTo(_AuthFlow.login),
+              onPressed:
+                  state.loading ? null : () => _switchTo(AuthFlowStep.login),
               child: const Text('Entrar'),
             ),
           ],
         );
-      case _AuthFlow.verifyEmail:
+      case AuthFlowStep.verifyEmail:
+      case AuthFlowStep.forgotPassword:
         return TextButton(
-          onPressed: _loading ? null : () => _switchTo(_AuthFlow.login),
+          onPressed: state.loading ? null : () => _switchTo(AuthFlowStep.login),
           child: const Text('Voltar para o login'),
         );
-      case _AuthFlow.forgotPassword:
-        return TextButton(
-          onPressed: _loading ? null : () => _switchTo(_AuthFlow.login),
-          child: const Text('Voltar para o login'),
-        );
-      case _AuthFlow.verifyResetCode:
-      case _AuthFlow.resetPassword:
+      case AuthFlowStep.verifyResetCode:
+      case AuthFlowStep.resetPassword:
         return Wrap(
           alignment: WrapAlignment.center,
           spacing: 8,
           children: [
             TextButton(
-              onPressed:
-                  _loading ? null : () => _switchTo(_AuthFlow.forgotPassword),
+              onPressed: state.loading
+                  ? null
+                  : () => _switchTo(AuthFlowStep.forgotPassword),
               child: const Text('Alterar e-mail'),
             ),
             TextButton(
-              onPressed: _loading ? null : () => _switchTo(_AuthFlow.login),
+              onPressed: state.loading
+                  ? null
+                  : () => _switchTo(AuthFlowStep.login),
               child: const Text('Voltar para o login'),
             ),
           ],
@@ -694,10 +502,7 @@ class _TopIllustration extends StatelessWidget {
           color: AppColors.primarySoft,
           borderRadius: BorderRadius.circular(28),
         ),
-        child: SvgPicture.asset(
-          asset,
-          fit: BoxFit.contain,
-        ),
+        child: SvgPicture.asset(asset, fit: BoxFit.contain),
       ),
     );
   }

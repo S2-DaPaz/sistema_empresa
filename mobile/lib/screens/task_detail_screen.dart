@@ -11,19 +11,17 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/errors/app_exception.dart';
+import '../features/tasks/data/task_detail_repository.dart';
+import '../features/tasks/presentation/task_detail/report_autosave_scheduler.dart';
+import '../features/tasks/presentation/task_detail/task_photo_processor.dart';
 import '../services/auth_service.dart';
-import '../services/api_service.dart';
 import '../services/permissions.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
@@ -52,8 +50,14 @@ class TaskDetailScreen extends StatefulWidget {
 
 class _TaskDetailScreenState extends State<TaskDetailScreen>
     with TickerProviderStateMixin {
-  final ApiService _api = ApiService();
+  final TaskDetailRepository _repository = TaskDetailRepository();
+  final ReportAutosaveScheduler _reportAutosaveScheduler =
+      ReportAutosaveScheduler();
   final ImagePicker _picker = ImagePicker();
+  final TaskPhotoProcessor _photoProcessor = const TaskPhotoProcessor(
+    maxDimension: _maxPhotoDimension,
+    jpegQuality: _photoJpegQuality,
+  );
   late final TabController _tabController;
 
   bool _loading = true;
@@ -88,7 +92,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   List<Map<String, dynamic>> _reportPhotos = [];
   String _reportStatus = 'rascunho';
   String? _reportMessage;
-  Timer? _reportAutosaveTimer;
   bool _reportAutosaving = false;
   bool _reportDirty = false;
   int _reportAutosaveSeq = 0;
@@ -135,7 +138,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   @override
   void dispose() {
-    _reportAutosaveTimer?.cancel();
+    _reportAutosaveScheduler.dispose();
     _tabController.dispose();
     _title.dispose();
     _description.dispose();
@@ -161,31 +164,19 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       _error = null;
     });
     try {
-      final results = await Future.wait([
-        _api.get('/clients'),
-        AuthService.instance.hasPermission(Permissions.viewUsers)
-            ? _api.get('/users')
-            : Future.value(<dynamic>[]),
-        _api.get('/task-types'),
-        _api.get('/report-templates'),
-        _api.get('/products'),
-        if (_taskId != null) _api.get('/tasks/$_taskId'),
-      ]);
+      final bootstrap = await _repository.loadBootstrap(
+        taskId: _taskId,
+        includeUsers: AuthService.instance.hasPermission(Permissions.viewUsers),
+      );
 
-      _clients =
-          ((results[0] as List?) ?? const []).cast<Map<String, dynamic>>();
-      _users = ((results[1] as List?) ?? const []).cast<Map<String, dynamic>>();
-      _types = ((results[2] as List?) ?? const []).cast<Map<String, dynamic>>();
-      _templates =
-          ((results[3] as List?) ?? const []).cast<Map<String, dynamic>>();
-      _products =
-          ((results[4] as List?) ?? const []).cast<Map<String, dynamic>>();
+      _clients = bootstrap.clients;
+      _users = bootstrap.users;
+      _types = bootstrap.types;
+      _templates = bootstrap.templates;
+      _products = bootstrap.products;
 
-      if (_taskId != null) {
-        const taskIndex = 5;
-        final task = Map<String, dynamic>.from(
-          results[taskIndex] as Map? ?? const {},
-        );
+      if (_taskId != null && bootstrap.task != null) {
+        final task = bootstrap.task!;
         _title.text = task['title']?.toString() ?? '';
         _description.text = task['description']?.toString() ?? '';
         _clientId = task['client_id'] as int?;
@@ -193,8 +184,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         _taskTypeId = task['task_type_id'] as int?;
         _status = task['status']?.toString() ?? 'aberta';
         _priority = task['priority']?.toString() ?? 'media';
-        _startDate.text = formatDateInput(task['start_date']?.toString());
-        _dueDate.text = formatDateInput(task['due_date']?.toString());
+        _startDate.text = formatarEntradaData(task['start_date']?.toString());
+        _dueDate.text = formatarEntradaData(task['due_date']?.toString());
         _signatureMode = task['signature_mode']?.toString() ?? 'none';
         _signatureScope = task['signature_scope']?.toString() ?? 'last_page';
         _signatureClient = task['signature_client']?.toString() ?? '';
@@ -242,10 +233,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       _equipmentsError = null;
     });
     try {
-      final data =
-          await _api.get('/equipments?clientId=$_clientId') as List<dynamic>;
+      final data = await _repository.loadClientEquipments(_clientId!);
       _setStateIfMounted(() {
-        _equipments = data.cast<Map<String, dynamic>>();
+        _equipments = data;
         if (_reportEquipmentId != null &&
             !_equipments.any((item) => item['id'] == _reportEquipmentId)) {
           _reportEquipmentId = null;
@@ -260,8 +250,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   Future<void> _loadReports(int? taskTypeId, {int? preferredReportId}) async {
     if (_taskId == null) return;
-    final data = await _api.get('/reports?taskId=$_taskId') as List<dynamic>;
-    final nextReports = data.cast<Map<String, dynamic>>();
+    final nextReports = await _repository.loadReports(_taskId!);
     final preservedReport = nextReports.firstWhere(
       (item) => item['id'] == (preferredReportId ?? _activeReportId),
       orElse: () => <String, dynamic>{},
@@ -292,24 +281,22 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   Future<void> _loadBudgets(List<Map<String, dynamic>> reportList) async {
     if (_taskId == null) return;
-    final byTaskRaw = await _api.get('/budgets?taskId=$_taskId');
-    final byTask = byTaskRaw is List ? byTaskRaw : <dynamic>[];
+    final byTask = await _repository.loadBudgetsByTask(_taskId!);
     final reportIds =
         reportList.map((report) => report['id']).whereType<int>().toList();
     final byReports = await Future.wait(
-      reportIds.map((id) => _api.get('/budgets?reportId=$id')),
+      reportIds.map((id) => _repository.loadBudgetsByReport(id)),
     );
 
     final merged = <int, Map<String, dynamic>>{};
     for (final item in byTask) {
-      if (item is Map<String, dynamic> && item['id'] != null) {
+      if (item['id'] != null) {
         merged[item['id'] as int] = item;
       }
     }
     for (final list in byReports) {
-      if (list is! List) continue;
       for (final item in list) {
-        if (item is Map<String, dynamic> && item['id'] != null) {
+        if (item['id'] != null) {
           merged[item['id'] as int] = item;
         }
       }
@@ -322,10 +309,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     Map<String, dynamic> initialBudget = budget;
     if (budget['id'] != null && budget['items'] == null) {
       try {
-        final detail = await _api.get('/budgets/${budget['id']}');
-        if (detail is Map<String, dynamic>) {
-          initialBudget = Map<String, dynamic>.from(detail);
-        }
+        initialBudget = await _repository.loadBudgetDetail(budget['id'] as int);
       } catch (_) {
         _showMessage('Não foi possível carregar os itens deste orçamento.');
       }
@@ -396,7 +380,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     );
     if (confirmed != true) return;
     try {
-      await _api.delete('/budgets/$id');
+      await _repository.deleteBudget(id);
       await _loadBudgets(_reports);
       _openReportTab();
     } catch (error) {
@@ -431,8 +415,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     _reportStatus = report['status']?.toString() ?? 'rascunho';
     _reportEquipmentId = report['equipment_id'] as int?;
     _reportDirty = false;
-    _reportAutosaveTimer?.cancel();
-    _reportAutosaveTimer = null;
+    _reportAutosaveScheduler.cancel();
   }
 
   Map<String, dynamic>? get _activeReport {
@@ -466,8 +449,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       'task_type_id': _taskTypeId,
       'status': _status,
       'priority': _priority,
-      'start_date': parseDateBrToIso(_startDate.text),
-      'due_date': parseDateBrToIso(_dueDate.text),
+      'start_date': converterDataBrParaIso(_startDate.text),
+      'due_date': converterDataBrParaIso(_dueDate.text),
       'signature_mode': _signatureMode,
       'signature_scope': _signatureScope,
       'signature_client': _signatureClient.isEmpty ? null : _signatureClient,
@@ -479,15 +462,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
     try {
       if (_taskId == null) {
-        final saved =
-            await _api.post('/tasks', payload) as Map<String, dynamic>;
+        final saved = await _repository.createTask(payload);
         if (!mounted) return;
         setState(() {
           _taskId = saved['id'] as int?;
         });
         _openReportTab();
       } else {
-        await _api.put('/tasks/$_taskId', payload);
+        await _repository.updateTask(_taskId!, payload);
         _openReportTab();
       }
     } catch (error) {
@@ -535,7 +517,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         if (fieldId == null || fieldId.isEmpty) continue;
         final raw = normalized[fieldId];
         if (raw == null || raw.toString().isEmpty) continue;
-        normalized[fieldId] = parseDateBrToIso(raw.toString());
+        normalized[fieldId] = converterDataBrParaIso(raw.toString());
       }
     }
     return normalized;
@@ -570,7 +552,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     };
 
     try {
-      await _api.put('/reports/$_activeReportId', payload);
+      await _repository.updateReport(_activeReportId!, payload);
       _reportDirty = false;
       if (silent && skipReload) {
         return;
@@ -590,12 +572,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   void _markReportDirty({Duration delay = const Duration(milliseconds: 1500)}) {
     _reportDirty = true;
-    _reportAutosaveTimer?.cancel();
     if (_activeReportId == null) return;
-    final seq = ++_reportAutosaveSeq;
-    _reportAutosaveTimer = Timer(delay, () {
-      _runReportAutosave(seq);
-    });
+    _reportAutosaveSeq = _reportAutosaveScheduler.schedule(
+      delay: delay,
+      onFire: _runReportAutosave,
+    );
   }
 
   Future<void> _runReportAutosave(int seq) async {
@@ -619,7 +600,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   Future<void> _flushReportAutosave() async {
     if (_activeReportId == null || !_reportDirty) return;
-    _reportAutosaveTimer?.cancel();
+    _reportAutosaveScheduler.cancel();
     await _runReportAutosave(_reportAutosaveSeq);
   }
 
@@ -640,8 +621,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   Future<void> _updateReportEquipment(int? equipmentId) async {
     if (_activeReportId == null) return;
     try {
-      await _api
-          .put('/reports/$_activeReportId', {'equipment_id': equipmentId});
+      await _repository.updateReportEquipment(_activeReportId!, equipmentId);
       final equipmentName = _equipments
           .firstWhere(
             (item) => item['id'] == equipmentId,
@@ -701,8 +681,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     };
 
     try {
-      final created =
-          await _api.post('/reports', payload) as Map<String, dynamic>;
+      final created = await _repository.createReport(payload);
       await _loadReports(_taskTypeId);
       _setStateIfMounted(() {
         _activeReportId = created['id'] as int?;
@@ -731,7 +710,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       ),
     );
     if (confirmed != true) return;
-    await _api.delete('/reports/$_activeReportId');
+    await _repository.deleteReport(_activeReportId!);
     await _loadReports(_taskTypeId);
     await _loadBudgets(_reports);
   }
@@ -782,51 +761,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   }
 
   Future<void> _appendPhotos(List<XFile> files) async {
-    final newPhotos = <Map<String, dynamic>>[];
-    for (final file in files) {
-      final bytes = await File(file.path).readAsBytes();
-      final optimizedBytes = _optimizeImageBytes(bytes);
-      final dataUrl = 'data:image/jpeg;base64,${base64Encode(optimizedBytes)}';
-      newPhotos.add({
-        'id': DateTime.now().microsecondsSinceEpoch.toString(),
-        'name': _asJpegName(path.basename(file.path)),
-        'dataUrl': dataUrl,
-      });
-    }
+    final newPhotos = await _photoProcessor.buildDrafts(files);
     if (!mounted) return;
-    setState(() => _reportPhotos = [..._reportPhotos, ...newPhotos]);
+    setState(
+      () => _reportPhotos = [
+        ..._reportPhotos,
+        ...newPhotos.map((photo) => photo.toMap()),
+      ],
+    );
     _markReportDirty();
-  }
-
-  String _asJpegName(String original) {
-    final ext = path.extension(original);
-    if (ext.isEmpty) return '$original.jpg';
-    return original.replaceRange(
-        original.length - ext.length, original.length, '.jpg');
-  }
-
-  Uint8List _optimizeImageBytes(Uint8List bytes) {
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) return bytes;
-
-    final maxDimension =
-        decoded.width > decoded.height ? decoded.width : decoded.height;
-    img.Image processed = decoded;
-
-    if (maxDimension > _maxPhotoDimension) {
-      final scale = _maxPhotoDimension / maxDimension;
-      final targetWidth = (decoded.width * scale).round();
-      final targetHeight = (decoded.height * scale).round();
-      processed = img.copyResize(
-        decoded,
-        width: targetWidth,
-        height: targetHeight,
-        interpolation: img.Interpolation.linear,
-      );
-    }
-
-    final encoded = img.encodeJpg(processed, quality: _photoJpegQuality);
-    return Uint8List.fromList(encoded);
   }
 
   void _removePhoto(String photoId) {
@@ -839,10 +782,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     if (_taskId == null) return null;
     await _flushReportAutosave();
     if (!mounted) return null;
-    final response = await _api.post('/tasks/$_taskId/public-link', {});
-    final url = response is Map<String, dynamic>
-        ? response['url']?.toString() ?? ''
-        : '';
+    final url = await _repository.createTaskPublicLink(_taskId!);
     if (url.isEmpty) {
       throw AppException(
         message: 'Não foi possível gerar o link público agora.',
@@ -894,20 +834,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       message:
           'Confirme o e-mail do destinatário para enviar um link seguro do relatório.',
       confirmLabel: 'Enviar relatório',
-      initialEmail: extractEmail(client['contact']?.toString()),
+      initialEmail: extrairEmail(client['contact']?.toString()),
     );
     if (email == null || email.isEmpty) return;
     try {
-      final response = await _api.post('/tasks/$_taskId/email-link', {
-        'email': email,
-        'reportId': _activeReportId,
-      });
-      if (!mounted) return;
-      final message =
-          response is Map<String, dynamic> && response['message'] != null
-              ? response['message'].toString()
-              : 'Relatório enviado por e-mail com sucesso.';
-      _showMessage(message);
+      final message = await _repository.sendReportEmailLink(
+        taskId: _taskId!,
+        email: email,
+        reportId: _activeReportId,
+      );
+      if (mounted) {
+        _showMessage(message);
+      }
     } catch (error) {
       _showMessage(error.toString());
     }
@@ -929,7 +867,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       initialDate: now,
     );
     if (selected == null) return;
-    controller.text = formatDateFromDate(selected);
+    controller.text = formatarDataDeDate(selected);
     setState(() {});
   }
 

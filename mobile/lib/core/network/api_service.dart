@@ -6,6 +6,7 @@ import '../auth/auth_service.dart';
 import '../errors/app_exception.dart';
 import '../errors/error_mapper.dart';
 import '../errors/error_reporter.dart';
+import 'json_utils.dart';
 import 'request_executor.dart';
 
 class ApiService {
@@ -13,7 +14,7 @@ class ApiService {
 
   final http.Client _client;
 
-  bool _shouldAttemptRefresh(String path) {
+  bool _deveRenovarSessao(String path) {
     if (!AuthService.instance.canRefreshSession) return false;
     if (path == '/auth/refresh') return false;
     if (path == '/auth/login' || path == '/auth/register') return false;
@@ -23,7 +24,7 @@ class ApiService {
     return true;
   }
 
-  Map<String, String> _headers({bool json = true}) {
+  Map<String, String> _cabecalhos({bool json = true}) {
     final headers = <String, String>{
       'X-Client-Platform': 'mobile',
     };
@@ -41,19 +42,19 @@ class ApiService {
   }
 
   Future<dynamic> get(String path) async {
-    final response = await _send(
+    final response = await _enviar(
       path,
-      (uri) => _client.get(uri, headers: _headers(json: false)),
+      (uri) => _client.get(uri, headers: _cabecalhos(json: false)),
     );
-    return _handleResponse(response, path: path, method: 'GET');
+    return _processarResposta(response, path: path, method: 'GET');
   }
 
   Future<Map<String, dynamic>> getEnvelope(String path) async {
-    final response = await _send(
+    final response = await _enviar(
       path,
-      (uri) => _client.get(uri, headers: _headers(json: false)),
+      (uri) => _client.get(uri, headers: _cabecalhos(json: false)),
     );
-    return _decodeEnvelope(
+    return _decodificarEnvelope(
       response,
       path: path,
       method: 'GET',
@@ -61,15 +62,15 @@ class ApiService {
   }
 
   Future<dynamic> post(String path, Map<String, dynamic> body) async {
-    final response = await _send(
+    final response = await _enviar(
       path,
       (uri) => _client.post(
         uri,
-        headers: _headers(),
+        headers: _cabecalhos(),
         body: jsonEncode(body),
       ),
     );
-    return _handleResponse(
+    return _processarResposta(
       response,
       path: path,
       method: 'POST',
@@ -78,15 +79,15 @@ class ApiService {
   }
 
   Future<dynamic> put(String path, Map<String, dynamic> body) async {
-    final response = await _send(
+    final response = await _enviar(
       path,
       (uri) => _client.put(
         uri,
-        headers: _headers(),
+        headers: _cabecalhos(),
         body: jsonEncode(body),
       ),
     );
-    return _handleResponse(
+    return _processarResposta(
       response,
       path: path,
       method: 'PUT',
@@ -95,17 +96,17 @@ class ApiService {
   }
 
   Future<dynamic> delete(String path) async {
-    final response = await _send(
+    final response = await _enviar(
       path,
-      (uri) => _client.delete(uri, headers: _headers(json: false)),
+      (uri) => _client.delete(uri, headers: _cabecalhos(json: false)),
     );
-    return _handleResponse(response, path: path, method: 'DELETE');
+    return _processarResposta(response, path: path, method: 'DELETE');
   }
 
   Future<List<int>> getBytes(String path) async {
-    final response = await _send(
+    final response = await _enviar(
       path,
-      (uri) => _client.get(uri, headers: _headers(json: false)),
+      (uri) => _client.get(uri, headers: _cabecalhos(json: false)),
     );
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -115,30 +116,30 @@ class ApiService {
           'Invalid PDF response',
           fallbackMessage: 'Não foi possível abrir o PDF no momento.',
         );
-        await _report(error, path: path, method: 'GET');
+        await _reportar(error, path: path, method: 'GET');
         throw error;
       }
       return response.bodyBytes;
     }
 
-    final payload = _tryDecode(response.body);
+    final payload = tryDecodeJsonMap(response.body);
     final error = normalizeApiError(
       payload: payload,
       statusCode: response.statusCode,
       technicalMessage: payload?['error']?.toString() ?? response.body,
       fallbackMessage: 'Não foi possível abrir o PDF no momento.',
     );
-    await _report(error, path: path, method: 'GET');
+    await _reportar(error, path: path, method: 'GET');
     throw error;
   }
 
-  Future<http.Response> _send(
+  Future<http.Response> _enviar(
     String path,
     Future<http.Response> Function(Uri uri) request,
   ) async {
     try {
       final response = await RequestExecutor.send(path, request);
-      if (response.statusCode == 401 && _shouldAttemptRefresh(path)) {
+      if (response.statusCode == 401 && _deveRenovarSessao(path)) {
         final refreshed = await AuthService.instance.tryRefreshSession();
         if (refreshed) {
           return RequestExecutor.send(path, request);
@@ -151,19 +152,19 @@ class ApiService {
         timedOut: error.timedOut,
         technicalMessage: error.technicalMessage,
       );
-      await _report(normalized, path: path, method: 'REQUEST');
+      await _reportar(normalized, path: path, method: 'REQUEST');
       throw normalized;
     } on http.ClientException catch (error) {
       final normalized = normalizeNetworkError(
         error,
         technicalMessage: error.message,
       );
-      await _report(normalized, path: path, method: 'REQUEST');
+      await _reportar(normalized, path: path, method: 'REQUEST');
       throw normalized;
     }
   }
 
-  Future<dynamic> _handleResponse(
+  Future<dynamic> _processarResposta(
     http.Response response, {
     required String path,
     required String method,
@@ -173,7 +174,7 @@ class ApiService {
       return null;
     }
 
-    final envelope = await _decodeEnvelope(
+    final envelope = await _decodificarEnvelope(
       response,
       path: path,
       method: method,
@@ -187,13 +188,13 @@ class ApiService {
     return envelope;
   }
 
-  Future<Map<String, dynamic>> _decodeEnvelope(
+  Future<Map<String, dynamic>> _decodificarEnvelope(
     http.Response response, {
     required String path,
     required String method,
     Object? payloadSummary,
   }) async {
-    final payload = _tryDecode(response.body);
+    final payload = tryDecodeJsonMap(response.body);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (payload == null) {
@@ -201,7 +202,7 @@ class ApiService {
           'Invalid response body',
           fallbackMessage: 'Não foi possível processar a resposta do servidor.',
         );
-        await _report(
+        await _reportar(
           error,
           path: path,
           method: method,
@@ -218,7 +219,7 @@ class ApiService {
       statusCode: response.statusCode,
       technicalMessage: payload?['error']?.toString() ?? response.body,
     );
-    await _report(
+    await _reportar(
       error,
       path: path,
       method: method,
@@ -227,20 +228,7 @@ class ApiService {
     throw error;
   }
 
-  Map<String, dynamic>? _tryDecode(String body) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-      if (decoded is Map) {
-        return Map<String, dynamic>.from(decoded);
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<void> _report(
+  Future<void> _reportar(
     AppException error, {
     required String path,
     required String method,
