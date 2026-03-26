@@ -41,6 +41,25 @@ Isso eliminou a mistura anterior de payloads crus, strings de erro avulsas e con
 - `npm test --prefix server`
 - `node server/index.js`
 
+## Health check operacional
+
+- endpoint: `GET /api/health`
+- contrato atual: `{ data: { ok: true, service: "api", timestamp: "ISO-8601" } }`
+- uso previsto: monitoramento externo no Better Stack e keep-alive do Render Free
+- o endpoint e publico, nao exige autenticacao e deve permanecer leve
+- ele nao deve depender de banco, e-mail, storage, filas ou outras integracoes externas
+
+Exemplo:
+
+```bash
+curl -i https://SEU-HOST/api/health
+```
+
+Observacao operacional:
+
+- a rota e registrada antes do parsing JSON e do request tracking para responder com o menor custo possivel
+- isso evita trabalho desnecessario em sondas frequentes de monitoramento
+
 ## Proximos cortes recomendados
 
 - extrair `server/db.js` em adapters/repositorios menores com migracoes formais

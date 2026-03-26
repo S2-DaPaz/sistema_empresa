@@ -56,3 +56,32 @@ test("buildErrorResponse hides unexpected technical messages from the client pay
   );
   assert.equal(response.payload.error.requestId, "req-500");
 });
+
+test("createRequestTrackingMiddleware skips lightweight health checks", async () => {
+  const service = createService();
+  const middleware = service.createRequestTrackingMiddleware({});
+  const events = [];
+  const headers = [];
+  const req = {
+    path: "/api/health",
+    originalUrl: "/api/health"
+  };
+  const res = {
+    setHeader(name, value) {
+      headers.push([name, value]);
+    },
+    on(event, handler) {
+      events.push([event, handler]);
+    }
+  };
+
+  let nextCalled = false;
+  await middleware(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, true);
+  assert.equal(req.requestId, undefined);
+  assert.deepEqual(headers, []);
+  assert.deepEqual(events, []);
+});

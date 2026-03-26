@@ -638,6 +638,11 @@ function createMonitoringService({ env, logger }) {
 
   function createRequestTrackingMiddleware(db) {
     return (req, res, next) => {
+      const requestPath = String(req.path || req.originalUrl || "").split("?")[0];
+      if (requestPath === "/api/health") {
+        return next();
+      }
+
       req.requestId = createRequestId();
       res.setHeader("X-Request-Id", req.requestId);
 

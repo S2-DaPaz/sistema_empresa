@@ -41,12 +41,20 @@ function createApp({ db, env, logger, publicService, monitoringService, emailSer
   const backupsService = createBackupsService({ logger });
 
   app.use(cors(createCorsOptions(env)));
+
+  // O health check fica antes de parsing/tracking para servir como keep-alive
+  // e monitor externo com o menor custo possivel.
+  app.get("/api/health", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    return send(res, {
+      ok: true,
+      service: "api",
+      timestamp: new Date().toISOString()
+    });
+  });
+
   app.use(express.json({ limit: "10mb" }));
   app.use(monitoringService.createRequestTrackingMiddleware(db));
-
-  app.get("/api/health", (req, res) => {
-    send(res, { ok: true });
-  });
 
   app.get("/api/app/mobile-update", (req, res) => {
     if (!env.mobileUpdate.apkUrl || !env.mobileUpdate.versionCode) {
