@@ -17,14 +17,14 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  bool _loading = true;
+  bool _carregando = true;
 
   @override
   void initState() {
     super.initState();
     AuthService.instance.restore().whenComplete(() {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() => _carregando = false);
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -35,7 +35,7 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    if (_carregando) {
       return const _SplashGate();
     }
 
@@ -56,31 +56,43 @@ class _SplashGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.primary, AppColors.primaryDark],
-          ),
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? AppGradients.darkHero
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.primary, AppColors.primaryDark],
+                ),
         ),
         child: Stack(
           children: [
-            const Positioned(
+            Positioned(
               top: -140,
               right: -60,
-              child: _Shape(size: 240, opacity: 0.08),
+              child: _Shape(
+                size: 240,
+                color: isDark ? AppDarkColors.glowPrimary : Colors.white,
+                opacity: isDark ? 0.38 : 0.08,
+              ),
             ),
-            const Positioned(
+            Positioned(
               bottom: -120,
               left: -40,
-              child: _Shape(size: 220, opacity: 0.07),
+              child: _Shape(
+                size: 220,
+                color: isDark ? const Color(0x1AF4A640) : Colors.white,
+                opacity: isDark ? 0.28 : 0.07,
+              ),
             ),
             Positioned.fill(
               child: IgnorePointer(
                 child: Opacity(
-                  opacity: 0.2,
+                  opacity: isDark ? 0.08 : 0.2,
                   child: SvgPicture.asset(
                     AppAssets.splashBackground,
                     fit: BoxFit.cover,
@@ -140,10 +152,12 @@ class _SplashGate extends StatelessWidget {
 class _Shape extends StatelessWidget {
   const _Shape({
     required this.size,
+    required this.color,
     required this.opacity,
   });
 
   final double size;
+  final Color color;
   final double opacity;
 
   @override
@@ -152,8 +166,13 @@ class _Shape extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: opacity),
         borderRadius: BorderRadius.circular(52),
+        gradient: RadialGradient(
+          colors: [
+            color.withValues(alpha: opacity),
+            color.withValues(alpha: 0),
+          ],
+        ),
       ),
     );
   }

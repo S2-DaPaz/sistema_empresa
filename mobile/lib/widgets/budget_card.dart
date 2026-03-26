@@ -75,7 +75,7 @@ class BudgetCard extends StatelessWidget {
                   Text(
                     amountLabel,
                     style: theme.textTheme.titleMedium?.copyWith(
-                      color: AppColors.ink,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                 ],

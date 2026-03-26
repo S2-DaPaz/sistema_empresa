@@ -62,24 +62,41 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       extendBody: true,
       backgroundColor: Colors.transparent,
       body: IndexedStack(index: _index, children: _screens),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openQuickCreate,
-        child: const Icon(Icons.add_rounded),
+      floatingActionButton: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: isDark ? AppGradients.darkPrimaryAction : null,
+          shape: BoxShape.circle,
+          boxShadow: isDark ? AppShadows.darkCard : AppShadows.card,
+        ),
+        child: FloatingActionButton(
+          onPressed: _openQuickCreate,
+          backgroundColor: isDark ? Colors.transparent : null,
+          foregroundColor:
+              isDark ? AppDarkColors.backgroundBase : theme.colorScheme.onPrimary,
+          elevation: 0,
+          child: const Icon(Icons.add_rounded),
+        ),
       ),
       bottomNavigationBar: SafeArea(
         top: false,
         minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
+            color: theme.colorScheme.surface.withValues(alpha: isDark ? 0.92 : 1),
+            gradient: isDark ? AppGradients.darkNavigation : null,
             borderRadius: BorderRadius.circular(30),
-            boxShadow: AppShadows.card,
+            border: Border.all(
+              color: theme.colorScheme.outline
+                  .withValues(alpha: isDark ? 0.92 : 0.5),
+            ),
+            boxShadow: isDark ? AppShadows.darkCard : AppShadows.card,
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -141,15 +158,31 @@ class _ShellDestination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color =
-        selected ? theme.colorScheme.primary : theme.textTheme.bodySmall?.color;
+    final isDark = theme.brightness == Brightness.dark;
+    final color = selected
+        ? theme.colorScheme.primary
+        : theme.textTheme.bodySmall?.color;
 
     return Expanded(
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.colorScheme.primary.withValues(alpha: isDark ? 0.16 : 0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected && isDark
+                  ? theme.colorScheme.primary.withValues(alpha: 0.24)
+                  : Colors.transparent,
+            ),
+            boxShadow: selected && isDark ? AppShadows.darkGlow : const [],
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

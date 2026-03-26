@@ -18,15 +18,24 @@ class ProfileHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryDark],
-        ),
+        gradient: isDark
+            ? AppGradients.darkHero
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.primary, AppColors.primaryDark],
+              ),
         borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: isDark
+              ? AppDarkColors.primary.withValues(alpha: 0.18)
+              : Colors.transparent,
+        ),
+        boxShadow: isDark ? AppShadows.darkCard : const [],
       ),
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -36,7 +45,9 @@ class ProfileHeroCard extends StatelessWidget {
             children: [
               AvatarInitials(
                 name: name,
-                backgroundColor: const Color(0x26FFFFFF),
+                backgroundColor: isDark
+                    ? AppDarkColors.primary.withValues(alpha: 0.16)
+                    : const Color(0x26FFFFFF),
                 foregroundColor: Colors.white,
               ),
               const SizedBox(width: AppSpacing.md),

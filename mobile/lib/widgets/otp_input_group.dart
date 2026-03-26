@@ -20,21 +20,21 @@ class OtpInputGroup extends StatefulWidget {
 }
 
 class _OtpInputGroupState extends State<OtpInputGroup> {
-  late final TextEditingController _controller;
-  late final FocusNode _focusNode;
+  late final TextEditingController _controlador;
+  late final FocusNode _noFoco;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.value);
-    _focusNode = FocusNode();
+    _controlador = TextEditingController(text: widget.value);
+    _noFoco = FocusNode();
   }
 
   @override
   void didUpdateWidget(covariant OtpInputGroup oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.value != _controller.text) {
-      _controller.value = TextEditingValue(
+    if (widget.value != _controlador.text) {
+      _controlador.value = TextEditingValue(
         text: widget.value,
         selection: TextSelection.collapsed(offset: widget.value.length),
       );
@@ -43,8 +43,8 @@ class _OtpInputGroupState extends State<OtpInputGroup> {
 
   @override
   void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
+    _controlador.dispose();
+    _noFoco.dispose();
     super.dispose();
   }
 
@@ -52,9 +52,10 @@ class _OtpInputGroupState extends State<OtpInputGroup> {
   Widget build(BuildContext context) {
     final digits = widget.value.padRight(widget.length).split('');
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return GestureDetector(
-      onTap: _focusNode.requestFocus,
+      onTap: _noFoco.requestFocus,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -64,18 +65,25 @@ class _OtpInputGroupState extends State<OtpInputGroup> {
               final char = digits[index].trim();
               final hasValue = char.isNotEmpty;
               return Container(
-                width: 44,
-                height: 56,
+                width: 46,
+                height: 58,
                 decoration: BoxDecoration(
                   color: hasValue
-                      ? theme.colorScheme.primary.withValues(alpha: 0.08)
-                      : theme.colorScheme.surface,
+                      ? theme.colorScheme.primary.withValues(
+                          alpha: isDark ? 0.16 : 0.08,
+                        )
+                      : (isDark
+                          ? AppDarkColors.surface2.withValues(alpha: 0.9)
+                          : theme.colorScheme.surface),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   border: Border.all(
                     color: hasValue
                         ? theme.colorScheme.primary
-                        : theme.colorScheme.outline,
+                        : theme.colorScheme.outline.withValues(
+                            alpha: isDark ? 0.82 : 1,
+                          ),
                   ),
+                  boxShadow: hasValue && isDark ? AppShadows.darkGlow : const [],
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -88,8 +96,8 @@ class _OtpInputGroupState extends State<OtpInputGroup> {
           Opacity(
             opacity: 0.02,
             child: TextField(
-              controller: _controller,
-              focusNode: _focusNode,
+              controller: _controlador,
+              focusNode: _noFoco,
               keyboardType: TextInputType.number,
               autofillHints: const [AutofillHints.oneTimeCode],
               inputFormatters: [

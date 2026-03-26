@@ -88,7 +88,7 @@ class TaskCard extends StatelessWidget {
                     Text(
                       codeLabel,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.muted,
+                        color: theme.textTheme.bodySmall?.color,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

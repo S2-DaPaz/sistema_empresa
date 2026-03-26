@@ -34,8 +34,11 @@ class AvatarInitials extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = backgroundColor ?? AppColors.primarySoft;
-    final fg = foregroundColor ?? AppColors.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = backgroundColor ??
+        (isDark ? AppDarkColors.surface3 : AppColors.primarySoft);
+    final fg =
+        foregroundColor ?? (isDark ? AppDarkColors.primarySoft : AppColors.primary);
 
     return Container(
       width: size,

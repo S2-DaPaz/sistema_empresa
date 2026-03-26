@@ -24,6 +24,7 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Card(
       child: Padding(
@@ -37,9 +38,15 @@ class EmptyState extends StatelessWidget {
                 height: 96,
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest
-                      .withValues(alpha: 0.34),
+                  color: isDark
+                      ? AppDarkColors.surface2.withValues(alpha: 0.84)
+                      : theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.34),
                   borderRadius: BorderRadius.circular(AppRadius.lg),
+                  border: Border.all(
+                    color: theme.colorScheme.outline
+                        .withValues(alpha: isDark ? 0.72 : 0),
+                  ),
                 ),
                 child: SvgPicture.asset(
                   illustrationAsset!,
@@ -51,7 +58,8 @@ class EmptyState extends StatelessWidget {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  color: theme.colorScheme.primary
+                      .withValues(alpha: isDark ? 0.16 : 0.1),
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,

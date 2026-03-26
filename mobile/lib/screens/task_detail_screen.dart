@@ -23,6 +23,7 @@ import '../features/tasks/presentation/task_detail/report_autosave_scheduler.dar
 import '../features/tasks/presentation/task_detail/task_photo_processor.dart';
 import '../services/auth_service.dart';
 import '../services/permissions.dart';
+import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_scaffold.dart';
@@ -913,13 +914,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: Theme.of(context).brightness == Brightness.dark
-                ? const [Color(0xFF0F1B2A), Color(0xFF0B1320)]
-                : const [Color(0xFFF6FAFD), Color(0xFFEAF2F8)],
-          ),
+          gradient: Theme.of(context).brightness == Brightness.dark
+              ? AppGradients.darkScaffold
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFF6FAFD), Color(0xFFEAF2F8)],
+                ),
         ),
         child: TabBarView(
           controller: _tabController,

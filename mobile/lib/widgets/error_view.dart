@@ -26,14 +26,14 @@ class ErrorView extends StatelessWidget {
               Container(
                 width: 56,
                 height: 56,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFECEC),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.error_outline_rounded,
-                  color: AppColors.danger,
+                  color: theme.colorScheme.error,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
