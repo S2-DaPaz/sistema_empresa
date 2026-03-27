@@ -1,6 +1,6 @@
 import 'app_exception.dart';
 
-const Map<String, String> _categoryMessages = {
+const Map<String, String> _mensagensPorCategoria = {
   'connection_error':
       'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
   'server_error': 'Algo deu errado. Tente novamente em instantes.',
@@ -13,17 +13,17 @@ const Map<String, String> _categoryMessages = {
   'unexpected_error': 'Não foi possível concluir a operação no momento.',
 };
 
-final RegExp _technicalPattern = RegExp(
+final RegExp _padraoTecnico = RegExp(
   r'(socketexception|network ?error|econn|internal server error|failed to fetch|typeerror|clientexception|timeout|timed out|unhandled exception|dioexception)',
   caseSensitive: false,
 );
 
-bool _looksTechnical(String value) => _technicalPattern.hasMatch(value);
+bool _pareceTecnico(String value) => _padraoTecnico.hasMatch(value);
 
-String _messageForCategory(String category, [String? fallbackMessage]) {
+String _mensagemParaCategoria(String category, [String? fallbackMessage]) {
   return fallbackMessage ??
-      _categoryMessages[category] ??
-      _categoryMessages['unexpected_error']!;
+      _mensagensPorCategoria[category] ??
+      _mensagensPorCategoria['unexpected_error']!;
 }
 
 String inferErrorCategory({int? statusCode, String? code}) {
@@ -68,9 +68,9 @@ AppException normalizeApiError({
       );
   final rawMessage =
       (errorMap['message'] ?? technicalMessage ?? '').toString().trim();
-  final safeMessage = rawMessage.isNotEmpty && !_looksTechnical(rawMessage)
+  final safeMessage = rawMessage.isNotEmpty && !_pareceTecnico(rawMessage)
       ? rawMessage
-      : _messageForCategory(category, fallbackMessage);
+      : _mensagemParaCategoria(category, fallbackMessage);
 
   return AppException(
     message: safeMessage,
@@ -93,7 +93,7 @@ AppException normalizeNetworkError(
   return AppException(
     message: timedOut
         ? 'A conexão demorou mais do que o esperado. Tente novamente.'
-        : _messageForCategory('connection_error'),
+        : _mensagemParaCategoria('connection_error'),
     category: 'connection_error',
     code: timedOut ? 'timeout' : 'network_error',
     technicalMessage: technicalMessage ?? error.toString(),
@@ -107,9 +107,9 @@ AppException normalizeUnexpectedError(Object error, {String? fallbackMessage}) {
   final category = error is AppException
       ? error.category
       : inferErrorCategory(statusCode: statusCode);
-  final safeMessage = rawMessage.isNotEmpty && !_looksTechnical(rawMessage)
+  final safeMessage = rawMessage.isNotEmpty && !_pareceTecnico(rawMessage)
       ? rawMessage
-      : _messageForCategory(category, fallbackMessage);
+      : _mensagemParaCategoria(category, fallbackMessage);
 
   return AppException(
     message: safeMessage,

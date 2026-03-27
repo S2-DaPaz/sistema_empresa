@@ -32,43 +32,43 @@ class BudgetsScreen extends StatefulWidget {
 }
 
 class _BudgetsScreenState extends State<BudgetsScreen> {
-  static const String _cacheKey = 'offline_cache_budgets_list';
+  static const String _chaveCache = 'offline_cache_orcamentos_list';
 
   final ApiService _api = ApiService();
-  final TextEditingController _searchController = TextEditingController();
-  final ScrollController _listController = ScrollController();
+  final TextEditingController _controladorBusca = TextEditingController();
+  final ScrollController _controladorLista = ScrollController();
 
-  StreamSubscription<String>? _entityRefreshSubscription;
-  Future<void>? _lookupsFuture;
+  StreamSubscription<String>? _inscricaoAtualizacaoEntidade;
+  Future<void>? _futuroConsultas;
   bool _loading = true;
   String? _error;
-  List<Map<String, dynamic>> _budgets = [];
-  List<Map<String, dynamic>> _clients = [];
-  List<Map<String, dynamic>> _products = [];
-  String _searchQuery = '';
-  String? _statusFilter;
+  List<Map<String, dynamic>> _orcamentos = [];
+  List<Map<String, dynamic>> _clientes = [];
+  List<Map<String, dynamic>> _produtos = [];
+  String _textoBusca = '';
+  String? _filtroStatus;
 
   @override
   void initState() {
     super.initState();
-    _entityRefreshSubscription = EntityRefreshService.instance.listen(
+    _inscricaoAtualizacaoEntidade = EntityRefreshService.instance.listen(
       const ['/products', '/clients'],
       (_) => _load(),
     );
-    _primeFromCache();
+    _carregarDoCache();
     _load();
   }
 
   @override
   void dispose() {
-    _entityRefreshSubscription?.cancel();
-    _searchController.dispose();
-    _listController.dispose();
+    _inscricaoAtualizacaoEntidade?.cancel();
+    _controladorBusca.dispose();
+    _controladorLista.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    final hadBudgets = _budgets.isNotEmpty;
+    final hadBudgets = _orcamentos.isNotEmpty;
     setState(() {
       _loading = !hadBudgets;
       _error = null;
@@ -79,23 +79,23 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           : '/budgets';
       final budgets = await _api.get(endpoint) as List<dynamic>;
       final nextBudgets = List<Map<String, dynamic>>.from(budgets);
-      await OfflineCacheService.writeList(_cacheKey, nextBudgets);
+      await OfflineCacheService.writeList(_chaveCache, nextBudgets);
       if (!mounted) return;
       setState(() {
-        _budgets = nextBudgets;
+        _orcamentos = nextBudgets;
         _loading = false;
       });
       unawaited(_loadLookups());
     } catch (error) {
       final cached =
-          hadBudgets ? _budgets : await OfflineCacheService.readList(_cacheKey);
+          hadBudgets ? _orcamentos : await OfflineCacheService.readList(_chaveCache);
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         setState(() {
-          _budgets = cached;
+          _orcamentos = cached;
           _loading = false;
         });
-        _showStaleDataWarning();
+        _mostrarAvisoDadosAntigos();
         unawaited(_loadLookups());
         return;
       }
@@ -106,24 +106,24 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
-  Future<void> _primeFromCache() async {
-    final cached = await OfflineCacheService.readList(_cacheKey);
-    if (!mounted || cached == null || cached.isEmpty || _budgets.isNotEmpty) {
+  Future<void> _carregarDoCache() async {
+    final cached = await OfflineCacheService.readList(_chaveCache);
+    if (!mounted || cached == null || cached.isEmpty || _orcamentos.isNotEmpty) {
       return;
     }
     setState(() {
-      _budgets = cached;
+      _orcamentos = cached;
       _loading = false;
       _error = null;
     });
   }
 
   Future<void> _loadLookups({bool force = false}) {
-    if (!force && _clients.isNotEmpty && _products.isNotEmpty) {
+    if (!force && _clientes.isNotEmpty && _produtos.isNotEmpty) {
       return Future.value();
     }
-    if (!force && _lookupsFuture != null) {
-      return _lookupsFuture!;
+    if (!force && _futuroConsultas != null) {
+      return _futuroConsultas!;
     }
 
     late final Future<void> future;
@@ -135,49 +135,49 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         ]);
         if (!mounted) return;
         setState(() {
-          _clients = List<Map<String, dynamic>>.from(
+          _clientes = List<Map<String, dynamic>>.from(
             (results[0] as List?) ?? const [],
           );
-          _products = List<Map<String, dynamic>>.from(
+          _produtos = List<Map<String, dynamic>>.from(
             (results[1] as List?) ?? const [],
           );
         });
       } catch (_) {
         // Lookup data should not block the list screen.
       } finally {
-        if (identical(_lookupsFuture, future)) {
-          _lookupsFuture = null;
+        if (identical(_futuroConsultas, future)) {
+          _futuroConsultas = null;
         }
       }
     }();
 
-    _lookupsFuture = future;
+    _futuroConsultas = future;
     return future;
   }
 
-  Future<void> _ensureLookupsLoaded() {
-    return _loadLookups(force: _clients.isEmpty || _products.isEmpty);
+  Future<void> _garantirConsultasCarregadas() {
+    return _loadLookups(force: _clientes.isEmpty || _produtos.isEmpty);
   }
 
-  Map<String, int> get _statusCounts {
+  Map<String, int> get _contagemStatus {
     final counts = <String, int>{
-      'all': _budgets.length,
+      'all': _orcamentos.length,
       'em_andamento': 0,
       'aprovado': 0,
       'recusado': 0,
     };
-    for (final budget in _budgets) {
+    for (final budget in _orcamentos) {
       final status = budget['status']?.toString() ?? 'em_andamento';
       counts[status] = (counts[status] ?? 0) + 1;
     }
     return counts;
   }
 
-  List<Map<String, dynamic>> get _filteredBudgets {
-    final query = _searchQuery.trim().toLowerCase();
-    return _budgets.where((budget) {
-      if (_statusFilter != null &&
-          budget['status']?.toString() != _statusFilter) {
+  List<Map<String, dynamic>> get _orcamentosFiltrados {
+    final query = _textoBusca.trim().toLowerCase();
+    return _orcamentos.where((budget) {
+      if (_filtroStatus != null &&
+          budget['status']?.toString() != _filtroStatus) {
         return false;
       }
       if (query.isEmpty) return true;
@@ -194,8 +194,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }).toList();
   }
 
-  Future<void> _openBudgetForm([Map<String, dynamic>? budget]) async {
-    await _ensureLookupsLoaded();
+  Future<void> _abrirFormularioOrcamento([Map<String, dynamic>? budget]) async {
+    await _garantirConsultasCarregadas();
     if (!mounted) return;
     Map<String, dynamic>? initialBudget = budget;
     if (budget != null && budget['id'] != null && budget['items'] == null) {
@@ -214,8 +214,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       MaterialPageRoute(
         builder: (context) => _BudgetFormPage(
           initialBudget: initialBudget,
-          clients: _clients,
-          products: _products,
+          clients: _clientes,
+          products: _produtos,
         ),
       ),
     );
@@ -225,7 +225,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
-  Future<void> _deleteBudget(int id) async {
+  Future<void> _excluirOrcamento(int id) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -256,8 +256,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
-  Future<void> _sendEmail(Map<String, dynamic> budget) async {
-    final client = _findClient(budget['client_id'] as int?);
+  Future<void> _enviarEmail(Map<String, dynamic> budget) async {
+    final client = _encontrarCliente(budget['client_id'] as int?);
     final budgetId = budget['id'];
     if (budgetId == null) return;
 
@@ -267,7 +267,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       message:
           'Confirme o e-mail do destinatário para enviar um link seguro do orçamento.',
       confirmLabel: 'Enviar orçamento',
-      initialEmail: extractEmail(client?['contact']?.toString()),
+      initialEmail: extrairEmail(client?['contact']?.toString()),
     );
     if (email == null || email.isEmpty) return;
 
@@ -291,35 +291,35 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     }
   }
 
-  Map<String, dynamic>? _findClient(int? id) {
+  Map<String, dynamic>? _encontrarCliente(int? id) {
     if (id == null) return null;
-    for (final client in _clients) {
+    for (final client in _clientes) {
       if (client['id'] == id) return client;
     }
     return null;
   }
 
-  Future<String?> _getPublicLink(Map<String, dynamic> budget) async {
+  Future<String?> _obterLinkPublico(Map<String, dynamic> budget) async {
     final budgetId = budget['id'];
     if (budgetId == null) return null;
     final response = await _api.post('/budgets/$budgetId/public-link', {});
     return response['url']?.toString();
   }
 
-  Future<void> _shareReportLink(Map<String, dynamic> budget) async {
-    final url = await _getPublicLink(budget);
+  Future<void> _compartilharLinkRelatorio(Map<String, dynamic> budget) async {
+    final url = await _obterLinkPublico(budget);
     if (url == null || url.isEmpty) return;
     await Share.share(url, subject: 'Orçamento #${budget['id']}');
   }
 
-  Future<void> _openReportLink(Map<String, dynamic> budget) async {
-    final url = await _getPublicLink(budget);
+  Future<void> _abrirLinkRelatorio(Map<String, dynamic> budget) async {
+    final url = await _obterLinkPublico(budget);
     if (url == null || url.isEmpty) return;
     await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
 
-  void _showStaleDataWarning() {
+  void _mostrarAvisoDadosAntigos() {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(
@@ -351,7 +351,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       );
     }
 
-    final budgets = _filteredBudgets;
+    final budgets = _orcamentosFiltrados;
 
     return AppScaffold(
       title: 'Orçamentos',
@@ -372,7 +372,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: () => _openBudgetForm(),
+                onPressed: () => _abrirFormularioOrcamento(),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(0, 42),
                 ),
@@ -383,9 +383,9 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           ),
           const SizedBox(height: 16),
           AppSearchField(
-            controller: _searchController,
+            controller: _controladorBusca,
             hintText: 'Buscar orçamentos...',
-            onChanged: (value) => setState(() => _searchQuery = value),
+            onChanged: (value) => setState(() => _textoBusca = value),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -395,27 +395,27 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               children: [
                 _BudgetFilterChip(
                   label: 'Todas',
-                  count: _statusCounts['all'] ?? 0,
-                  selected: _statusFilter == null,
-                  onTap: () => setState(() => _statusFilter = null),
+                  count: _contagemStatus['all'] ?? 0,
+                  selected: _filtroStatus == null,
+                  onTap: () => setState(() => _filtroStatus = null),
                 ),
                 _BudgetFilterChip(
                   label: 'Abertos',
-                  count: _statusCounts['em_andamento'] ?? 0,
-                  selected: _statusFilter == 'em_andamento',
-                  onTap: () => setState(() => _statusFilter = 'em_andamento'),
+                  count: _contagemStatus['em_andamento'] ?? 0,
+                  selected: _filtroStatus == 'em_andamento',
+                  onTap: () => setState(() => _filtroStatus = 'em_andamento'),
                 ),
                 _BudgetFilterChip(
                   label: 'Aprovados',
-                  count: _statusCounts['aprovado'] ?? 0,
-                  selected: _statusFilter == 'aprovado',
-                  onTap: () => setState(() => _statusFilter = 'aprovado'),
+                  count: _contagemStatus['aprovado'] ?? 0,
+                  selected: _filtroStatus == 'aprovado',
+                  onTap: () => setState(() => _filtroStatus = 'aprovado'),
                 ),
                 _BudgetFilterChip(
                   label: 'Recusados',
-                  count: _statusCounts['recusado'] ?? 0,
-                  selected: _statusFilter == 'recusado',
-                  onTap: () => setState(() => _statusFilter = 'recusado'),
+                  count: _contagemStatus['recusado'] ?? 0,
+                  selected: _filtroStatus == 'recusado',
+                  onTap: () => setState(() => _filtroStatus = 'recusado'),
                 ),
               ],
             ),
@@ -426,7 +426,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               onRefresh: _load,
               child: budgets.isEmpty
                   ? ListView(
-                      controller: _listController,
+                      controller: _controladorLista,
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 40),
                       children: const [
@@ -441,7 +441,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                       ],
                     )
                   : ListView.builder(
-                      controller: _listController,
+                      controller: _controladorLista,
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 40),
                       itemCount: budgets.length,
@@ -463,13 +463,13 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                                       ?.toString()
                                       .isNotEmpty ==
                                   true
-                              ? 'Enviado em ${formatDate(budget['created_at'].toString())}'
+                              ? 'Enviado em ${formatarData(budget['created_at'].toString())}'
                               : 'Sem data',
-                          amountLabel: formatCurrency(budget['total'] ?? 0),
+                          amountLabel: formatarMoeda(budget['total'] ?? 0),
                           statusLabel:
-                              budgetStatusLabel(budget['status']?.toString()),
-                          onTap: () => _openBudgetForm(budget),
-                          onMore: () => _openBudgetActions(budget),
+                              labelStatusOrcamento(budget['status']?.toString()),
+                          onTap: () => _abrirFormularioOrcamento(budget),
+                          onMore: () => _abrirAcoesOrcamento(budget),
                         );
                       },
                     ),
@@ -480,7 +480,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     );
   }
 
-  Future<void> _openBudgetActions(Map<String, dynamic> budget) async {
+  Future<void> _abrirAcoesOrcamento(Map<String, dynamic> budget) async {
     final action = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
@@ -520,20 +520,20 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
 
     switch (action) {
       case 'edit':
-        await _openBudgetForm(budget);
+        await _abrirFormularioOrcamento(budget);
         break;
       case 'email':
-        await _sendEmail(budget);
+        await _enviarEmail(budget);
         break;
       case 'share':
-        await _shareReportLink(budget);
+        await _compartilharLinkRelatorio(budget);
         break;
       case 'pdf':
-        await _openReportLink(budget);
+        await _abrirLinkRelatorio(budget);
         break;
       case 'delete':
         if (budget['id'] is int) {
-          await _deleteBudget(budget['id'] as int);
+          await _excluirOrcamento(budget['id'] as int);
         }
         break;
     }

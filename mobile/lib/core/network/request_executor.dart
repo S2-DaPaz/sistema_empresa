@@ -28,7 +28,7 @@ class NetworkRequestException implements Exception {
 typedef HttpRequestBuilder = Future<http.Response> Function(Uri uri);
 
 class RequestExecutor {
-  static const Duration _timeout = Duration(seconds: 15);
+  static const Duration _tempoLimite = Duration(seconds: 15);
 
   static Future<http.Response> send(
     String path,
@@ -42,7 +42,7 @@ class RequestExecutor {
 
       try {
         return await request(AppConfig.buildUriForBase(baseUrl, path))
-            .timeout(_timeout);
+            .timeout(_tempoLimite);
       } on SocketException catch (error) {
         lastError = error;
       } on TimeoutException catch (error) {

@@ -16,7 +16,7 @@ class TaskTypesScreen extends StatefulWidget {
 class _TaskTypesScreenState extends State<TaskTypesScreen> {
   final ApiService _api = ApiService();
   bool _loading = true;
-  List<FieldOption> _templateOptions = [];
+  List<OpcaoCampo> _templateOptions = [];
 
   @override
   void initState() {
@@ -28,7 +28,7 @@ class _TaskTypesScreenState extends State<TaskTypesScreen> {
     try {
       final data = await _api.get('/report-templates') as List<dynamic>;
       final options = data
-          .map((item) => FieldOption(
+          .map((item) => OpcaoCampo(
                 value: (item as Map<String, dynamic>)['id'],
                 label: item['name']?.toString() ?? 'Modelo',
               ))
@@ -49,21 +49,21 @@ class _TaskTypesScreenState extends State<TaskTypesScreen> {
     }
 
     return EntityListScreen(
-      config: EntityConfig(
+      config: ConfiguracaoEntidade(
         title: 'Tipos de tarefa',
         endpoint: '/task-types',
         primaryField: 'name',
         hint: 'Defina os tipos e amarre um modelo de relatório.',
         fields: [
-          FieldConfig(name: 'name', label: 'Nome', type: FieldType.text),
-          FieldConfig(
+          ConfiguracaoCampo(name: 'name', label: 'Nome', type: TipoCampo.text),
+          ConfiguracaoCampo(
               name: 'description',
               label: 'Descrição',
-              type: FieldType.textarea),
-          FieldConfig(
+              type: TipoCampo.textarea),
+          ConfiguracaoCampo(
             name: 'report_template_id',
             label: 'Modelo de relatório',
-            type: FieldType.select,
+            type: TipoCampo.select,
             options: _templateOptions,
           ),
         ],

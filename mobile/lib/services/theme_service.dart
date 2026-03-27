@@ -6,7 +6,7 @@ class ThemeService {
 
   static final ThemeService instance = ThemeService._();
 
-  static const _storageKey = 'theme_mode';
+  static const _chaveArmazenamento = 'theme_mode';
 
   final ValueNotifier<ThemeMode> mode = ValueNotifier(ThemeMode.system);
 
@@ -14,19 +14,19 @@ class ThemeService {
 
   Future<void> restore() async {
     final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_storageKey);
+    final stored = prefs.getString(_chaveArmazenamento);
     if (stored == null || stored.isEmpty) return;
-    mode.value = _fromStorage(stored);
+    mode.value = _deArmazenamento(stored);
   }
 
   Future<void> setThemeMode(ThemeMode value) async {
     if (mode.value == value) return;
     mode.value = value;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_storageKey, _toStorage(value));
+    await prefs.setString(_chaveArmazenamento, _paraArmazenamento(value));
   }
 
-  String _toStorage(ThemeMode value) {
+  String _paraArmazenamento(ThemeMode value) {
     switch (value) {
       case ThemeMode.light:
         return 'light';
@@ -37,7 +37,7 @@ class ThemeService {
     }
   }
 
-  ThemeMode _fromStorage(String raw) {
+  ThemeMode _deArmazenamento(String raw) {
     switch (raw) {
       case 'light':
         return ThemeMode.light;

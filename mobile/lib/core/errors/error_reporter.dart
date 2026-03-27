@@ -10,7 +10,7 @@ import 'app_exception.dart';
 class ErrorReporter {
   ErrorReporter._();
 
-  static final http.Client _client = http.Client();
+  static final http.Client _cliente = http.Client();
 
   static Future<void> report({
     required AppException error,
@@ -62,7 +62,7 @@ class ErrorReporter {
 
     for (final baseUrl in AppConfig.apiBaseUrlCandidates) {
       try {
-        await _client
+        await _cliente
             .post(
               AppConfig.buildUriForBase(baseUrl, '/monitoring/client-errors'),
               headers: headers,

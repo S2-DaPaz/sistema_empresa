@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-final RegExp _emailPattern = RegExp(
+final RegExp _padraoEmail = RegExp(
     r'^[^\s@]+@([^\s@]+\.[^\s@]+|local|localhost)$',
     caseSensitive: false);
 
@@ -42,32 +42,32 @@ class _EmailRecipientDialog extends StatefulWidget {
 }
 
 class _EmailRecipientDialogState extends State<_EmailRecipientDialog> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _controller;
-  bool _submitted = false;
+  final GlobalKey<FormState> _chaveFormulario = GlobalKey<FormState>();
+  late final TextEditingController _controlador;
+  bool _submetido = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialEmail.trim());
+    _controlador = TextEditingController(text: widget.initialEmail.trim());
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controlador.dispose();
     super.dispose();
   }
 
-  String? _validateEmail(String? value) {
+  String? _validarEmail(String? value) {
     final email = (value ?? '').trim().toLowerCase();
-    if (_emailPattern.hasMatch(email)) return null;
+    if (_padraoEmail.hasMatch(email)) return null;
     return 'Informe um endereco de e-mail valido.';
   }
 
-  Future<void> _submit() async {
-    setState(() => _submitted = true);
-    if (_formKey.currentState?.validate() != true) return;
-    final email = _controller.text.trim().toLowerCase();
+  Future<void> _submeter() async {
+    setState(() => _submetido = true);
+    if (_chaveFormulario.currentState?.validate() != true) return;
+    final email = _controlador.text.trim().toLowerCase();
     FocusManager.instance.primaryFocus?.unfocus();
     await Future<void>.delayed(const Duration(milliseconds: 16));
     if (!mounted) return;
@@ -82,7 +82,7 @@ class _EmailRecipientDialogState extends State<_EmailRecipientDialog> {
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 28),
         child: Form(
-          key: _formKey,
+          key: _chaveFormulario,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,14 +92,14 @@ class _EmailRecipientDialogState extends State<_EmailRecipientDialog> {
               Text(widget.message, style: textTheme.bodyMedium),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _controller,
+                controller: _controlador,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.send,
-                autovalidateMode: _submitted
+                autovalidateMode: _submetido
                     ? AutovalidateMode.onUserInteraction
                     : AutovalidateMode.disabled,
-                validator: _validateEmail,
-                onFieldSubmitted: (_) => _submit(),
+                validator: _validarEmail,
+                onFieldSubmitted: (_) => _submeter(),
                 decoration: const InputDecoration(
                   labelText: 'E-mail',
                   hintText: 'cliente@empresa.com',
@@ -118,7 +118,7 @@ class _EmailRecipientDialogState extends State<_EmailRecipientDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _submit,
+                      onPressed: _submeter,
                       child: Text(widget.confirmLabel),
                     ),
                   ),

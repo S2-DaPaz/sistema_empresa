@@ -1,4 +1,5 @@
-enum FieldType {
+/// Tipos de campo suportados pelo formulário genérico de entidades.
+enum TipoCampo {
   text,
   number,
   select,
@@ -7,14 +8,16 @@ enum FieldType {
   date,
 }
 
-class FieldOption {
-  FieldOption({required this.value, required this.label});
+/// Opção individual de um campo do tipo select.
+class OpcaoCampo {
+  OpcaoCampo({required this.value, required this.label});
   final dynamic value;
   final String label;
 }
 
-class FieldConfig {
-  FieldConfig({
+/// Configuração de um campo de formulário (nome, rótulo, tipo e opções).
+class ConfiguracaoCampo {
+  ConfiguracaoCampo({
     required this.name,
     required this.label,
     required this.type,
@@ -24,7 +27,7 @@ class FieldConfig {
 
   final String name;
   final String label;
-  final FieldType type;
-  final List<FieldOption> options;
+  final TipoCampo type;
+  final List<OpcaoCampo> options;
   final String Function(dynamic value)? formatter;
 }

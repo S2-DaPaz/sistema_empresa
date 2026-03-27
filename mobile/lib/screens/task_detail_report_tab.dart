@@ -432,7 +432,7 @@ class TaskDetailReportTab extends StatelessWidget {
             key: ValueKey(
                 'date-${activeReportId ?? "new"}-$fieldId-${value ?? ""}'),
             label: label,
-            value: formatDateInput(value?.toString()),
+            value: formatarEntradaData(value?.toString()),
             onTap: () async {
               final now = DateTime.now();
               final selected = await showDatePicker(
@@ -442,7 +442,7 @@ class TaskDetailReportTab extends StatelessWidget {
                 initialDate: now,
               );
               if (selected == null) return;
-              final formatted = formatDateFromDate(selected);
+              final formatted = formatarDataDeDate(selected);
               onReportAnswerChanged(fieldId, formatted);
             },
           ),

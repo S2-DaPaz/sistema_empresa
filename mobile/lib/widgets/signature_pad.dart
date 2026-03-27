@@ -21,7 +21,7 @@ class SignaturePadField extends StatefulWidget {
 }
 
 class _SignaturePadFieldState extends State<SignaturePadField> {
-  Uint8List? _decode(String dataUrl) {
+  Uint8List? _decodificar(String dataUrl) {
     if (dataUrl.isEmpty) return null;
     final parts = dataUrl.split(',');
     if (parts.length != 2) return null;
@@ -32,7 +32,7 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
     }
   }
 
-  Future<_SignerInfo?> _promptSignerInfo() async {
+  Future<_SignerInfo?> _solicitarInfoAssinante() async {
     return Navigator.of(context).push<_SignerInfo>(
       PageRouteBuilder(
         opaque: false,
@@ -56,8 +56,8 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
     );
   }
 
-  Future<void> _openSignature() async {
-    final signer = await _promptSignerInfo();
+  Future<void> _abrirAssinatura() async {
+    final signer = await _solicitarInfoAssinante();
     if (signer == null) return;
     if (!mounted) return;
 
@@ -78,7 +78,7 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
 
   @override
   Widget build(BuildContext context) {
-    final preview = _decode(widget.value);
+    final preview = _decodificar(widget.value);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -86,7 +86,7 @@ class _SignaturePadFieldState extends State<SignaturePadField> {
             style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
         InkWell(
-          onTap: _openSignature,
+          onTap: _abrirAssinatura,
           borderRadius: BorderRadius.circular(12),
           child: Container(
             width: double.infinity,
@@ -141,12 +141,12 @@ class SignatureCaptureScreen extends StatefulWidget {
 }
 
 class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
-  late final SignatureController _controller;
+  late final SignatureController _controlador;
 
   @override
   void initState() {
     super.initState();
-    _controller = SignatureController(
+    _controlador = SignatureController(
       penStrokeWidth: 2,
       penColor: const Color(0xFF0C1B2A),
       exportBackgroundColor: Colors.white,
@@ -158,13 +158,13 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controlador.dispose();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }
 
-  Future<void> _saveSignature() async {
-    final bytes = await _controller.toPngBytes();
+  Future<void> _salvarAssinatura() async {
+    final bytes = await _controlador.toPngBytes();
     if (bytes == null || bytes.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -218,12 +218,12 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: _controller.clear,
+                    onPressed: _controlador.clear,
                     child: const Text('Limpar'),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
-                    onPressed: _saveSignature,
+                    onPressed: _salvarAssinatura,
                     child: const Text('Salvar'),
                   ),
                 ],
@@ -243,7 +243,7 @@ class _SignatureCaptureScreenState extends State<SignatureCaptureScreen> {
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(12, 36, 12, 18),
                           child: Signature(
-                            controller: _controller,
+                            controller: _controlador,
                             backgroundColor: Colors.white,
                           ),
                         ),
@@ -282,21 +282,21 @@ class SignatureInfoScreen extends StatefulWidget {
 }
 
 class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _cpfController = TextEditingController();
-  String? _nameError;
-  String? _cpfError;
+  final TextEditingController _controladorNome = TextEditingController();
+  final TextEditingController _controladorCpf = TextEditingController();
+  String? _erroNome;
+  String? _erroCpf;
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _cpfController.dispose();
+    _controladorNome.dispose();
+    _controladorCpf.dispose();
     super.dispose();
   }
 
-  String _onlyDigits(String value) => value.replaceAll(RegExp(r'\D'), '');
+  String _apenasDigitos(String value) => value.replaceAll(RegExp(r'\D'), '');
 
-  String _formatCpfDigits(String digits) {
+  String _formatarDigitosCpf(String digits) {
     final trimmed = digits.length > 11 ? digits.substring(0, 11) : digits;
     final buffer = StringBuffer();
     for (var i = 0; i < trimmed.length; i++) {
@@ -307,27 +307,27 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
     return buffer.toString();
   }
 
-  Future<void> _close([_SignerInfo? payload]) async {
+  Future<void> _fechar([_SignerInfo? payload]) async {
     FocusManager.instance.primaryFocus?.unfocus();
     await Future.delayed(const Duration(milliseconds: 120));
     if (!mounted) return;
     Navigator.pop(context, payload);
   }
 
-  void _submit() {
-    final name = _nameController.text.trim();
-    final cpfDigits = _onlyDigits(_cpfController.text);
+  void _submeter() {
+    final name = _controladorNome.text.trim();
+    final cpfDigits = _apenasDigitos(_controladorCpf.text);
     setState(() {
-      _nameError = name.isEmpty ? 'Informe o nome.' : null;
+      _erroNome = name.isEmpty ? 'Informe o nome.' : null;
       if (cpfDigits.isNotEmpty && cpfDigits.length != 11) {
-        _cpfError = 'Informe um CPF válido.';
+        _erroCpf = 'Informe um CPF válido.';
       } else {
-        _cpfError = null;
+        _erroCpf = null;
       }
     });
-    if (_nameError != null || _cpfError != null) return;
-    final cpf = _formatCpfDigits(cpfDigits);
-    _close(_SignerInfo(name: name, cpf: cpf));
+    if (_erroNome != null || _erroCpf != null) return;
+    final cpf = _formatarDigitosCpf(cpfDigits);
+    _fechar(_SignerInfo(name: name, cpf: cpf));
   }
 
   @override
@@ -354,7 +354,7 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
                       Text('Assinatura',
                           style: Theme.of(context).textTheme.titleMedium),
                       IconButton(
-                        onPressed: () => _close(),
+                        onPressed: () => _fechar(),
                         icon: const Icon(Icons.close),
                       ),
                     ],
@@ -363,31 +363,31 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
                       style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: _nameController,
+                    controller: _controladorNome,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
                     keyboardType: TextInputType.name,
                     decoration: InputDecoration(
-                        labelText: 'Nome', errorText: _nameError),
+                        labelText: 'Nome', errorText: _erroNome),
                     onChanged: (_) {
-                      if (_nameError != null) {
-                        setState(() => _nameError = null);
+                      if (_erroNome != null) {
+                        setState(() => _erroNome = null);
                       }
                     },
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: _cpfController,
+                    controller: _controladorCpf,
                     keyboardType: TextInputType.number,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                       CpfInputFormatter(),
                     ],
                     decoration: InputDecoration(
-                        labelText: 'CPF (opcional)', errorText: _cpfError),
+                        labelText: 'CPF (opcional)', errorText: _erroCpf),
                     onChanged: (_) {
-                      if (_cpfError != null) {
-                        setState(() => _cpfError = null);
+                      if (_erroCpf != null) {
+                        setState(() => _erroCpf = null);
                       }
                     },
                   ),
@@ -395,7 +395,7 @@ class _SignatureInfoScreenState extends State<SignatureInfoScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _submit,
+                      onPressed: _submeter,
                       child: const Text('Continuar'),
                     ),
                   ),

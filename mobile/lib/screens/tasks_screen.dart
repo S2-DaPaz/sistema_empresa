@@ -28,38 +28,38 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  static const String _cacheKey = 'offline_cache_tasks_list';
+  static const String _chaveCache = 'offline_cache_tarefas_list';
 
   final ApiService _api = ApiService();
-  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _controladorBusca = TextEditingController();
 
-  bool _loading = true;
-  String? _error;
-  List<Map<String, dynamic>> _tasks = [];
-  TaskViewMode _viewMode = TaskViewMode.list;
-  DateTime _calendarMonth = DateTime.now();
-  String? _selectedDate;
-  String _searchQuery = '';
-  String? _statusFilter;
+  bool _carregando = true;
+  String? _erro;
+  List<Map<String, dynamic>> _tarefas = [];
+  TaskViewMode _modoVisualizacao = TaskViewMode.list;
+  DateTime _mesCalendario = DateTime.now();
+  String? _dataSelecionada;
+  String _textoBusca = '';
+  String? _filtroStatus;
 
   @override
   void initState() {
     super.initState();
-    _primeFromCache();
-    _load();
+    _carregarDoCache();
+    _carregar();
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _controladorBusca.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final hadTasks = _tasks.isNotEmpty;
+  Future<void> _carregar() async {
+    final hadTasks = _tarefas.isNotEmpty;
     setState(() {
-      _loading = !hadTasks;
-      _error = null;
+      _carregando = !hadTasks;
+      _erro = null;
     });
     try {
       final endpoint = widget.clientId != null
@@ -67,53 +67,53 @@ class _TasksScreenState extends State<TasksScreen> {
           : '/tasks';
       final data = await _api.get(endpoint) as List<dynamic>;
       final nextTasks = List<Map<String, dynamic>>.from(data);
-      await OfflineCacheService.writeList(_cacheKey, nextTasks);
+      await OfflineCacheService.writeList(_chaveCache, nextTasks);
       if (!mounted) return;
       setState(() {
-        _tasks = nextTasks;
-        _loading = false;
+        _tarefas = nextTasks;
+        _carregando = false;
       });
     } catch (error) {
       final cached =
-          hadTasks ? _tasks : await OfflineCacheService.readList(_cacheKey);
+          hadTasks ? _tarefas : await OfflineCacheService.readList(_chaveCache);
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         setState(() {
-          _tasks = cached;
-          _loading = false;
+          _tarefas = cached;
+          _carregando = false;
         });
-        _showStaleDataWarning();
+        _mostrarAvisoDadosAntigos();
         return;
       }
       setState(() {
-        _error = error.toString();
-        _loading = false;
+        _erro = error.toString();
+        _carregando = false;
       });
     }
   }
 
-  Future<void> _primeFromCache() async {
-    final cached = await OfflineCacheService.readList(_cacheKey);
-    if (!mounted || cached == null || cached.isEmpty || _tasks.isNotEmpty) {
+  Future<void> _carregarDoCache() async {
+    final cached = await OfflineCacheService.readList(_chaveCache);
+    if (!mounted || cached == null || cached.isEmpty || _tarefas.isNotEmpty) {
       return;
     }
     setState(() {
-      _tasks = cached;
-      _loading = false;
-      _error = null;
+      _tarefas = cached;
+      _carregando = false;
+      _erro = null;
     });
   }
 
-  Future<void> _openTask([int? id]) async {
+  Future<void> _abrirTarefa([int? id]) async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: id)),
     );
     if (mounted) {
-      await _load();
+      await _carregar();
     }
   }
 
-  Future<void> _deleteTask(int id) async {
+  Future<void> _excluirTarefa(int id) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -136,7 +136,7 @@ class _TasksScreenState extends State<TasksScreen> {
 
     try {
       await _api.delete('/tasks/$id');
-      await _load();
+      await _carregar();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -145,21 +145,21 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  Map<String, int> get _statusCounts {
+  Map<String, int> get _contagemStatus {
     final counts = <String, int>{
-      'all': _tasks.length,
+      'all': _tarefas.length,
       'aberta': 0,
       'em_andamento': 0,
       'concluida': 0,
     };
-    for (final task in _tasks) {
+    for (final task in _tarefas) {
       final status = task['status']?.toString() ?? 'aberta';
       counts[status] = (counts[status] ?? 0) + 1;
     }
     return counts;
   }
 
-  String _buildSearchText(Map<String, dynamic> task) {
+  String _montarTextoBusca(Map<String, dynamic> task) {
     return [
       task['title'],
       task['client_name'],
@@ -170,22 +170,22 @@ class _TasksScreenState extends State<TasksScreen> {
     ].map((value) => value?.toString() ?? '').join(' ').toLowerCase();
   }
 
-  List<Map<String, dynamic>> _filteredTasks() {
-    final query = _searchQuery.trim().toLowerCase();
-    return _tasks.where((task) {
-      if (_statusFilter != null &&
-          task['status']?.toString() != _statusFilter) {
+  List<Map<String, dynamic>> _tarefasFiltradas() {
+    final query = _textoBusca.trim().toLowerCase();
+    return _tarefas.where((task) {
+      if (_filtroStatus != null &&
+          task['status']?.toString() != _filtroStatus) {
         return false;
       }
       if (query.isEmpty) {
         return true;
       }
-      return _buildSearchText(task).contains(query);
+      return _montarTextoBusca(task).contains(query);
     }).toList();
   }
 
 
-  void _showStaleDataWarning() {
+  void _mostrarAvisoDadosAntigos() {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(
@@ -197,21 +197,21 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  Map<String, List<Map<String, dynamic>>> _groupTasksByDate(
+  Map<String, List<Map<String, dynamic>>> _agruparTarefasPorData(
     List<Map<String, dynamic>> tasks,
   ) {
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final task in tasks) {
-      final key = formatDateKey(task['start_date']?.toString() ?? '').isNotEmpty
-          ? formatDateKey(task['start_date']?.toString() ?? '')
-          : formatDateKey(task['due_date']?.toString() ?? '');
+      final key = formatarChaveData(task['start_date']?.toString() ?? '').isNotEmpty
+          ? formatarChaveData(task['start_date']?.toString() ?? '')
+          : formatarChaveData(task['due_date']?.toString() ?? '');
       if (key.isEmpty) continue;
       grouped.putIfAbsent(key, () => []).add(task);
     }
     return grouped;
   }
 
-  List<DateTime?> _buildCalendarDays(DateTime monthDate) {
+  List<DateTime?> _montarDiasCalendario(DateTime monthDate) {
     final firstDay = DateTime(monthDate.year, monthDate.month, 1);
     final startOffset = firstDay.weekday % 7;
     final daysInMonth = DateTime(monthDate.year, monthDate.month + 1, 0).day;
@@ -230,7 +230,7 @@ class _TasksScreenState extends State<TasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    if (_carregando) {
       return AppScaffold(
         title: 'Tarefas',
         showAppBar: widget.clientId != null,
@@ -238,30 +238,30 @@ class _TasksScreenState extends State<TasksScreen> {
       );
     }
 
-    if (_error != null) {
+    if (_erro != null) {
       return AppScaffold(
         title: 'Tarefas',
         showAppBar: widget.clientId != null,
         body: ErrorView(
-          message: _error!,
-          onRetry: _load,
+          message: _erro!,
+          onRetry: _carregar,
         ),
       );
     }
 
-    final filteredTasks = _filteredTasks();
-    final groupedTasks = _groupTasksByDate(filteredTasks);
-    final calendarDays = _buildCalendarDays(_calendarMonth);
-    final tasksForSelectedDate = _selectedDate == null
+    final filteredTasks = _tarefasFiltradas();
+    final groupedTasks = _agruparTarefasPorData(filteredTasks);
+    final calendarDays = _montarDiasCalendario(_mesCalendario);
+    final tasksForSelectedDate = _dataSelecionada == null
         ? const <Map<String, dynamic>>[]
-        : groupedTasks[_selectedDate] ?? const <Map<String, dynamic>>[];
+        : groupedTasks[_dataSelecionada] ?? const <Map<String, dynamic>>[];
 
     return AppScaffold(
       title: 'Tarefas',
       showAppBar: false,
       padding: EdgeInsets.zero,
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _carregar,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.md,
@@ -284,22 +284,22 @@ class _TasksScreenState extends State<TasksScreen> {
                 ),
                 IconButton(
                   tooltip: 'Atualizar',
-                  onPressed: _load,
+                  onPressed: _carregar,
                   icon: const Icon(Icons.refresh_rounded),
                 ),
                 IconButton(
-                  tooltip: _viewMode == TaskViewMode.list
+                  tooltip: _modoVisualizacao == TaskViewMode.list
                       ? 'Abrir agenda'
                       : 'Abrir lista',
                   onPressed: () {
                     setState(() {
-                      _viewMode = _viewMode == TaskViewMode.list
+                      _modoVisualizacao = _modoVisualizacao == TaskViewMode.list
                           ? TaskViewMode.calendar
                           : TaskViewMode.list;
                     });
                   },
                   icon: Icon(
-                    _viewMode == TaskViewMode.list
+                    _modoVisualizacao == TaskViewMode.list
                         ? Icons.calendar_month_outlined
                         : Icons.view_list_rounded,
                   ),
@@ -308,9 +308,9 @@ class _TasksScreenState extends State<TasksScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             AppSearchField(
-              controller: _searchController,
+              controller: _controladorBusca,
               hintText: 'Buscar tarefas...',
-              onChanged: (value) => setState(() => _searchQuery = value),
+              onChanged: (value) => setState(() => _textoBusca = value),
             ),
             const SizedBox(height: AppSpacing.md),
             SizedBox(
@@ -320,33 +320,33 @@ class _TasksScreenState extends State<TasksScreen> {
                 children: [
                   _TaskFilterChip(
                     label: 'Todas',
-                    count: _statusCounts['all'] ?? 0,
-                    selected: _statusFilter == null,
-                    onTap: () => setState(() => _statusFilter = null),
+                    count: _contagemStatus['all'] ?? 0,
+                    selected: _filtroStatus == null,
+                    onTap: () => setState(() => _filtroStatus = null),
                   ),
                   _TaskFilterChip(
                     label: 'Abertas',
-                    count: _statusCounts['aberta'] ?? 0,
-                    selected: _statusFilter == 'aberta',
-                    onTap: () => setState(() => _statusFilter = 'aberta'),
+                    count: _contagemStatus['aberta'] ?? 0,
+                    selected: _filtroStatus == 'aberta',
+                    onTap: () => setState(() => _filtroStatus = 'aberta'),
                   ),
                   _TaskFilterChip(
                     label: 'Andamento',
-                    count: _statusCounts['em_andamento'] ?? 0,
-                    selected: _statusFilter == 'em_andamento',
-                    onTap: () => setState(() => _statusFilter = 'em_andamento'),
+                    count: _contagemStatus['em_andamento'] ?? 0,
+                    selected: _filtroStatus == 'em_andamento',
+                    onTap: () => setState(() => _filtroStatus = 'em_andamento'),
                   ),
                   _TaskFilterChip(
                     label: 'Concluídas',
-                    count: _statusCounts['concluida'] ?? 0,
-                    selected: _statusFilter == 'concluida',
-                    onTap: () => setState(() => _statusFilter = 'concluida'),
+                    count: _contagemStatus['concluida'] ?? 0,
+                    selected: _filtroStatus == 'concluida',
+                    onTap: () => setState(() => _filtroStatus = 'concluida'),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            if (_viewMode == TaskViewMode.list) ...[
+            if (_modoVisualizacao == TaskViewMode.list) ...[
               if (filteredTasks.isEmpty)
                 const EmptyState(
                   title: 'Nenhuma tarefa encontrada',
@@ -363,14 +363,14 @@ class _TasksScreenState extends State<TasksScreen> {
                     clientName:
                         task['client_name']?.toString() ?? 'Sem cliente',
                     location: task['client_address']?.toString() ?? '',
-                    statusLabel: taskStatusLabel(task['status']?.toString()),
-                    priorityLabel: taskPriorityLabel(task['priority']?.toString()),
+                    statusLabel: labelStatusTarefa(task['status']?.toString()),
+                    priorityLabel: labelPrioridadeTarefa(task['priority']?.toString()),
                     codeLabel: '#${id ?? '--'}',
                     avatarName: task['client_name']?.toString() ?? 'Cliente',
-                    onTap: () => _openTask(id),
+                    onTap: () => _abrirTarefa(id),
                     onMore: id == null
                         ? null
-                        : () => _openTaskActions(context, task),
+                        : () => _abrirAcoesTarefa(context, task),
                   );
                 }),
             ] else ...[
@@ -384,9 +384,9 @@ class _TasksScreenState extends State<TasksScreen> {
                           IconButton(
                             onPressed: () {
                               setState(() {
-                                _calendarMonth = DateTime(
-                                  _calendarMonth.year,
-                                  _calendarMonth.month - 1,
+                                _mesCalendario = DateTime(
+                                  _mesCalendario.year,
+                                  _mesCalendario.month - 1,
                                   1,
                                 );
                               });
@@ -395,7 +395,7 @@ class _TasksScreenState extends State<TasksScreen> {
                           ),
                           Expanded(
                             child: Text(
-                              formatMonthLabel(_calendarMonth),
+                              formatarRotuloMes(_mesCalendario),
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
@@ -403,9 +403,9 @@ class _TasksScreenState extends State<TasksScreen> {
                           IconButton(
                             onPressed: () {
                               setState(() {
-                                _calendarMonth = DateTime(
-                                  _calendarMonth.year,
-                                  _calendarMonth.month + 1,
+                                _mesCalendario = DateTime(
+                                  _mesCalendario.year,
+                                  _mesCalendario.month + 1,
                                   1,
                                 );
                               });
@@ -438,9 +438,9 @@ class _TasksScreenState extends State<TasksScreen> {
                             final key =
                                 '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
                             final count = groupedTasks[key]?.length ?? 0;
-                            final selected = _selectedDate == key;
+                            final selected = _dataSelecionada == key;
                             return InkWell(
-                              onTap: () => setState(() => _selectedDate = key),
+                              onTap: () => setState(() => _dataSelecionada = key),
                               borderRadius: BorderRadius.circular(16),
                               child: Container(
                                 decoration: BoxDecoration(
@@ -489,7 +489,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              if (_selectedDate != null && tasksForSelectedDate.isEmpty)
+              if (_dataSelecionada != null && tasksForSelectedDate.isEmpty)
                 const EmptyState(
                   title: 'Sem tarefas neste dia',
                   message: 'Selecione outra data ou crie uma nova tarefa.',
@@ -502,11 +502,11 @@ class _TasksScreenState extends State<TasksScreen> {
                   title: task['title']?.toString() ?? 'Tarefa',
                   clientName: task['client_name']?.toString() ?? 'Sem cliente',
                   location: task['client_address']?.toString() ?? '',
-                  statusLabel: taskStatusLabel(task['status']?.toString()),
-                  priorityLabel: taskPriorityLabel(task['priority']?.toString()),
+                  statusLabel: labelStatusTarefa(task['status']?.toString()),
+                  priorityLabel: labelPrioridadeTarefa(task['priority']?.toString()),
                   codeLabel: '#${id ?? '--'}',
                   avatarName: task['client_name']?.toString() ?? 'Cliente',
-                  onTap: () => _openTask(id),
+                  onTap: () => _abrirTarefa(id),
                 );
               }),
             ],
@@ -516,7 +516,7 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  Future<void> _openTaskActions(
+  Future<void> _abrirAcoesTarefa(
     BuildContext context,
     Map<String, dynamic> task,
   ) async {
@@ -543,9 +543,9 @@ class _TasksScreenState extends State<TasksScreen> {
     if (!mounted || selected == null) return;
 
     if (selected == 'open') {
-      _openTask(task['id'] as int?);
+      _abrirTarefa(task['id'] as int?);
     } else if (selected == 'delete' && task['id'] is int) {
-      _deleteTask(task['id'] as int);
+      _excluirTarefa(task['id'] as int);
     }
   }
 }

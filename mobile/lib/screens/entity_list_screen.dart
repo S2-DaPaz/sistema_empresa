@@ -15,7 +15,7 @@ import 'entity_form_screen.dart';
 class EntityListScreen extends StatefulWidget {
   const EntityListScreen({super.key, required this.config});
 
-  final EntityConfig config;
+  final ConfiguracaoEntidade config;
 
   @override
   State<EntityListScreen> createState() => _EntityListScreenState();
@@ -23,78 +23,78 @@ class EntityListScreen extends StatefulWidget {
 
 class _EntityListScreenState extends State<EntityListScreen> {
   final ApiService _api = ApiService();
-  final TextEditingController _searchController = TextEditingController();
-  final ScrollController _listController = ScrollController();
+  final TextEditingController _controladorBusca = TextEditingController();
+  final ScrollController _controladorLista = ScrollController();
 
-  bool _loading = true;
-  String? _error;
-  List<Map<String, dynamic>> _items = [];
-  String _search = '';
+  bool _carregando = true;
+  String? _erro;
+  List<Map<String, dynamic>> _itens = [];
+  String _busca = '';
 
-  String get _cacheKey =>
+  String get _chaveCache =>
       OfflineCacheService.endpointKey('entity', widget.config.endpoint);
 
   @override
   void initState() {
     super.initState();
-    _primeFromCache();
-    _load();
+    _carregarDoCache();
+    _carregar();
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
-    _listController.dispose();
+    _controladorBusca.dispose();
+    _controladorLista.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final hadItems = _items.isNotEmpty;
+  Future<void> _carregar() async {
+    final hadItems = _itens.isNotEmpty;
     setState(() {
-      _loading = !hadItems;
-      _error = null;
+      _carregando = !hadItems;
+      _erro = null;
     });
     try {
       final data = await _api.get(widget.config.endpoint) as List<dynamic>;
       final items = List<Map<String, dynamic>>.from(data);
-      await OfflineCacheService.writeList(_cacheKey, items);
+      await OfflineCacheService.writeList(_chaveCache, items);
       if (!mounted) return;
       setState(() {
-        _items = items;
-        _loading = false;
+        _itens = items;
+        _carregando = false;
       });
     } catch (error) {
       final cached =
-          hadItems ? _items : await OfflineCacheService.readList(_cacheKey);
+          hadItems ? _itens : await OfflineCacheService.readList(_chaveCache);
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         setState(() {
-          _items = cached;
-          _loading = false;
+          _itens = cached;
+          _carregando = false;
         });
-        _showStaleDataWarning();
+        _mostrarAvisoDadosAntigos();
         return;
       }
       setState(() {
-        _error = error.toString();
-        _loading = false;
+        _erro = error.toString();
+        _carregando = false;
       });
     }
   }
 
-  Future<void> _primeFromCache() async {
-    final cached = await OfflineCacheService.readList(_cacheKey);
-    if (!mounted || cached == null || cached.isEmpty || _items.isNotEmpty) {
+  Future<void> _carregarDoCache() async {
+    final cached = await OfflineCacheService.readList(_chaveCache);
+    if (!mounted || cached == null || cached.isEmpty || _itens.isNotEmpty) {
       return;
     }
     setState(() {
-      _items = cached;
-      _loading = false;
-      _error = null;
+      _itens = cached;
+      _carregando = false;
+      _erro = null;
     });
   }
 
-  void _showStaleDataWarning() {
+  void _mostrarAvisoDadosAntigos() {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(
@@ -106,18 +106,18 @@ class _EntityListScreenState extends State<EntityListScreen> {
     );
   }
 
-  Future<void> _openForm({Map<String, dynamic>? item}) async {
+  Future<void> _abrirFormulario({Map<String, dynamic>? item}) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => EntityFormScreen(config: widget.config, item: item),
       ),
     );
     if (mounted) {
-      await _load();
+      await _carregar();
     }
   }
 
-  Future<void> _deleteItem(Map<String, dynamic> item) async {
+  Future<void> _excluirItem(Map<String, dynamic> item) async {
     final id = item['id'];
     if (id == null) return;
     final confirmed = await showDialog<bool>(
@@ -143,7 +143,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
     try {
       await _api.delete('${widget.config.endpoint}/$id');
       EntityRefreshService.instance.notifyChanged(widget.config.endpoint);
-      await _load();
+      await _carregar();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,16 +152,16 @@ class _EntityListScreenState extends State<EntityListScreen> {
     }
   }
 
-  String _buildSubtitle(Map<String, dynamic> item) {
+  String _construirSubtitulo(Map<String, dynamic> item) {
     final parts = <String>[];
     for (final field in widget.config.fields) {
       if (field.name == widget.config.primaryField) continue;
       final value = item[field.name];
       if (value == null || value.toString().isEmpty) continue;
-      if (field.type == FieldType.select && field.options.isNotEmpty) {
+      if (field.type == TipoCampo.select && field.options.isNotEmpty) {
         final option = field.options.firstWhere(
           (current) => current.value.toString() == value.toString(),
-          orElse: () => FieldOption(value: value, label: value.toString()),
+          orElse: () => OpcaoCampo(value: value, label: value.toString()),
         );
         parts.add(field.formatter?.call(option.label) ?? option.label);
       } else {
@@ -171,10 +171,10 @@ class _EntityListScreenState extends State<EntityListScreen> {
     return parts.join(' • ');
   }
 
-  List<Map<String, dynamic>> get _filteredItems {
-    final query = _search.trim().toLowerCase();
-    if (query.isEmpty) return _items;
-    return _items.where((item) {
+  List<Map<String, dynamic>> get _itensFiltrados {
+    final query = _busca.trim().toLowerCase();
+    if (query.isEmpty) return _itens;
+    return _itens.where((item) {
       final haystack = item.values
           .map((value) => value?.toString() ?? '')
           .join(' ')
@@ -185,17 +185,17 @@ class _EntityListScreenState extends State<EntityListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    if (_carregando) {
       return AppScaffold(title: widget.config.title, body: const LoadingView());
     }
-    if (_error != null) {
+    if (_erro != null) {
       return AppScaffold(
         title: widget.config.title,
-        body: ErrorView(message: _error!, onRetry: _load),
+        body: ErrorView(message: _erro!, onRetry: _carregar),
       );
     }
 
-    final items = _filteredItems;
+    final items = _itensFiltrados;
 
     return AppScaffold(
       title: widget.config.title,
@@ -211,7 +211,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: () => _openForm(),
+                onPressed: () => _abrirFormulario(),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(0, 42),
                 ),
@@ -222,9 +222,9 @@ class _EntityListScreenState extends State<EntityListScreen> {
           ),
           const SizedBox(height: 16),
           AppSearchField(
-            controller: _searchController,
+            controller: _controladorBusca,
             hintText: 'Buscar ${widget.config.title.toLowerCase()}...',
-            onChanged: (value) => setState(() => _search = value),
+            onChanged: (value) => setState(() => _busca = value),
           ),
           if (widget.config.hint != null) ...[
             const SizedBox(height: 16),
@@ -238,10 +238,10 @@ class _EntityListScreenState extends State<EntityListScreen> {
           const SizedBox(height: 16),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _load,
+              onRefresh: _carregar,
               child: items.isEmpty
                   ? ListView(
-                      controller: _listController,
+                      controller: _controladorLista,
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 36),
                       children: [
@@ -254,7 +254,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
                       ],
                     )
                   : ListView.builder(
-                      controller: _listController,
+                      controller: _controladorLista,
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 36),
                       itemCount: items.length,
@@ -262,18 +262,18 @@ class _EntityListScreenState extends State<EntityListScreen> {
                         final item = items[index];
                         return Card(
                           child: ListTile(
-                            onTap: () => _openForm(item: item),
+                            onTap: () => _abrirFormulario(item: item),
                             title: Text(
                               item[widget.config.primaryField]?.toString() ??
                                   'Sem título',
                             ),
-                            subtitle: Text(_buildSubtitle(item)),
+                            subtitle: Text(_construirSubtitulo(item)),
                             trailing: PopupMenuButton<String>(
                               onSelected: (value) {
                                 if (value == 'edit') {
-                                  _openForm(item: item);
+                                  _abrirFormulario(item: item);
                                 } else if (value == 'delete') {
-                                  _deleteItem(item);
+                                  _excluirItem(item);
                                 }
                               },
                               itemBuilder: (context) => const [

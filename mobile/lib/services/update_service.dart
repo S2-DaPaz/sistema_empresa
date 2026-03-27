@@ -45,7 +45,7 @@ class UpdateService {
 
   static final UpdateService instance = UpdateService._();
 
-  int? _lastShownVersion;
+  int? _ultimaVersaoExibida;
 
   Future<void> checkForUpdate(BuildContext context) async {
     try {
@@ -63,17 +63,17 @@ class UpdateService {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentCode = int.tryParse(packageInfo.buildNumber) ?? 0;
       if (info.versionCode <= currentCode) return;
-      if (_lastShownVersion == info.versionCode) return;
-      _lastShownVersion = info.versionCode;
+      if (_ultimaVersaoExibida == info.versionCode) return;
+      _ultimaVersaoExibida = info.versionCode;
 
       if (!context.mounted) return;
-      await _showUpdateDialog(context, info);
+      await _exibirDialogoAtualizacao(context, info);
     } catch (_) {
       return;
     }
   }
 
-  Future<void> _showUpdateDialog(
+  Future<void> _exibirDialogoAtualizacao(
       BuildContext context, AppUpdateInfo info) async {
     final versionLabel = info.versionName.isNotEmpty
         ? info.versionName
@@ -104,7 +104,7 @@ class UpdateService {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await _downloadAndInstall(context, info);
+              await _baixarEInstalar(context, info);
             },
             child: const Text('Atualizar agora'),
           ),
@@ -113,7 +113,7 @@ class UpdateService {
     );
   }
 
-  Future<void> _downloadAndInstall(
+  Future<void> _baixarEInstalar(
       BuildContext context, AppUpdateInfo info) async {
     bool started = false;
     double progress = 0;
@@ -130,7 +130,7 @@ class UpdateService {
             started = true;
             WidgetsBinding.instance.addPostFrameCallback((_) async {
               try {
-                final file = await _downloadApk(
+                final file = await _baixarApk(
                   info.apkUrl,
                   cancelToken,
                   (value) => setState(() => progress = value),
@@ -219,12 +219,12 @@ class UpdateService {
     );
   }
 
-  Future<File> _downloadApk(
+  Future<File> _baixarApk(
     String url,
     CancelToken cancelToken,
     ValueChanged<double> onProgress,
   ) async {
-    final resolved = _resolveApkUrl(url);
+    final resolved = _resolverUrlApk(url);
     final directory = await getTemporaryDirectory();
     final filePath = path.join(
       directory.path,
@@ -243,7 +243,7 @@ class UpdateService {
     return File(filePath);
   }
 
-  Uri _resolveApkUrl(String url) {
+  Uri _resolverUrlApk(String url) {
     final rawUri = Uri.tryParse(url);
     if (rawUri != null && rawUri.hasScheme) return rawUri;
     return Uri.parse(ApiConfig.baseUrl).resolve(url);

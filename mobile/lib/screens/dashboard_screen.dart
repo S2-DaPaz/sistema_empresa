@@ -32,45 +32,45 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  static const String _cacheKey = 'offline_cache_dashboard_summary';
+  static const String _cacheKey = 'offline_cache_dashboard_resumo';
 
   final ApiService _api = ApiService();
 
-  bool _loading = true;
-  String? _error;
-  Map<String, dynamic> _summary = {};
-  Map<String, dynamic> _taskMetrics = {};
-  Map<String, dynamic> _budgetMetrics = {};
-  List<Map<String, dynamic>> _recentTasks = [];
-  List<Map<String, dynamic>> _recentBudgets = [];
-  int _notificationCount = 0;
+  bool _carregando = true;
+  String? _erro;
+  Map<String, dynamic> _resumo = {};
+  Map<String, dynamic> _metricasTarefas = {};
+  Map<String, dynamic> _metricasOrcamentos = {};
+  List<Map<String, dynamic>> _tarefasRecentes = [];
+  List<Map<String, dynamic>> _orcamentosRecentes = [];
+  int _contadorNotificacoes = 0;
 
   @override
   void initState() {
     super.initState();
-    _primeFromCache();
-    _load();
+    _carregarDoCache();
+    _carregar();
   }
 
-  bool get _hasDashboardData =>
-      _summary.isNotEmpty ||
-      _taskMetrics.isNotEmpty ||
-      _budgetMetrics.isNotEmpty ||
-      _recentTasks.isNotEmpty ||
-      _recentBudgets.isNotEmpty;
+  bool get _temDadosPainel =>
+      _resumo.isNotEmpty ||
+      _metricasTarefas.isNotEmpty ||
+      _metricasOrcamentos.isNotEmpty ||
+      _tarefasRecentes.isNotEmpty ||
+      _orcamentosRecentes.isNotEmpty;
 
-  Future<void> _primeFromCache() async {
+  Future<void> _carregarDoCache() async {
     final cached = await OfflineCacheService.readMap(_cacheKey);
-    if (!mounted || cached == null || _hasDashboardData) return;
-    _applyPayload(cached);
+    if (!mounted || cached == null || _temDadosPainel) return;
+    _aplicarPayload(cached);
   }
 
-  Future<void> _load() async {
-    final hadData = _hasDashboardData;
+  Future<void> _carregar() async {
+    final hadData = _temDadosPainel;
     if (mounted) {
       setState(() {
-        _loading = !hadData;
-        _error = null;
+        _carregando = !hadData;
+        _erro = null;
       });
     }
 
@@ -80,46 +80,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
       await OfflineCacheService.writeMap(_cacheKey, payload);
       if (!mounted) return;
-      _applyPayload(payload);
+      _aplicarPayload(payload);
     } catch (error) {
       final cached =
           hadData ? null : await OfflineCacheService.readMap(_cacheKey);
       if (!mounted) return;
       if (cached != null) {
-        _applyPayload(cached);
-        _showBackgroundRefreshWarning();
+        _aplicarPayload(cached);
+        _mostrarAvisoAtualizacao();
         return;
       }
       if (hadData) {
         setState(() {
-          _loading = false;
+          _carregando = false;
         });
-        _showBackgroundRefreshWarning();
+        _mostrarAvisoAtualizacao();
         return;
       }
       setState(() {
-        _error = error.toString();
-        _loading = false;
+        _erro = error.toString();
+        _carregando = false;
       });
     }
   }
 
-  void _applyPayload(Map<String, dynamic> payload) {
-    final normalized = _normalizePayload(payload);
+  void _aplicarPayload(Map<String, dynamic> payload) {
+    final normalized = _normalizarPayload(payload);
     setState(() {
-      _summary = normalized['summary'] as Map<String, dynamic>;
-      _taskMetrics = normalized['taskMetrics'] as Map<String, dynamic>;
-      _budgetMetrics = normalized['budgetMetrics'] as Map<String, dynamic>;
-      _recentTasks = normalized['recentTasks'] as List<Map<String, dynamic>>;
-      _recentBudgets =
+      _resumo = normalized['summary'] as Map<String, dynamic>;
+      _metricasTarefas = normalized['taskMetrics'] as Map<String, dynamic>;
+      _metricasOrcamentos = normalized['budgetMetrics'] as Map<String, dynamic>;
+      _tarefasRecentes = normalized['recentTasks'] as List<Map<String, dynamic>>;
+      _orcamentosRecentes =
           normalized['recentBudgets'] as List<Map<String, dynamic>>;
-      _notificationCount = normalized['notificationCount'] as int;
-      _loading = false;
-      _error = null;
+      _contadorNotificacoes = normalized['notificationCount'] as int;
+      _carregando = false;
+      _erro = null;
     });
   }
 
-  Map<String, dynamic> _normalizePayload(Map<String, dynamic> payload) {
+  Map<String, dynamic> _normalizarPayload(Map<String, dynamic> payload) {
     final summary = Map<String, dynamic>.from(
       payload['summary'] as Map? ?? const {},
     );
@@ -160,7 +160,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final fallbackRecentTasks = recentTasks.isNotEmpty
         ? recentTasks
-        : _legacyReportsAsRecentTasks(
+        : _relatoriosLegadoComoTarefas(
             payload['recentReports'] as List? ?? const []);
 
     final notificationCount = (payload['notificationCount'] as num?)?.toInt() ??
@@ -177,7 +177,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     };
   }
 
-  List<Map<String, dynamic>> _legacyReportsAsRecentTasks(
+  List<Map<String, dynamic>> _relatoriosLegadoComoTarefas(
       List<dynamic> reports) {
     return reports
         .whereType<Map>()
@@ -191,7 +191,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ? item['title']
                     : 'Atividade recente'),
             'status':
-                _legacyReportStatusToTaskStatus(item['status']?.toString()),
+                _statusRelatorioLegadoParaTarefa(item['status']?.toString()),
             'priority': 'media',
             'client_name': item['client_name'],
             'client_address': '',
@@ -201,7 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .toList();
   }
 
-  String _legacyReportStatusToTaskStatus(String? status) {
+  String _statusRelatorioLegadoParaTarefa(String? status) {
     switch (status) {
       case 'enviado':
         return 'em_andamento';
@@ -214,7 +214,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _showBackgroundRefreshWarning() {
+  void _mostrarAvisoAtualizacao() {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(
@@ -228,7 +228,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    if (_carregando) {
       return const AppScaffold(
         title: 'Início',
         showAppBar: false,
@@ -236,33 +236,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    if (_error != null) {
+    if (_erro != null) {
       return AppScaffold(
         title: 'Início',
         showAppBar: false,
         body: ErrorView(
-          message: _error!,
-          onRetry: _load,
+          message: _erro!,
+          onRetry: _carregar,
         ),
       );
     }
 
     final theme = Theme.of(context);
     final userName = AuthService.instance.user?['name']?.toString();
-    final greetingName = firstNameOf(userName);
-    final openTasks = (_taskMetrics['open'] as num?)?.toInt() ?? 0;
-    final inProgressTasks = (_taskMetrics['inProgress'] as num?)?.toInt() ?? 0;
-    final tasksToday = (_taskMetrics['today'] as num?)?.toInt() ?? 0;
+    final greetingName = primeiroNomeDe(userName);
+    final openTasks = (_metricasTarefas['open'] as num?)?.toInt() ?? 0;
+    final inProgressTasks = (_metricasTarefas['inProgress'] as num?)?.toInt() ?? 0;
+    final tasksToday = (_metricasTarefas['today'] as num?)?.toInt() ?? 0;
     final budgetsInProgress =
-        (_budgetMetrics['inProgress'] as num?)?.toInt() ?? 0;
-    final approvedBudgets = (_budgetMetrics['approved'] as num?)?.toInt() ?? 0;
+        (_metricasOrcamentos['inProgress'] as num?)?.toInt() ?? 0;
+    final approvedBudgets = (_metricasOrcamentos['approved'] as num?)?.toInt() ?? 0;
 
     return AppScaffold(
       title: 'Início',
       showAppBar: false,
       padding: EdgeInsets.zero,
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _carregar,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.md,
@@ -312,7 +312,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Text(
-                              _heroSubtitle(
+                              _subtituloHero(
                                 openTasks: openTasks,
                                 inProgressTasks: inProgressTasks,
                                 tasksToday: tasksToday,
@@ -325,7 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                       _NotificationButton(
-                        count: _notificationCount,
+                        count: _contadorNotificacoes,
                         onTap: () => _openNotificationCenter(
                           openTasks: openTasks,
                           inProgressTasks: inProgressTasks,
@@ -348,7 +348,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         icon: Icons.receipt_long_rounded,
                       ),
                       _HeroPill(
-                        label: formatDate(DateTime.now().toIso8601String()),
+                        label: formatarData(DateTime.now().toIso8601String()),
                         icon: Icons.schedule_rounded,
                       ),
                     ],
@@ -376,7 +376,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   _ShortcutCard(
                     title: 'Clientes',
-                    subtitle: '${_summary['clients'] ?? 0} ativos',
+                    subtitle: '${_resumo['clients'] ?? 0} ativos',
                     icon: Icons.people_alt_rounded,
                     accentColor: AppColors.secondary,
                     onTap: () =>
@@ -419,7 +419,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 MetricCard(
                   title: 'Tarefas',
-                  value: '${_taskMetrics['total'] ?? _summary['tasks'] ?? 0}',
+                  value: '${_metricasTarefas['total'] ?? _resumo['tasks'] ?? 0}',
                   subtitle: '$openTasks abertas',
                   icon: Icons.task_alt_rounded,
                   onTap: () =>
@@ -437,7 +437,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 MetricCard(
                   title: 'Orçamentos',
                   value:
-                      '${_budgetMetrics['total'] ?? _summary['budgets'] ?? 0}',
+                      '${_metricasOrcamentos['total'] ?? _resumo['budgets'] ?? 0}',
                   subtitle: '$budgetsInProgress aguardando retorno',
                   icon: Icons.request_quote_rounded,
                   accentColor: AppColors.info,
@@ -446,7 +446,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 MetricCard(
                   title: 'Clientes',
-                  value: '${_summary['clients'] ?? 0}',
+                  value: '${_resumo['clients'] ?? 0}',
                   subtitle: 'Base comercial ativa',
                   icon: Icons.people_alt_rounded,
                   accentColor: AppColors.success,
@@ -464,7 +464,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   widget.onOpenShortcut?.call(DashboardShortcut.tasks),
             ),
             const SizedBox(height: AppSpacing.sm),
-            if (_recentTasks.isEmpty)
+            if (_tarefasRecentes.isEmpty)
               const EmptyState(
                 title: 'Nenhuma tarefa recente',
                 message:
@@ -473,7 +473,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 illustrationAsset: AppAssets.emptyTasks,
               )
             else
-              ..._recentTasks.take(3).map((task) {
+              ..._tarefasRecentes.take(3).map((task) {
                 final title = task['title']?.toString() ?? 'Tarefa';
                 final clientName =
                     task['client_name']?.toString() ?? 'Sem cliente';
@@ -482,9 +482,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   title: title,
                   clientName: clientName,
                   location: address,
-                  statusLabel: taskStatusLabel(task['status']?.toString()),
+                  statusLabel: labelStatusTarefa(task['status']?.toString()),
                   priorityLabel:
-                      taskPriorityLabel(task['priority']?.toString()),
+                      labelPrioridadeTarefa(task['priority']?.toString()),
                   codeLabel: '#${task['id'] ?? '--'}',
                   avatarName: clientName,
                   onTap: () =>
@@ -500,7 +500,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   widget.onOpenShortcut?.call(DashboardShortcut.budgets),
             ),
             const SizedBox(height: AppSpacing.sm),
-            if (_recentBudgets.isEmpty)
+            if (_orcamentosRecentes.isEmpty)
               const EmptyState(
                 title: 'Nenhum orçamento recente',
                 message:
@@ -509,7 +509,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 illustrationAsset: AppAssets.emptyBudgets,
               )
             else
-              ..._recentBudgets.take(3).map(
+              ..._orcamentosRecentes.take(3).map(
                     (budget) => _RecentBudgetCard(
                       code: 'ORC #${budget['id'] ?? '--'}',
                       clientName:
@@ -517,9 +517,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       title: budget['task_title']?.toString().isNotEmpty == true
                           ? budget['task_title'].toString()
                           : 'Proposta comercial',
-                      total: formatCurrency(budget['total'] as num? ?? 0),
-                      createdAt: formatDate(budget['created_at']?.toString()),
-                      status: budgetStatusLabel(budget['status']?.toString()),
+                      total: formatarMoeda(budget['total'] as num? ?? 0),
+                      createdAt: formatarData(budget['created_at']?.toString()),
+                      status: labelStatusOrcamento(budget['status']?.toString()),
                       onTap: () => widget.onOpenShortcut
                           ?.call(DashboardShortcut.budgets),
                     ),
@@ -530,7 +530,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  String _heroSubtitle({
+  String _subtituloHero({
     required int openTasks,
     required int inProgressTasks,
     required int tasksToday,

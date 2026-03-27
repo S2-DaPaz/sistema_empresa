@@ -94,7 +94,7 @@ class TaskDetailBudgetsTab extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text('Total: ${formatCurrency(budget['total'] ?? 0)}'),
+                    Text('Total: ${formatarMoeda(budget['total'] ?? 0)}'),
                     const SizedBox(height: 8),
                     ...(budget['items'] as List<dynamic>? ?? [])
                         .cast<Map<String, dynamic>>()
@@ -105,7 +105,7 @@ class TaskDetailBudgetsTab extends StatelessWidget {
                                     child: Text(
                                         item['description']?.toString() ??
                                             'Item')),
-                                Text(formatCurrency(item['total'] ?? 0)),
+                                Text(formatarMoeda(item['total'] ?? 0)),
                               ],
                             )),
                   ],

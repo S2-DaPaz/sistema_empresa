@@ -35,7 +35,7 @@ class _BudgetItemFormPageState extends State<BudgetItemFormPage> {
     if (item != null) {
       _description.text = item.description;
       _qty.text = item.qty.toString();
-      _unitPrice.text = formatCurrency(item.unitPrice);
+      _unitPrice.text = formatarMoeda(item.unitPrice);
       _productId = item.productId;
     }
   }
@@ -50,7 +50,7 @@ class _BudgetItemFormPageState extends State<BudgetItemFormPage> {
 
   double _toDouble(String value) {
     if (value.contains('R\$')) {
-      return parseCurrency(value);
+      return converterMoeda(value);
     }
     return double.tryParse(value.replaceAll(',', '.')) ?? 0;
   }
@@ -66,7 +66,7 @@ class _BudgetItemFormPageState extends State<BudgetItemFormPage> {
         _description.text = product['name']?.toString() ?? '';
       }
       if (_unitPrice.text.trim().isEmpty || _toDouble(_unitPrice.text) == 0) {
-        _unitPrice.text = formatCurrency(product['price'] ?? 0);
+        _unitPrice.text = formatarMoeda(product['price'] ?? 0);
       }
     }
     setState(() {});
@@ -149,7 +149,7 @@ class _BudgetItemFormPageState extends State<BudgetItemFormPage> {
               controller: _unitPrice,
               keyboardType: TextInputType.number,
               inputFormatters: [
-                CurrencyInputFormatter(),
+                FormatadorEntradaMoeda(),
               ],
             ),
             const SizedBox(height: 12),
@@ -174,7 +174,7 @@ class _BudgetItemFormPageState extends State<BudgetItemFormPage> {
                 if (_unitPrice.text.trim().isNotEmpty)
                   Chip(
                     label: Text(
-                      'Total: ${formatCurrency(_toDouble(_qty.text) * _toDouble(_unitPrice.text))}',
+                      'Total: ${formatarMoeda(_toDouble(_qty.text) * _toDouble(_unitPrice.text))}',
                     ),
                   ),
               ],

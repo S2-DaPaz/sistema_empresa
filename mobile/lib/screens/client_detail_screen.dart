@@ -111,8 +111,8 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final email = extractEmail(_client['contact']?.toString());
-    final phone = extractPhone(_client['contact']?.toString());
+    final email = extrairEmail(_client['contact']?.toString());
+    final phone = extrairTelefone(_client['contact']?.toString());
     final activeTasks = _tasks
         .where((task) => task['status']?.toString() != 'concluida')
         .length;
@@ -203,7 +203,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
               MetricCard(
                 title: 'Orçamentos',
                 value: '${_budgets.length}',
-                subtitle: formatCurrency(totalBudget),
+                subtitle: formatarMoeda(totalBudget),
                 icon: Icons.receipt_long_rounded,
                 accentColor: AppColors.success,
                 onTap: () => Navigator.of(context).push(
@@ -280,7 +280,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                                       task['title']?.toString() ?? 'Tarefa'),
                                 ),
                                 StatusChip(
-                                  label: taskStatusLabel(
+                                  label: labelStatusTarefa(
                                       task['status']?.toString()),
                                   compact: true,
                                 ),
@@ -310,7 +310,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                                   child: Text('ORÇ #${budget['id']}'),
                                 ),
                                 StatusChip(
-                                  label: budgetStatusLabel(
+                                  label: labelStatusOrcamento(
                                       budget['status']?.toString()),
                                   compact: true,
                                 ),
@@ -402,14 +402,14 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-final EntityConfig _clientConfig = EntityConfig(
+final ConfiguracaoEntidade _clientConfig = ConfiguracaoEntidade(
   title: 'Cliente',
   endpoint: '/clients',
   primaryField: 'name',
   fields: [
-    FieldConfig(name: 'name', label: 'Nome', type: FieldType.text),
-    FieldConfig(name: 'cnpj', label: 'CPF/CNPJ', type: FieldType.text),
-    FieldConfig(name: 'address', label: 'Endereço', type: FieldType.textarea),
-    FieldConfig(name: 'contact', label: 'Contato', type: FieldType.text),
+    ConfiguracaoCampo(name: 'name', label: 'Nome', type: TipoCampo.text),
+    ConfiguracaoCampo(name: 'cnpj', label: 'CPF/CNPJ', type: TipoCampo.text),
+    ConfiguracaoCampo(name: 'address', label: 'Endereço', type: TipoCampo.textarea),
+    ConfiguracaoCampo(name: 'contact', label: 'Contato', type: TipoCampo.text),
   ],
 );

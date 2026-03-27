@@ -1,48 +1,49 @@
-String buildReportText({
-  required String reportTitle,
-  required String taskTitle,
-  String? clientName,
-  String? equipmentName,
-  required List<dynamic> sections,
-  required Map<String, dynamic> answers,
+/// Constrói o texto plano de um relatório para compartilhamento.
+String construirTextoRelatorio({
+  required String tituloRelatorio,
+  required String tituloTarefa,
+  String? nomeCliente,
+  String? nomeEquipamento,
+  required List<dynamic> secoes,
+  required Map<String, dynamic> respostas,
 }) {
-  String formatAnswer(Map<String, dynamic> field, dynamic value) {
-    final type = field['type'];
-    if (type == 'checkbox') return value == true ? 'Sim' : 'Não';
-    if (type == 'yesno') {
-      if (value == 'sim') return 'Sim';
-      if (value == 'nao') return 'Não';
+  String formatarResposta(Map<String, dynamic> campo, dynamic valor) {
+    final tipo = campo['type'];
+    if (tipo == 'checkbox') return valor == true ? 'Sim' : 'Não';
+    if (tipo == 'yesno') {
+      if (valor == 'sim') return 'Sim';
+      if (valor == 'nao') return 'Não';
       return '-';
     }
-    if (value == 0 || value == '0') return '0';
-    return value?.toString() ?? '-';
+    if (valor == 0 || valor == '0') return '0';
+    return valor?.toString() ?? '-';
   }
 
-  final lines = <String>[];
-  final title = reportTitle.isNotEmpty ? reportTitle : taskTitle;
-  lines.add('Relatório: $title');
-  if (clientName != null && clientName.isNotEmpty) {
-    lines.add('Cliente: $clientName');
+  final linhas = <String>[];
+  final titulo = tituloRelatorio.isNotEmpty ? tituloRelatorio : tituloTarefa;
+  linhas.add('Relatório: $titulo');
+  if (nomeCliente != null && nomeCliente.isNotEmpty) {
+    linhas.add('Cliente: $nomeCliente');
   }
-  if (equipmentName != null && equipmentName.isNotEmpty) {
-    lines.add('Equipamento: $equipmentName');
+  if (nomeEquipamento != null && nomeEquipamento.isNotEmpty) {
+    linhas.add('Equipamento: $nomeEquipamento');
   }
-  lines.add('');
+  linhas.add('');
 
-  for (final section in sections) {
-    if (section is! Map<String, dynamic>) continue;
-    lines.add((section['title'] ?? 'Seção').toString());
-    final fields = section['fields'];
-    if (fields is List) {
-      for (final field in fields) {
-        if (field is! Map<String, dynamic>) continue;
-        final label = field['label']?.toString() ?? 'Campo';
-        final value = answers[field['id']?.toString() ?? ''];
-        lines.add('- $label: ${formatAnswer(field, value)}');
+  for (final secao in secoes) {
+    if (secao is! Map<String, dynamic>) continue;
+    linhas.add((secao['title'] ?? 'Seção').toString());
+    final campos = secao['fields'];
+    if (campos is List) {
+      for (final campo in campos) {
+        if (campo is! Map<String, dynamic>) continue;
+        final rotulo = campo['label']?.toString() ?? 'Campo';
+        final valor = respostas[campo['id']?.toString() ?? ''];
+        linhas.add('- $rotulo: ${formatarResposta(campo, valor)}');
       }
     }
-    lines.add('');
+    linhas.add('');
   }
 
-  return lines.join('\n');
+  return linhas.join('\n');
 }

@@ -188,9 +188,18 @@ class _ShellDestination extends StatelessWidget {
             children: [
               Icon(selected ? selectedIcon : icon, color: color),
               const SizedBox(height: 6),
-              Text(
-                label,
-                style: theme.textTheme.labelSmall?.copyWith(color: color),
+              SizedBox(
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.labelSmall?.copyWith(color: color),
+                  ),
+                ),
               ),
             ],
           ),

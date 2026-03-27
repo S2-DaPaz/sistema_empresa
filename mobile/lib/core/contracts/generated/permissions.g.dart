@@ -1,5 +1,4 @@
-// GENERATED CODE - DO NOT MODIFY BY HAND.
-// Source: packages/contracts/permissions.json
+
 
 class AppPermissions {
   static const String viewDashboard = 'view_dashboard';

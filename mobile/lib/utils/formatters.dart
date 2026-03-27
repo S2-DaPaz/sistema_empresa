@@ -1,97 +1,117 @@
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-final _currencyFormatter =
+/// Formatadores reutilizáveis de moeda e data para o padrão brasileiro (pt-BR).
+
+final _formatadorMoeda =
     NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-final _dateFormatter = DateFormat('dd/MM/yyyy', 'pt_BR');
-final _dateTimeFormatter = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
-final _isoDateFormatter = DateFormat('yyyy-MM-dd', 'en_US');
+final _formatadorData = DateFormat('dd/MM/yyyy', 'pt_BR');
+final _formatadorDataHora = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
+final _formatadorDataIso = DateFormat('yyyy-MM-dd', 'en_US');
 
-String formatCurrency(num? value) {
-  return _currencyFormatter.format(value ?? 0);
+/// Formata um valor numérico como moeda brasileira (R$).
+String formatarMoeda(num? valor) {
+  return _formatadorMoeda.format(valor ?? 0);
 }
 
-String formatDate(String? value) {
-  if (value == null || value.isEmpty) return '-';
-  final date = DateTime.tryParse(value);
-  if (date == null) return value;
-  return _dateFormatter.format(date);
+/// Formata uma string ISO em data legível (dd/MM/yyyy). Retorna '-' se vazio.
+String formatarData(String? valor) {
+  if (valor == null || valor.isEmpty) return '-';
+  final data = DateTime.tryParse(valor);
+  if (data == null) return valor;
+  return _formatadorData.format(data);
 }
 
-String formatDateTime(String? value) {
-  if (value == null || value.isEmpty) return '-';
-  final date = DateTime.tryParse(value);
-  if (date == null) return value;
-  return _dateTimeFormatter.format(date);
+/// Formata uma string ISO em data e hora legíveis (dd/MM/yyyy HH:mm).
+String formatarDataHora(String? valor) {
+  if (valor == null || valor.isEmpty) return '-';
+  final data = DateTime.tryParse(valor);
+  if (data == null) return valor;
+  return _formatadorDataHora.format(data);
 }
 
-String formatDateInput(String? value) {
-  if (value == null || value.isEmpty) return '';
-  final date = DateTime.tryParse(value);
-  if (date == null) return value;
-  return _dateFormatter.format(date);
+/// Formata data para exibição em campos de entrada; retorna vazio em vez de '-'.
+String formatarEntradaData(String? valor) {
+  if (valor == null || valor.isEmpty) return '';
+  final data = DateTime.tryParse(valor);
+  if (data == null) return valor;
+  return _formatadorData.format(data);
 }
 
-String formatDateFromDate(DateTime date) {
-  return _dateFormatter.format(date);
+/// Formata um objeto DateTime diretamente em string dd/MM/yyyy.
+String formatarDataDeDate(DateTime data) {
+  return _formatadorData.format(data);
 }
 
-double parseCurrency(String value) {
-  if (value.isEmpty) return 0;
-  final digits = value.replaceAll(RegExp(r'[^\d]'), '');
-  if (digits.isEmpty) return 0;
-  return (int.parse(digits) / 100);
+/// Converte uma string de moeda formatada (ex.: "R$ 1.234,56") em double.
+double converterMoeda(String valor) {
+  if (valor.isEmpty) return 0;
+  // Remove tudo que não é dígito para extrair o valor em centavos
+  final digitos = valor.replaceAll(RegExp(r'[^\d]'), '');
+  if (digitos.isEmpty) return 0;
+  return (int.parse(digitos) / 100);
 }
 
-class CurrencyInputFormatter extends TextInputFormatter {
-  CurrencyInputFormatter({NumberFormat? formatter})
-      : _formatter = formatter ?? _currencyFormatter;
+/// Formatter para campos de texto que aplica máscara de moeda em tempo real.
+class FormatadorEntradaMoeda extends TextInputFormatter {
+  FormatadorEntradaMoeda({NumberFormat? formatador})
+      : _formatador = formatador ?? _formatadorMoeda;
 
-  final NumberFormat _formatter;
+  final NumberFormat _formatador;
 
   @override
   TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
+    TextEditingValue valorAntigo,
+    TextEditingValue valorNovo,
   ) {
-    final digits = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
-    if (digits.isEmpty) {
+    // Extrai apenas os dígitos da entrada para recalcular o valor monetário
+    final digitos = valorNovo.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (digitos.isEmpty) {
       return const TextEditingValue(text: '');
     }
-    final value = int.parse(digits) / 100;
-    final newText = _formatter.format(value);
+    final valor = int.parse(digitos) / 100;
+    final textoFormatado = _formatador.format(valor);
     return TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newText.length),
+      text: textoFormatado,
+      selection: TextSelection.collapsed(offset: textoFormatado.length),
     );
   }
 }
 
-String parseDateBrToIso(String? value) {
-  if (value == null || value.isEmpty) return '';
-  final normalized = value.trim();
-  final brMatch = RegExp(r'^(\d{2})\/(\d{2})\/(\d{4})$').firstMatch(normalized);
-  if (brMatch != null) {
-    final day = brMatch.group(1)!;
-    final month = brMatch.group(2)!;
-    final year = brMatch.group(3)!;
-    return '$year-$month-$day';
+/// Converte data no formato BR (dd/MM/yyyy) ou outros formatos para ISO (yyyy-MM-dd).
+String converterDataBrParaIso(String? valor) {
+  if (valor == null || valor.isEmpty) return '';
+  final normalizado = valor.trim();
+
+  // Tenta fazer match com formato brasileiro dd/MM/yyyy
+  final matchBr = RegExp(r'^(\d{2})\/(\d{2})\/(\d{4})$').firstMatch(normalizado);
+  if (matchBr != null) {
+    final dia = matchBr.group(1)!;
+    final mes = matchBr.group(2)!;
+    final ano = matchBr.group(3)!;
+    return '$ano-$mes-$dia';
   }
-  if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(normalized)) {
-    return normalized;
+
+  // Se já está em formato ISO, retorna como está
+  if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(normalizado)) {
+    return normalizado;
   }
-  final parsed = DateTime.tryParse(normalized);
-  if (parsed != null) {
-    return _isoDateFormatter.format(parsed);
+
+  // Tenta parse genérico como fallback
+  final dataParsed = DateTime.tryParse(normalizado);
+  if (dataParsed != null) {
+    return _formatadorDataIso.format(dataParsed);
   }
-  return normalized;
+  return normalizado;
 }
 
-String formatDateKey(String? value) {
-  if (value == null || value.isEmpty) return '';
-  return value.length >= 10 ? value.substring(0, 10) : value;
+/// Extrai a parte da data (primeiros 10 caracteres, yyyy-MM-dd) de uma string ISO.
+String formatarChaveData(String? valor) {
+  if (valor == null || valor.isEmpty) return '';
+  return valor.length >= 10 ? valor.substring(0, 10) : valor;
 }
 
-String formatMonthLabel(DateTime date) {
-  return DateFormat('MMMM yyyy', 'pt_BR').format(date);
+/// Formata um DateTime como rótulo de mês por extenso (ex.: "março 2026").
+String formatarRotuloMes(DateTime data) {
+  return DateFormat('MMMM yyyy', 'pt_BR').format(data);
 }

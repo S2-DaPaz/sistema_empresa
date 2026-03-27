@@ -1,7 +1,8 @@
 import 'field_config.dart';
 
-class EntityConfig {
-  EntityConfig({
+/// Configuração completa de uma entidade genérica (título, endpoint, campos).
+class ConfiguracaoEntidade {
+  ConfiguracaoEntidade({
     required this.title,
     required this.endpoint,
     required this.primaryField,
@@ -13,7 +14,7 @@ class EntityConfig {
   final String title;
   final String endpoint;
   final String primaryField;
-  final List<FieldConfig> fields;
+  final List<ConfiguracaoCampo> fields;
   final String? hint;
   final String? emptyMessage;
 }

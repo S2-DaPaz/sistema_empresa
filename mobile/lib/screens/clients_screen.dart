@@ -25,82 +25,82 @@ class ClientsScreen extends StatefulWidget {
 }
 
 class _ClientsScreenState extends State<ClientsScreen> {
-  static const String _cacheKey = 'offline_cache_clients_list';
+  static const String _chaveCache = 'offline_cache_clients_list';
 
   final ApiService _api = ApiService();
-  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _controladorBusca = TextEditingController();
 
-  bool _loading = true;
-  String? _error;
-  List<Map<String, dynamic>> _clients = [];
-  List<Map<String, dynamic>> _tasks = [];
-  List<Map<String, dynamic>> _budgets = [];
-  String _search = '';
+  bool _carregando = true;
+  String? _erro;
+  List<Map<String, dynamic>> _clientes = [];
+  List<Map<String, dynamic>> _tarefas = [];
+  List<Map<String, dynamic>> _orcamentos = [];
+  String _busca = '';
 
   @override
   void initState() {
     super.initState();
-    _primeFromCache();
+    _carregarDoCache();
     _load();
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _controladorBusca.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    final hadClients = _clients.isNotEmpty;
+    final hadClients = _clientes.isNotEmpty;
     setState(() {
-      _loading = !hadClients;
-      _error = null;
+      _carregando = !hadClients;
+      _erro = null;
     });
     try {
       final clients = await _api.get('/clients') as List<dynamic>;
       final nextClients = List<Map<String, dynamic>>.from(clients);
-      await OfflineCacheService.writeList(_cacheKey, nextClients);
+      await OfflineCacheService.writeList(_chaveCache, nextClients);
       if (!mounted) return;
       setState(() {
-        _clients = nextClients;
-        _tasks = <Map<String, dynamic>>[];
-        _budgets = <Map<String, dynamic>>[];
-        _loading = false;
+        _clientes = nextClients;
+        _tarefas = <Map<String, dynamic>>[];
+        _orcamentos = <Map<String, dynamic>>[];
+        _carregando = false;
       });
-      unawaited(_loadClientMetrics());
+      unawaited(_carregarMetricasCliente());
     } catch (error) {
       final cached =
-          hadClients ? _clients : await OfflineCacheService.readList(_cacheKey);
+          hadClients ? _clientes : await OfflineCacheService.readList(_chaveCache);
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         setState(() {
-          _clients = cached;
-          _loading = false;
+          _clientes = cached;
+          _carregando = false;
         });
-        _showStaleDataWarning();
-        unawaited(_loadClientMetrics());
+        _exibirAvisoDesatualizado();
+        unawaited(_carregarMetricasCliente());
         return;
       }
       setState(() {
-        _error = error.toString();
-        _loading = false;
+        _erro = error.toString();
+        _carregando = false;
       });
     }
   }
 
-  Future<void> _primeFromCache() async {
-    final cached = await OfflineCacheService.readList(_cacheKey);
-    if (!mounted || cached == null || cached.isEmpty || _clients.isNotEmpty) {
+  Future<void> _carregarDoCache() async {
+    final cached = await OfflineCacheService.readList(_chaveCache);
+    if (!mounted || cached == null || cached.isEmpty || _clientes.isNotEmpty) {
       return;
     }
     setState(() {
-      _clients = cached;
-      _loading = false;
-      _error = null;
+      _clientes = cached;
+      _carregando = false;
+      _erro = null;
     });
   }
 
-  Future<void> _loadClientMetrics() async {
+  Future<void> _carregarMetricasCliente() async {
     try {
       final results = await Future.wait([
         _api.get('/tasks'),
@@ -108,10 +108,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
       ]);
       if (!mounted) return;
       setState(() {
-        _tasks = List<Map<String, dynamic>>.from(
+        _tarefas = List<Map<String, dynamic>>.from(
           (results[0] as List?) ?? const [],
         );
-        _budgets = List<Map<String, dynamic>>.from(
+        _orcamentos = List<Map<String, dynamic>>.from(
           (results[1] as List?) ?? const [],
         );
       });
@@ -120,7 +120,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
     }
   }
 
-  void _showStaleDataWarning() {
+  void _exibirAvisoDesatualizado() {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(
@@ -132,11 +132,11 @@ class _ClientsScreenState extends State<ClientsScreen> {
     );
   }
 
-  Future<void> _openClientForm([Map<String, dynamic>? client]) async {
+  Future<void> _abrirFormularioCliente([Map<String, dynamic>? client]) async {
     final updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => EntityFormScreen(
-          config: _clientConfig,
+          config: _configCliente,
           item: client,
         ),
       ),
@@ -146,10 +146,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get _filteredClients {
-    final query = _search.trim().toLowerCase();
-    if (query.isEmpty) return _clients;
-    return _clients.where((client) {
+  List<Map<String, dynamic>> get _clientesFiltrados {
+    final query = _busca.trim().toLowerCase();
+    if (query.isEmpty) return _clientes;
+    return _clientes.where((client) {
       final text = [
         client['name'],
         client['contact'],
@@ -162,7 +162,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    if (_carregando) {
       return const AppScaffold(
         title: 'Clientes',
         showAppBar: false,
@@ -170,15 +170,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
       );
     }
 
-    if (_error != null) {
+    if (_erro != null) {
       return AppScaffold(
         title: 'Clientes',
         showAppBar: false,
-        body: ErrorView(message: _error!, onRetry: _load),
+        body: ErrorView(message: _erro!, onRetry: _load),
       );
     }
 
-    final filteredClients = _filteredClients;
+    final filteredClients = _clientesFiltrados;
 
     return AppScaffold(
       title: 'Clientes',
@@ -198,7 +198,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => _openClientForm(),
+                  onPressed: () => _abrirFormularioCliente(),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, 42),
                   ),
@@ -209,9 +209,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
             ),
             const SizedBox(height: 16),
             AppSearchField(
-              controller: _searchController,
+              controller: _controladorBusca,
               hintText: 'Buscar clientes...',
-              onChanged: (value) => setState(() => _search = value),
+              onChanged: (value) => setState(() => _busca = value),
             ),
             const SizedBox(height: 20),
             if (filteredClients.isEmpty)
@@ -224,14 +224,14 @@ class _ClientsScreenState extends State<ClientsScreen> {
             else
               ...filteredClients.map((client) {
                 final clientId = client['id'];
-                final taskCount = _tasks
+                final taskCount = _tarefas
                     .where((task) => task['client_id'] == clientId)
                     .length;
-                final budgetCount = _budgets
+                final budgetCount = _orcamentos
                     .where((budget) => budget['client_id'] == clientId)
                     .length;
-                final email = extractEmail(client['contact']?.toString());
-                final phone = extractPhone(client['contact']?.toString());
+                final email = extrairEmail(client['contact']?.toString());
+                final phone = extrairTelefone(client['contact']?.toString());
                 final metrics = <String>[
                   if (taskCount > 0) '$taskCount tarefas',
                   if (budgetCount > 0) '$budgetCount orçamentos',
@@ -257,14 +257,14 @@ class _ClientsScreenState extends State<ClientsScreen> {
   }
 }
 
-final EntityConfig _clientConfig = EntityConfig(
+final ConfiguracaoEntidade _configCliente = ConfiguracaoEntidade(
   title: 'Cliente',
   endpoint: '/clients',
   primaryField: 'name',
   fields: [
-    FieldConfig(name: 'name', label: 'Nome', type: FieldType.text),
-    FieldConfig(name: 'cnpj', label: 'CPF/CNPJ', type: FieldType.text),
-    FieldConfig(name: 'address', label: 'Endereço', type: FieldType.textarea),
-    FieldConfig(name: 'contact', label: 'Contato', type: FieldType.text),
+    ConfiguracaoCampo(name: 'name', label: 'Nome', type: TipoCampo.text),
+    ConfiguracaoCampo(name: 'cnpj', label: 'CPF/CNPJ', type: TipoCampo.text),
+    ConfiguracaoCampo(name: 'address', label: 'Endereço', type: TipoCampo.textarea),
+    ConfiguracaoCampo(name: 'contact', label: 'Contato', type: TipoCampo.text),
   ],
 );

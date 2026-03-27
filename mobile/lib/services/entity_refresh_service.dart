@@ -5,24 +5,24 @@ class EntityRefreshService {
 
   static final EntityRefreshService instance = EntityRefreshService._();
 
-  final StreamController<String> _controller =
+  final StreamController<String> _controlador =
       StreamController<String>.broadcast();
 
   StreamSubscription<String> listen(
     Iterable<String> endpoints,
     void Function(String endpoint) onRefresh,
   ) {
-    final watched = endpoints.map(_normalize).toSet();
-    return _controller.stream
-        .where((endpoint) => watched.contains(_normalize(endpoint)))
+    final watched = endpoints.map(_normalizar).toSet();
+    return _controlador.stream
+        .where((endpoint) => watched.contains(_normalizar(endpoint)))
         .listen(onRefresh);
   }
 
   void notifyChanged(String endpoint) {
-    _controller.add(_normalize(endpoint));
+    _controlador.add(_normalizar(endpoint));
   }
 
-  String _normalize(String endpoint) {
+  String _normalizar(String endpoint) {
     var normalized = endpoint.trim();
     if (normalized.isEmpty) return '/';
     final queryIndex = normalized.indexOf('?');

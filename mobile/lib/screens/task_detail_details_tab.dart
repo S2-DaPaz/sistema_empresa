@@ -130,8 +130,8 @@ class TaskDetailDetailsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final client = _selectedClient;
     final clientName = client?['name']?.toString() ?? 'Sem cliente';
-    final clientEmail = extractEmail(client?['contact']?.toString());
-    final clientPhone = extractPhone(client?['contact']?.toString());
+    final clientEmail = extrairEmail(client?['contact']?.toString());
+    final clientPhone = extrairTelefone(client?['contact']?.toString());
     final clientAddress = client?['address']?.toString() ?? '';
 
     return ListView(
@@ -154,7 +154,7 @@ class TaskDetailDetailsTab extends StatelessWidget {
                       compact: true,
                     ),
                     StatusChip(
-                      label: taskStatusLabel(status),
+                      label: labelStatusTarefa(status),
                       compact: true,
                     ),
                   ],
@@ -173,7 +173,7 @@ class TaskDetailDetailsTab extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${formatDateInput(startDateController.text).isEmpty ? 'Sem início' : formatDateInput(startDateController.text)} • ${formatDateInput(dueDateController.text).isEmpty ? 'Sem prazo' : formatDateInput(dueDateController.text)}',
+                        '${formatarEntradaData(startDateController.text).isEmpty ? 'Sem início' : formatarEntradaData(startDateController.text)} • ${formatarEntradaData(dueDateController.text).isEmpty ? 'Sem prazo' : formatarEntradaData(dueDateController.text)}',
                       ),
                     ),
                   ],
@@ -366,7 +366,7 @@ class TaskDetailDetailsTab extends StatelessWidget {
                       child: AppDateField(
                         key: ValueKey(startDateController.text),
                         label: 'Data inicial',
-                        value: formatDateInput(startDateController.text),
+                        value: formatarEntradaData(startDateController.text),
                         onTap: onPickStartDate,
                       ),
                     ),
@@ -375,7 +375,7 @@ class TaskDetailDetailsTab extends StatelessWidget {
                       child: AppDateField(
                         key: ValueKey(dueDateController.text),
                         label: 'Prazo',
-                        value: formatDateInput(dueDateController.text),
+                        value: formatarEntradaData(dueDateController.text),
                         onTap: onPickDueDate,
                       ),
                     ),
