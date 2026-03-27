@@ -93,7 +93,122 @@ function getClientPlatform(req = {}) {
 }
 
 function getDeviceInfo(req = {}) {
+  const explicitDevice = String(req.headers?.["x-client-device-name"] || "").trim();
+  if (explicitDevice) {
+    return explicitDevice.slice(0, 120);
+  }
   return String(req.headers?.["user-agent"] || "").slice(0, 500) || null;
+}
+
+function parseDurationToMs(value, fallbackMs) {
+  const match = /^\s*(\d+)\s*([smhd])\s*$/i.exec(String(value || ""));
+  if (!match) return fallbackMs;
+
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const factor = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000
+  }[unit];
+
+  return Number.isFinite(amount) && factor ? amount * factor : fallbackMs;
+}
+
+function isSessionOnline(session, onlineWindowMs, nowMs = Date.now()) {
+  if (!session || session.revoked_at || isExpired(session.expires_at)) {
+    return false;
+  }
+
+  const lastActivityMs = new Date(session.last_used_at || session.created_at || 0).getTime();
+  if (!Number.isFinite(lastActivityMs)) {
+    return false;
+  }
+
+  return nowMs - lastActivityMs <= onlineWindowMs;
+}
+
+function inferSessionDeviceName(session = {}) {
+  const rawInfo = String(session.device_info || "").trim();
+  const platform = String(session.platform || "").trim().toLowerCase();
+
+  if (rawInfo && !looksLikeRuntimeLabel(rawInfo) && !looksLikeBrowserUserAgent(rawInfo)) {
+    return rawInfo;
+  }
+
+  if (looksLikeBrowserUserAgent(rawInfo)) {
+    const browser = inferBrowserName(rawInfo);
+    const operatingSystem = inferOperatingSystem(rawInfo);
+    if (browser && operatingSystem) {
+      return `${browser} no ${operatingSystem}`;
+    }
+    if (browser || operatingSystem) {
+      return browser || operatingSystem;
+    }
+  }
+
+  switch (platform) {
+    case "mobile":
+      return "Aplicativo móvel";
+    case "web":
+      return "Navegador web";
+    default:
+      return "Sessão ativa";
+  }
+}
+
+function buildSessionDeviceKey(session = {}) {
+  const platform = String(session.platform || "unknown").trim().toLowerCase();
+  const deviceName = inferSessionDeviceName(session);
+  const rawInfo = String(session.device_info || "").trim().toLowerCase();
+  const ipAddress = String(session.ip_address || "").trim().toLowerCase();
+  const genericNames = new Set([
+    "aplicativo móvel",
+    "navegador web",
+    "sessão ativa"
+  ]);
+
+  const identitySeed = genericNames.has(deviceName.toLowerCase())
+    ? [rawInfo || deviceName.toLowerCase(), ipAddress].filter(Boolean).join(":")
+    : deviceName.toLowerCase();
+
+  return `${platform}:${identitySeed || deviceName.toLowerCase()}`;
+}
+
+function looksLikeRuntimeLabel(value) {
+  const normalized = String(value || "").toLowerCase();
+  return normalized.startsWith("dart/") || normalized.includes("(dart:io)");
+}
+
+function looksLikeBrowserUserAgent(value) {
+  const normalized = String(value || "");
+  return (
+    normalized.includes("Mozilla/") ||
+    normalized.includes("AppleWebKit/") ||
+    normalized.includes("Chrome/") ||
+    normalized.includes("Firefox/") ||
+    normalized.includes("Safari/")
+  );
+}
+
+function inferBrowserName(userAgent) {
+  const normalized = String(userAgent || "");
+  if (/edg\//i.test(normalized)) return "Edge";
+  if (/chrome\//i.test(normalized) && !/edg\//i.test(normalized)) return "Chrome";
+  if (/firefox\//i.test(normalized)) return "Firefox";
+  if (/safari\//i.test(normalized) && !/chrome\//i.test(normalized)) return "Safari";
+  return null;
+}
+
+function inferOperatingSystem(userAgent) {
+  const normalized = String(userAgent || "");
+  if (/windows/i.test(normalized)) return "Windows";
+  if (/android/i.test(normalized)) return "Android";
+  if (/iphone|ipad|ios/i.test(normalized)) return "iPhone";
+  if (/mac os x/i.test(normalized)) return "macOS";
+  if (/linux/i.test(normalized)) return "Linux";
+  return null;
 }
 
 module.exports = {
@@ -101,6 +216,7 @@ module.exports = {
   AUTH_CODE_PURPOSES,
   addDays,
   addMinutes,
+  buildSessionDeviceKey,
   compareHashedValue,
   generateNumericCode,
   generateRefreshToken,
@@ -108,10 +224,13 @@ module.exports = {
   getClientPlatform,
   getDeviceInfo,
   hashValue,
+  inferSessionDeviceName,
   isExpired,
+  isSessionOnline,
   maskEmail,
   normalizeEmail,
   normalizeName,
   nowIso,
+  parseDurationToMs,
   secondsUntil
 };

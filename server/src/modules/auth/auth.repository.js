@@ -213,10 +213,27 @@ async function revokeUserSessions(db, userId, revokedAt, exceptSessionId = null)
 }
 
 async function touchSession(db, sessionId, lastUsedAt) {
-  await db.run("UPDATE auth_sessions SET last_used_at = ? WHERE id = ?", [
-    lastUsedAt,
-    normalizeId(sessionId)
-  ]);
+  await touchSessionActivity(db, sessionId, {
+    last_used_at: lastUsedAt
+  });
+}
+
+async function touchSessionActivity(db, sessionId, payload) {
+  await db.run(
+    `UPDATE auth_sessions
+     SET last_used_at = ?,
+         device_info = COALESCE(?, device_info),
+         ip_address = COALESCE(?, ip_address),
+         platform = COALESCE(?, platform)
+     WHERE id = ?`,
+    [
+      payload.last_used_at ?? null,
+      payload.device_info ?? null,
+      payload.ip_address ?? null,
+      payload.platform ?? null,
+      normalizeId(sessionId)
+    ]
+  );
 }
 
 async function findRateLimit(db, actionKey, scopeKey) {
@@ -292,6 +309,7 @@ module.exports = {
   rotateSessionToken,
   saveRateLimit,
   touchSession,
+  touchSessionActivity,
   touchUserLogin,
   updateUserPassword
 };

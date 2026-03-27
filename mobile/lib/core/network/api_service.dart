@@ -6,6 +6,7 @@ import '../auth/auth_service.dart';
 import '../errors/app_exception.dart';
 import '../errors/error_mapper.dart';
 import '../errors/error_reporter.dart';
+import 'client_identity_service.dart';
 import 'json_utils.dart';
 import 'request_executor.dart';
 
@@ -24,27 +25,17 @@ class ApiService {
     return true;
   }
 
-  Map<String, String> _cabecalhos({bool json = true}) {
-    final headers = <String, String>{
-      'X-Client-Platform': 'mobile',
-    };
-
-    if (json) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    final token = AuthService.instance.token;
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-
-    return headers;
+  Future<Map<String, String>> _cabecalhos({bool json = true}) {
+    return ClientIdentityService.instance.buildHeaders(
+      json: json,
+      authToken: AuthService.instance.token,
+    );
   }
 
   Future<dynamic> get(String path) async {
     final response = await _enviar(
       path,
-      (uri) => _client.get(uri, headers: _cabecalhos(json: false)),
+      (uri) async => _client.get(uri, headers: await _cabecalhos(json: false)),
     );
     return _processarResposta(response, path: path, method: 'GET');
   }
@@ -52,7 +43,7 @@ class ApiService {
   Future<Map<String, dynamic>> getEnvelope(String path) async {
     final response = await _enviar(
       path,
-      (uri) => _client.get(uri, headers: _cabecalhos(json: false)),
+      (uri) async => _client.get(uri, headers: await _cabecalhos(json: false)),
     );
     return _decodificarEnvelope(
       response,
@@ -64,9 +55,9 @@ class ApiService {
   Future<dynamic> post(String path, Map<String, dynamic> body) async {
     final response = await _enviar(
       path,
-      (uri) => _client.post(
+      (uri) async => _client.post(
         uri,
-        headers: _cabecalhos(),
+        headers: await _cabecalhos(),
         body: jsonEncode(body),
       ),
     );
@@ -81,9 +72,9 @@ class ApiService {
   Future<dynamic> put(String path, Map<String, dynamic> body) async {
     final response = await _enviar(
       path,
-      (uri) => _client.put(
+      (uri) async => _client.put(
         uri,
-        headers: _cabecalhos(),
+        headers: await _cabecalhos(),
         body: jsonEncode(body),
       ),
     );
@@ -98,7 +89,10 @@ class ApiService {
   Future<dynamic> delete(String path) async {
     final response = await _enviar(
       path,
-      (uri) => _client.delete(uri, headers: _cabecalhos(json: false)),
+      (uri) async => _client.delete(
+        uri,
+        headers: await _cabecalhos(json: false),
+      ),
     );
     return _processarResposta(response, path: path, method: 'DELETE');
   }
@@ -106,7 +100,7 @@ class ApiService {
   Future<List<int>> getBytes(String path) async {
     final response = await _enviar(
       path,
-      (uri) => _client.get(uri, headers: _cabecalhos(json: false)),
+      (uri) async => _client.get(uri, headers: await _cabecalhos(json: false)),
     );
 
     if (response.statusCode >= 200 && response.statusCode < 300) {

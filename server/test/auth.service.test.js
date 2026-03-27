@@ -364,3 +364,56 @@ test("login rate limit blocks repeated invalid attempts", async () => {
     (error) => error.code === "rate_limited"
   );
 });
+
+test("me returns only online sessions and deduplicates repeated devices", async () => {
+  const db = await createDb();
+  await createVerifiedUser(db, "Senha123");
+
+  const now = Date.now();
+  const minutesAgo = (minutes) => new Date(now - minutes * 60 * 1000).toISOString();
+  const minutesAhead = (minutes) => new Date(now + minutes * 60 * 1000).toISOString();
+
+  await db.run(
+    `INSERT INTO auth_sessions (
+      user_id, token_hash, created_at, expires_at, revoked_at, last_used_at, device_info, ip_address, platform
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, "hash-1", minutesAgo(4), minutesAhead(60), null, minutesAgo(1), "Samsung Galaxy A54", "10.0.0.1", "mobile"]
+  );
+  await db.run(
+    `INSERT INTO auth_sessions (
+      user_id, token_hash, created_at, expires_at, revoked_at, last_used_at, device_info, ip_address, platform
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, "hash-2", minutesAgo(20), minutesAhead(60), null, minutesAgo(2), "Samsung Galaxy A54", "10.0.0.1", "mobile"]
+  );
+  await db.run(
+    `INSERT INTO auth_sessions (
+      user_id, token_hash, created_at, expires_at, revoked_at, last_used_at, device_info, ip_address, platform
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      1,
+      "hash-3",
+      minutesAgo(8),
+      minutesAhead(60),
+      null,
+      minutesAgo(3),
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36",
+      "10.0.0.2",
+      "web"
+    ]
+  );
+  await db.run(
+    `INSERT INTO auth_sessions (
+      user_id, token_hash, created_at, expires_at, revoked_at, last_used_at, device_info, ip_address, platform
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, "hash-4", minutesAgo(120), minutesAhead(60), null, minutesAgo(90), "iPhone", "10.0.0.3", "mobile"]
+  );
+
+  const meResult = await authService.me(db, TEST_ENV, 1, 1);
+
+  assert.equal(meResult.sessionSummary.active, 2);
+  assert.equal(meResult.sessionSummary.online, 2);
+  assert.equal(meResult.sessions.length, 2);
+  assert.equal(meResult.sessions[0].deviceName, "Samsung Galaxy A54");
+  assert.equal(meResult.sessions[0].isCurrent, true);
+  assert.equal(meResult.sessions[1].deviceName, "Chrome no Windows");
+});

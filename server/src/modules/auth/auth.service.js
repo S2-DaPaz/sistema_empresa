@@ -16,6 +16,7 @@ const {
   AUTH_CODE_PURPOSES,
   addDays,
   addMinutes,
+  buildSessionDeviceKey,
   compareHashedValue,
   generateNumericCode,
   generateRefreshToken,
@@ -23,11 +24,14 @@ const {
   getClientPlatform,
   getDeviceInfo,
   hashValue,
+  inferSessionDeviceName,
   isExpired,
+  isSessionOnline,
   maskEmail,
   normalizeEmail,
   normalizeName,
   nowIso,
+  parseDurationToMs,
   secondsUntil
 } = require("./auth.helpers");
 
@@ -675,14 +679,56 @@ async function logoutAll(db, req) {
   return { ok: true };
 }
 
-async function me(db, userId, currentSessionId = null) {
+function getOnlineSessionWindowMs(env) {
+  const accessTokenMs = parseDurationToMs(env.accessTokenTtl || env.jwtTtl, 15 * 60 * 1000);
+  // A folga evita esconder uma sessão logo antes da renovação natural do access token.
+  return Math.max(accessTokenMs + 5 * 60 * 1000, 10 * 60 * 1000);
+}
+
+function buildOnlineSessions(sessions, env, currentSessionId) {
+  const onlineWindowMs = getOnlineSessionWindowMs(env);
+  const nowMs = Date.now();
+  const seenDevices = new Set();
+  const result = [];
+
+  for (const session of sessions) {
+    if (!isSessionOnline(session, onlineWindowMs, nowMs)) {
+      continue;
+    }
+
+    const deviceName = inferSessionDeviceName(session);
+    const deviceKey = buildSessionDeviceKey(session);
+    if (seenDevices.has(deviceKey)) {
+      continue;
+    }
+
+    seenDevices.add(deviceKey);
+    result.push({
+      id: session.id,
+      createdAt: session.created_at,
+      expiresAt: session.expires_at,
+      revokedAt: session.revoked_at,
+      lastUsedAt: session.last_used_at,
+      deviceInfo: session.device_info,
+      deviceName,
+      ipAddress: session.ip_address,
+      platform: session.platform,
+      isCurrent: currentSessionId != null && Number(session.id) == Number(currentSessionId),
+      isActive: true
+    });
+  }
+
+  return result;
+}
+
+async function me(db, env, userId, currentSessionId = null) {
   const user = await repository.findAuthUserById(db, userId);
   if (!user) {
     throw new UnauthorizedError("Sua sessão expirou. Faça login novamente para continuar.");
   }
 
   const sessions = await repository.listUserSessions(db, userId);
-  const activeSessions = sessions.filter((session) => !session.revoked_at);
+  const onlineSessions = buildOnlineSessions(sessions, env, currentSessionId);
 
   return {
     user: buildUserPayload(user),
@@ -693,21 +739,11 @@ async function me(db, userId, currentSessionId = null) {
       lastLoginAt: user.last_login_at,
       passwordChangedAt: user.password_changed_at
     },
-    sessions: sessions.map((session) => ({
-      id: session.id,
-      createdAt: session.created_at,
-      expiresAt: session.expires_at,
-      revokedAt: session.revoked_at,
-      lastUsedAt: session.last_used_at,
-      deviceInfo: session.device_info,
-      ipAddress: session.ip_address,
-      platform: session.platform,
-      isCurrent: currentSessionId != null && Number(session.id) == Number(currentSessionId),
-      isActive: !session.revoked_at
-    })),
+    sessions: onlineSessions,
     sessionSummary: {
       total: sessions.length,
-      active: activeSessions.length
+      active: onlineSessions.length,
+      online: onlineSessions.length
     }
   };
 }

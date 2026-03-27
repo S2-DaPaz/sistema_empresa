@@ -149,7 +149,7 @@ class _MoreScreenState extends State<MoreScreen> {
                 ),
                 _HeroStat(
                   label: 'Status',
-                  value: accountStatusLabel(accountStatus),
+                  value: labelStatusConta(accountStatus),
                 ),
               ],
             ),
@@ -158,7 +158,7 @@ class _MoreScreenState extends State<MoreScreen> {
               children: [
                 Expanded(
                   child: StatusChip(
-                    label: accountStatusLabel(accountStatus),
+                    label: labelStatusConta(accountStatus),
                     tone: _accountStatusTone(accountStatus),
                   ),
                 ),
@@ -234,7 +234,7 @@ class _MoreScreenState extends State<MoreScreen> {
                 ),
               )
             else
-              ..._sessions.take(4).map((item) => Card(
+              ..._sessions.map((item) => Card(
                     child: ListTile(
                       leading: Container(
                         width: 42,
@@ -250,8 +250,8 @@ class _MoreScreenState extends State<MoreScreen> {
                         child: const Icon(Icons.devices_outlined),
                       ),
                       title: Text(
-                        item['deviceInfo']?.toString().isNotEmpty == true
-                            ? item['deviceInfo'].toString()
+                        item['deviceName']?.toString().isNotEmpty == true
+                            ? item['deviceName'].toString()
                             : (item['platform']?.toString().isNotEmpty == true
                                 ? item['platform'].toString()
                                 : 'Sessão sem identificação'),
@@ -260,7 +260,7 @@ class _MoreScreenState extends State<MoreScreen> {
                         'Último uso: ${_safeDate(item['lastUsedAt']?.toString())}',
                       ),
                       trailing: StatusChip(
-                        label: item['isCurrent'] == true ? 'Atual' : 'Ativa',
+                        label: item['isCurrent'] == true ? 'Atual' : 'Online',
                         tone: item['isCurrent'] == true
                             ? StatusChipTone.success
                             : StatusChipTone.neutral,
@@ -343,7 +343,7 @@ class _MoreScreenState extends State<MoreScreen> {
 
   String _safeDate(String? value) {
     if (value == null || value.isEmpty) return 'Agora';
-    return formatDateTime(value);
+    return formatarDataHora(value);
   }
 
   StatusChipTone _accountStatusTone(String status) {

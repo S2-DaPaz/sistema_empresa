@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../errors/app_exception.dart';
 import '../errors/error_mapper.dart';
 import '../errors/error_reporter.dart';
+import '../network/client_identity_service.dart';
 import '../network/json_utils.dart';
 import '../network/request_executor.dart';
 import 'session_permissions.dart';
@@ -52,6 +53,18 @@ class AuthService {
   bool get isAdmin => session.value?.roleIsAdmin == true;
   bool get canRefreshSession =>
       refreshToken != null && refreshToken!.isNotEmpty;
+
+  Future<Map<String, String>> _cabecalhos({
+    bool json = true,
+    bool withAuth = false,
+    String? authToken,
+  }) {
+    final resolvedToken = authToken ?? token;
+    return ClientIdentityService.instance.buildHeaders(
+      json: json,
+      authToken: withAuth ? resolvedToken : null,
+    );
+  }
 
   Future<void> restore() async {
     final prefs = await SharedPreferences.getInstance();
@@ -102,12 +115,9 @@ class AuthService {
 
     final response = await _enviar(
       '/auth/me',
-      (uri) => _client.get(
+      (uri) async => _client.get(
         uri,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'X-Client-Platform': 'mobile',
-        },
+        headers: await _cabecalhos(withAuth: true, json: false),
       ),
     );
 
@@ -227,12 +237,9 @@ class AuthService {
     try {
       final response = await _enviar(
         '/auth/refresh',
-        (uri) => _client.post(
+        (uri) async => _client.post(
           uri,
-          headers: const {
-            'Content-Type': 'application/json',
-            'X-Client-Platform': 'mobile',
-          },
+          headers: await _cabecalhos(json: true),
           body: jsonEncode({'refreshToken': storedRefreshToken}),
         ),
       );
@@ -257,13 +264,9 @@ class AuthService {
       if (!localOnly && token != null && token!.isNotEmpty) {
         await _enviar(
           '/auth/logout',
-          (uri) => _client.post(
+          (uri) async => _client.post(
             uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Client-Platform': 'mobile',
-              'Authorization': 'Bearer $token',
-            },
+            headers: await _cabecalhos(withAuth: true),
             body: jsonEncode({}),
           ),
         );
@@ -284,13 +287,9 @@ class AuthService {
       if (token != null && token!.isNotEmpty) {
         await _enviar(
           '/auth/logout-all',
-          (uri) => _client.post(
+          (uri) async => _client.post(
             uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Client-Platform': 'mobile',
-              'Authorization': 'Bearer $token',
-            },
+            headers: await _cabecalhos(withAuth: true),
             body: jsonEncode({}),
           ),
         );
@@ -310,12 +309,9 @@ class AuthService {
   ) async {
     final response = await _enviar(
       path,
-      (uri) => _client.post(
+      (uri) async => _client.post(
         uri,
-        headers: const {
-          'Content-Type': 'application/json',
-          'X-Client-Platform': 'mobile',
-        },
+        headers: await _cabecalhos(),
         body: jsonEncode(body),
       ),
     );

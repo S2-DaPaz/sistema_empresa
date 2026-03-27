@@ -1,6 +1,14 @@
 const jwt = require("jsonwebtoken");
 
-const { findSessionById, touchSession } = require("../../modules/auth/auth.repository");
+const {
+  findSessionById,
+  touchSessionActivity
+} = require("../../modules/auth/auth.repository");
+const {
+  getClientIp,
+  getClientPlatform,
+  getDeviceInfo
+} = require("../../modules/auth/auth.helpers");
 const { ForbiddenError, UnauthorizedError } = require("../errors/app-error");
 const { getUserPermissions, hasPermission, normalizeUser } = require("./permissions");
 
@@ -65,7 +73,12 @@ function createAuthMiddleware({ db, env, findUserWithRoleById }) {
           sessionId: session.id,
           tokenType: payload.type || "access"
         };
-        await touchSession(db, session.id, new Date().toISOString());
+        await touchSessionActivity(db, session.id, {
+          last_used_at: new Date().toISOString(),
+          device_info: getDeviceInfo(req) || session.device_info,
+          ip_address: getClientIp(req) || session.ip_address,
+          platform: getClientPlatform(req) || session.platform
+        });
       }
 
       const user = await findUserWithRoleById(db, payload.id);
