@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../services/auth_service.dart';
 import '../services/permissions.dart';
 import '../theme/app_tokens.dart';
 import 'budgets_screen.dart';
@@ -49,7 +48,7 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _openQuickCreate() async {
-    if (!AuthService.instance.hasPermission(Permissions.manageTasks)) {
+    if (!Permissions.canManageModule(AppModule.tasks)) {
       setState(() => _index = 1);
       return;
     }

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
+import '../services/permissions.dart';
 import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../utils/formatters.dart';
 import '../utils/label_mappers.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
@@ -39,11 +41,17 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
   List<Map<String, dynamic>> _tasks = [];
   List<Map<String, dynamic>> _budgets = [];
   late Map<String, dynamic> _client;
+  bool get _canView => Permissions.canViewModuleData(AppModule.clients);
+  bool get _canManage => Permissions.canManageModule(AppModule.clients);
 
   @override
   void initState() {
     super.initState();
     _client = Map<String, dynamic>.from(widget.client);
+    if (!_canView) {
+      _loading = false;
+      return;
+    }
     _load();
   }
 
@@ -79,6 +87,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
   }
 
   Future<void> _editClient() async {
+    if (!_canManage) return;
     final updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => EntityFormScreen(
@@ -95,6 +104,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
   }
 
   Future<void> _refreshClient() async {
+    if (!_canView) return;
     final id = _client['id'];
     final payload = await _api.get('/clients/$id') as Map<String, dynamic>;
     if (!mounted) return;
@@ -111,6 +121,17 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canView) {
+      return const AppScaffold(
+        title: 'Detalhes do cliente',
+        body: AccessRestrictedState(
+          title: 'Cliente protegido para este perfil',
+          message:
+              'O perfil visitante pode acessar a tela, mas não pode visualizar detalhes, histórico ou dados de contato de clientes.',
+        ),
+      );
+    }
+
     final email = extrairEmail(_client['contact']?.toString());
     final phone = extrairTelefone(_client['contact']?.toString());
     final activeTasks = _tasks
@@ -137,13 +158,15 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
 
     return AppScaffold(
       title: 'Detalhes do cliente',
-      actions: [
-        IconButton(
-          tooltip: 'Editar cliente',
-          onPressed: _editClient,
-          icon: const Icon(Icons.edit_outlined),
-        ),
-      ],
+      actions: _canManage
+          ? [
+              IconButton(
+                tooltip: 'Editar cliente',
+                onPressed: _editClient,
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            ]
+          : null,
       body: ListView(
         children: [
           ProfileHeroCard(

@@ -26,6 +26,7 @@ import '../services/permissions.dart';
 import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/budget_form.dart';
 import '../widgets/email_recipient_dialog.dart';
@@ -105,6 +106,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   String _signatureTech = '';
   Map<String, dynamic> _signaturePages = {};
 
+  bool get _canViewTaskData => Permissions.canViewModuleData(AppModule.tasks);
+  bool get _canManageTasks => Permissions.canManageModule(AppModule.tasks);
+  bool get _canAccessScreen =>
+      _taskId == null ? _canManageTasks : _canViewTaskData;
+
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -134,6 +140,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     super.initState();
     _taskId = widget.taskId;
     _tabController = TabController(length: 4, vsync: this);
+    if (!_canAccessScreen) {
+      _loading = false;
+      return;
+    }
     _loadAll();
   }
 
@@ -160,6 +170,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   }
 
   Future<void> _loadAll() async {
+    if (!_canAccessScreen) {
+      _setStateIfMounted(() {
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
     _setStateIfMounted(() {
       _loading = true;
       _error = null;
@@ -887,6 +904,20 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (!_canAccessScreen) {
+      return AppScaffold(
+        title: _taskId == null ? 'Nova tarefa' : 'Detalhes da tarefa',
+        body: AccessRestrictedState(
+          title: _taskId == null
+              ? 'Criação indisponível para este perfil'
+              : 'Tarefa protegida para este perfil',
+          message: _taskId == null
+              ? 'Seu perfil não pode criar nem editar tarefas nesta conta.'
+              : 'O perfil visitante pode acessar a estrutura da tela, mas não pode visualizar dados nem lookups desta tarefa.',
+        ),
+      );
+    }
+
     if (_loading) {
       return const AppScaffold(title: 'Tarefa', body: LoadingView());
     }
@@ -966,8 +997,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                   setState(() => _taskTypeId = v),
               onPickStartDate: () => _pickDate(_startDate),
               onPickDueDate: () => _pickDate(_dueDate),
-              onSaveTask: _saveTask,
-              onStartWork: _taskId != null && _status != 'em_andamento'
+              onSaveTask: _canManageTasks ? _saveTask : () {},
+              onStartWork: _canManageTasks &&
+                      _taskId != null &&
+                      _status != 'em_andamento'
                   ? () {
                       setState(() => _status = 'em_andamento');
                       _saveTask();

@@ -10,6 +10,7 @@ import '../errors/error_reporter.dart';
 import '../network/client_identity_service.dart';
 import '../network/json_utils.dart';
 import '../network/request_executor.dart';
+import '../../services/offline_cache_service.dart';
 import 'session_permissions.dart';
 
 class AuthSession {
@@ -51,8 +52,12 @@ class AuthService {
   Map<String, dynamic>? get user => session.value?.user;
   bool get isLoggedIn => session.value != null;
   bool get isAdmin => session.value?.roleIsAdmin == true;
+  bool get isVisitor => session.value?.role == 'visitante';
   bool get canRefreshSession =>
       refreshToken != null && refreshToken!.isNotEmpty;
+
+  bool _isVisitorUser(Map<String, dynamic>? value) =>
+      value?['role']?.toString() == 'visitante';
 
   Future<Map<String, String>> _cabecalhos({
     bool json = true,
@@ -81,6 +86,11 @@ class AuthService {
       final userMap = storedUser == null
           ? <String, dynamic>{}
           : castJsonMap(jsonDecode(storedUser));
+
+      if (_isVisitorUser(userMap)) {
+        // Visitante nÃ£o deve reaproveitar cache offline de outro usuÃ¡rio.
+        await OfflineCacheService.clearDataCaches();
+      }
 
       session.value = AuthSession(
         token: storedToken ?? '',
@@ -126,10 +136,14 @@ class AuthService {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final userPayload = payload?['data']?['user'] ?? payload?['user'];
       if (userPayload is Map) {
+        final normalizedUser = Map<String, dynamic>.from(userPayload);
+        if (_isVisitorUser(normalizedUser)) {
+          await OfflineCacheService.clearDataCaches();
+        }
         session.value = AuthSession(
           token: token!,
           refreshToken: refreshToken ?? '',
-          user: Map<String, dynamic>.from(userPayload),
+          user: normalizedUser,
         );
         await _persistir();
         return;
@@ -225,7 +239,8 @@ class AuthService {
   Future<bool> tryRefreshSession() {
     if (_renovacaoEmAndamento != null) return _renovacaoEmAndamento!;
     _renovacaoEmAndamento = _executarRenovacao();
-    return _renovacaoEmAndamento!.whenComplete(() => _renovacaoEmAndamento = null);
+    return _renovacaoEmAndamento!
+        .whenComplete(() => _renovacaoEmAndamento = null);
   }
 
   Future<bool> _executarRenovacao() async {
@@ -324,7 +339,8 @@ class AuthService {
           'Invalid auth response',
           fallbackMessage: 'Não foi possível processar a autenticação.',
         );
-        await _reportar(error, path: path, method: 'POST', payloadSummary: body);
+        await _reportar(error,
+            path: path, method: 'POST', payloadSummary: body);
         throw error;
       }
       return payload['data'] is Map
@@ -389,6 +405,9 @@ class AuthService {
       refreshToken: nextRefreshToken,
       user: Map<String, dynamic>.from(userPayload),
     );
+    if (isVisitor) {
+      await OfflineCacheService.clearDataCaches();
+    }
     await _persistir();
   }
 

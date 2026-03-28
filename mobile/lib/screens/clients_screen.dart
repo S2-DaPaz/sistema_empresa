@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/offline_cache_service.dart';
+import '../services/permissions.dart';
 import '../theme/app_assets.dart';
 import '../utils/contact_utils.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_search_field.dart';
 import '../widgets/client_card.dart';
@@ -36,10 +38,16 @@ class _ClientsScreenState extends State<ClientsScreen> {
   List<Map<String, dynamic>> _tarefas = [];
   List<Map<String, dynamic>> _orcamentos = [];
   String _busca = '';
+  bool get _canViewData => Permissions.canViewModuleData(AppModule.clients);
+  bool get _canManage => Permissions.canManageModule(AppModule.clients);
 
   @override
   void initState() {
     super.initState();
+    if (!_canViewData) {
+      _carregando = false;
+      return;
+    }
     _carregarDoCache();
     _load();
   }
@@ -133,6 +141,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
   }
 
   Future<void> _abrirFormularioCliente([Map<String, dynamic>? client]) async {
+    if (!_canManage) return;
     final updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => EntityFormScreen(
@@ -162,6 +171,18 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canViewData) {
+      return const AppScaffold(
+        title: 'Clientes',
+        showAppBar: false,
+        body: AccessRestrictedState(
+          title: 'Clientes protegidos para este perfil',
+          message:
+              'O perfil visitante pode navegar até esta área, mas não pode visualizar cadastros nem métricas de clientes.',
+        ),
+      );
+    }
+
     if (_carregando) {
       return const AppScaffold(
         title: 'Clientes',
@@ -197,14 +218,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _abrirFormularioCliente(),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 42),
+                if (_canManage)
+                  ElevatedButton.icon(
+                    onPressed: () => _abrirFormularioCliente(),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 42),
+                    ),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Novo'),
                   ),
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Novo'),
-                ),
               ],
             ),
             const SizedBox(height: 16),

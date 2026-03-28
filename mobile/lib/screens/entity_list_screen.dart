@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/entity_refresh_service.dart';
 import '../services/offline_cache_service.dart';
+import '../services/permissions.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_search_field.dart';
 import '../widgets/empty_state.dart';
@@ -30,6 +32,8 @@ class _EntityListScreenState extends State<EntityListScreen> {
   String? _erro;
   List<Map<String, dynamic>> _itens = [];
   String _busca = '';
+  bool get _canViewData => Permissions.canViewEndpointData(widget.config.endpoint);
+  bool get _canManage => Permissions.canManageEndpoint(widget.config.endpoint);
 
   String get _chaveCache =>
       OfflineCacheService.endpointKey('entity', widget.config.endpoint);
@@ -37,6 +41,10 @@ class _EntityListScreenState extends State<EntityListScreen> {
   @override
   void initState() {
     super.initState();
+    if (!_canViewData) {
+      _carregando = false;
+      return;
+    }
     _carregarDoCache();
     _carregar();
   }
@@ -107,6 +115,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
   }
 
   Future<void> _abrirFormulario({Map<String, dynamic>? item}) async {
+    if (!_canManage) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => EntityFormScreen(config: widget.config, item: item),
@@ -118,6 +127,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
   }
 
   Future<void> _excluirItem(Map<String, dynamic> item) async {
+    if (!_canManage) return;
     final id = item['id'];
     if (id == null) return;
     final confirmed = await showDialog<bool>(
@@ -185,6 +195,17 @@ class _EntityListScreenState extends State<EntityListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canViewData) {
+      return AppScaffold(
+        title: widget.config.title,
+        body: AccessRestrictedState(
+          title: '${widget.config.title} protegidos para este perfil',
+          message:
+              'Seu perfil pode navegar por esta tela, mas não pode visualizar registros reais nem executar ações de gerenciamento.',
+        ),
+      );
+    }
+
     if (_carregando) {
       return AppScaffold(title: widget.config.title, body: const LoadingView());
     }
@@ -210,14 +231,15 @@ class _EntityListScreenState extends State<EntityListScreen> {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () => _abrirFormulario(),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(0, 42),
+              if (_canManage)
+                ElevatedButton.icon(
+                  onPressed: () => _abrirFormulario(),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 42),
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Novo'),
                 ),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Novo'),
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -262,31 +284,34 @@ class _EntityListScreenState extends State<EntityListScreen> {
                         final item = items[index];
                         return Card(
                           child: ListTile(
-                            onTap: () => _abrirFormulario(item: item),
+                            onTap:
+                                _canManage ? () => _abrirFormulario(item: item) : null,
                             title: Text(
                               item[widget.config.primaryField]?.toString() ??
                                   'Sem título',
                             ),
                             subtitle: Text(_construirSubtitulo(item)),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'edit') {
-                                  _abrirFormulario(item: item);
-                                } else if (value == 'delete') {
-                                  _excluirItem(item);
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: Text('Editar'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text('Remover'),
-                                ),
-                              ],
-                            ),
+                            trailing: _canManage
+                                ? PopupMenuButton<String>(
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        _abrirFormulario(item: item);
+                                      } else if (value == 'delete') {
+                                        _excluirItem(item);
+                                      }
+                                    },
+                                    itemBuilder: (context) => const [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Editar'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Remover'),
+                                      ),
+                                    ],
+                                  )
+                                : null,
                           ),
                         );
                       },

@@ -57,15 +57,7 @@
       "view_budgets",
       "view_products"
     ],
-    "visitante": [
-      "view_dashboard",
-      "view_clients",
-      "view_tasks",
-      "view_templates",
-      "view_budgets",
-      "view_products",
-      "view_task_types"
-    ]
+    "visitante": []
   },
   "reservedRoleKeys": [
     "administracao",

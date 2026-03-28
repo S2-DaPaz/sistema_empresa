@@ -27,3 +27,11 @@
 
 - backend, web e mobile agora testam a mesma regra de fallback de permissao
 - foi corrigido o bug em que `role_permissions = null` derrubava as permissoes default no backend
+
+## Regra especial do visitante
+
+- `visitante` nao recebe mais `view_*` por default no contrato compartilhado
+- o visitante pode navegar pela estrutura visual do app mobile, mas nao pode ler dados operacionais reais
+- o mobile separa acesso de tela e leitura de dados via guards centrais em `mobile/lib/services/permissions.dart`
+- o backend reforca essa regra com isolamento em `server/src/core/security/visitor-data-access.js`
+- permissoes explicitas em um usuario visitante nao devem reabrir leitura operacional; a blindagem principal continua no papel + backend

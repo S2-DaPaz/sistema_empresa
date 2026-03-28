@@ -7,11 +7,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../services/entity_refresh_service.dart';
 import '../services/offline_cache_service.dart';
+import '../services/permissions.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
 import '../utils/label_mappers.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_search_field.dart';
 import '../widgets/budget_card.dart';
@@ -47,6 +49,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   List<Map<String, dynamic>> _produtos = [];
   String _textoBusca = '';
   String? _filtroStatus;
+  bool get _canViewData => Permissions.canViewModuleData(AppModule.budgets);
+  bool get _canManage => Permissions.canManageModule(AppModule.budgets);
 
   @override
   void initState() {
@@ -55,6 +59,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       const ['/products', '/clients'],
       (_) => _load(),
     );
+    if (!_canViewData) {
+      _loading = false;
+      return;
+    }
     _carregarDoCache();
     _load();
   }
@@ -119,6 +127,9 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _loadLookups({bool force = false}) {
+    if (!_canManage) {
+      return Future.value();
+    }
     if (!force && _clientes.isNotEmpty && _produtos.isNotEmpty) {
       return Future.value();
     }
@@ -195,6 +206,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _abrirFormularioOrcamento([Map<String, dynamic>? budget]) async {
+    if (!_canManage) return;
     await _garantirConsultasCarregadas();
     if (!mounted) return;
     Map<String, dynamic>? initialBudget = budget;
@@ -226,6 +238,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _excluirOrcamento(int id) async {
+    if (!_canManage) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -257,6 +270,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _enviarEmail(Map<String, dynamic> budget) async {
+    if (!_canManage) return;
     final client = _encontrarCliente(budget['client_id'] as int?);
     final budgetId = budget['id'];
     if (budgetId == null) return;
@@ -300,6 +314,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<String?> _obterLinkPublico(Map<String, dynamic> budget) async {
+    if (!_canManage) return null;
     final budgetId = budget['id'];
     if (budgetId == null) return null;
     final response = await _api.post('/budgets/$budgetId/public-link', {});
@@ -335,6 +350,18 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   Widget build(BuildContext context) {
     final showBar = widget.clientId != null;
 
+    if (!_canViewData) {
+      return AppScaffold(
+        title: 'Orçamentos',
+        showAppBar: showBar,
+        body: const AccessRestrictedState(
+          title: 'Orçamentos protegidos para este perfil',
+          message:
+              'O perfil visitante pode acessar a tela, mas não pode visualizar propostas, valores nem ações derivadas.',
+        ),
+      );
+    }
+
     if (_loading) {
       return AppScaffold(
         title: 'Orçamentos',
@@ -361,24 +388,25 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  widget.clientName != null
+                Expanded(
+                  child: Text(
+                    widget.clientName != null
                       ? 'Orçamentos — ${widget.clientName}'
                       : 'Orçamentos',
                   style: Theme.of(context).textTheme.headlineMedium,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => _abrirFormularioOrcamento(),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(0, 42),
+              if (_canManage)
+                ElevatedButton.icon(
+                  onPressed: () => _abrirFormularioOrcamento(),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 42),
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Novo'),
                 ),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Novo'),
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -468,8 +496,11 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                           amountLabel: formatarMoeda(budget['total'] ?? 0),
                           statusLabel:
                               labelStatusOrcamento(budget['status']?.toString()),
-                          onTap: () => _abrirFormularioOrcamento(budget),
-                          onMore: () => _abrirAcoesOrcamento(budget),
+                          onTap: _canManage
+                              ? () => _abrirFormularioOrcamento(budget)
+                              : null,
+                          onMore:
+                              _canManage ? () => _abrirAcoesOrcamento(budget) : null,
                         );
                       },
                     ),
@@ -481,6 +512,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _abrirAcoesOrcamento(Map<String, dynamic> budget) async {
+    if (!_canManage) return;
     final action = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(

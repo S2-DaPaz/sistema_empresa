@@ -19,6 +19,17 @@ test("falls back to role defaults when role permissions are null", () => {
   assert.ok(permissions.includes(PERMISSIONS.MANAGE_TASKS));
 });
 
+test("visitor role defaults no longer grant operational reads", () => {
+  const permissions = getUserPermissions({
+    role: "visitante",
+    role_permissions: null,
+    permissions: null,
+    role_is_admin: false
+  });
+
+  assert.deepEqual(permissions, []);
+});
+
 test("prefers explicit user permissions when provided", () => {
   const permissions = getUserPermissions({
     role: "visitante",

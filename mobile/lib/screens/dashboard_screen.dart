@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/offline_cache_service.dart';
+import '../services/permissions.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/contact_utils.dart';
 import '../utils/formatters.dart';
 import '../utils/label_mappers.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/empty_state.dart';
@@ -44,10 +46,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _tarefasRecentes = [];
   List<Map<String, dynamic>> _orcamentosRecentes = [];
   int _contadorNotificacoes = 0;
+  bool get _canViewData => Permissions.canViewModuleData(AppModule.dashboard);
 
   @override
   void initState() {
     super.initState();
+    if (!_canViewData) {
+      _carregando = false;
+      return;
+    }
     _carregarDoCache();
     _carregar();
   }
@@ -228,6 +235,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canViewData) {
+      return const AppScaffold(
+        title: 'Início',
+        showAppBar: false,
+        body: AccessRestrictedState(
+          title: 'Painel sem dados para este perfil',
+          message:
+              'O perfil visitante pode acessar a estrutura do aplicativo, mas não pode visualizar métricas nem histórico operacional.',
+        ),
+      );
+    }
+
     if (_carregando) {
       return const AppScaffold(
         title: 'Início',

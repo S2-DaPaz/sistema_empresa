@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import '../services/api_service.dart';
-import '../services/auth_service.dart';
 import '../services/entity_refresh_service.dart';
 import '../services/permissions.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/error_view.dart';
 import '../widgets/form_fields.dart';
@@ -27,10 +27,8 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
   List<Map<String, dynamic>> _equipments = [];
   List<Map<String, dynamic>> _clients = [];
 
-  bool get _canView =>
-      AuthService.instance.hasPermission(Permissions.viewTasks);
-  bool get _canManage =>
-      AuthService.instance.hasPermission(Permissions.manageTasks);
+  bool get _canView => Permissions.canViewModuleData(AppModule.equipments);
+  bool get _canManage => Permissions.canManageModule(AppModule.equipments);
 
   @override
   void initState() {
@@ -147,12 +145,10 @@ class _EquipmentsScreenState extends State<EquipmentsScreen> {
     if (!_canView) {
       return const AppScaffold(
         title: 'Equipamentos',
-        body: Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-                'Você não possui permissão para visualizar equipamentos.'),
-          ),
+        body: AccessRestrictedState(
+          title: 'Equipamentos protegidos para este perfil',
+          message:
+              'O perfil visitante pode acessar a tela, mas não pode visualizar ativos nem cadastros vinculados.',
         ),
       );
     }

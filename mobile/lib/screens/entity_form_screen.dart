@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/entity_refresh_service.dart';
+import '../services/permissions.dart';
 import '../utils/entity_config.dart';
 import '../utils/field_config.dart';
 import '../utils/formatters.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/form_fields.dart';
 import 'address_picker_map_screen.dart';
@@ -27,6 +29,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
   String? _erro;
 
   bool get _ehEdicao => widget.item != null && widget.item?['id'] != null;
+  bool get _canManage => Permissions.canManageEndpoint(widget.config.endpoint);
 
   @override
   void initState() {
@@ -64,6 +67,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
   }
 
   Future<void> _salvar() async {
+    if (!_canManage) return;
     setState(() {
       _salvando = true;
       _erro = null;
@@ -178,6 +182,17 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canManage) {
+      return AppScaffold(
+        title: widget.config.title,
+        body: const AccessRestrictedState(
+          title: 'Gerenciamento indisponível',
+          message:
+              'Seu perfil não pode criar nem editar registros nesta área.',
+        ),
+      );
+    }
+
     return AppScaffold(
       title: _ehEdicao
           ? 'Editar ${widget.config.title}'

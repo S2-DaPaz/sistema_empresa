@@ -8,6 +8,7 @@ const { errorHandler } = require("../core/http/error-handler");
 const { notFoundHandler } = require("../core/http/not-found-handler");
 const { send } = require("../core/http/response");
 const { createAuthMiddleware, requirePermission } = require("../core/security/auth");
+const { createVisitorDataIsolationMiddleware } = require("../core/security/visitor-data-access");
 const { createAuthRouter } = require("../modules/auth/auth.router");
 const { createBackupsRouter } = require("../modules/backups/backups.router");
 const { createBackupsService } = require("../modules/backups/backups.service");
@@ -73,6 +74,7 @@ function createApp({ db, env, logger, publicService, monitoringService, emailSer
 
   app.use("/api", createAuthMiddleware({ db, env, findUserWithRoleById }));
   app.use("/api/auth", createAuthRouter({ db, env, emailService }));
+  app.use("/api", createVisitorDataIsolationMiddleware());
 
   app.use("/api/admin", createMonitoringRouter({ db, monitoringService }));
   app.use("/api/backups", createBackupsRouter({ db, backupsService }));

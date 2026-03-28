@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/offline_cache_service.dart';
+import '../services/permissions.dart';
 import '../theme/app_assets.dart';
 import '../theme/app_tokens.dart';
 import '../utils/formatters.dart';
 import '../utils/label_mappers.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_search_field.dart';
 import '../widgets/empty_state.dart';
@@ -41,10 +43,16 @@ class _TasksScreenState extends State<TasksScreen> {
   String? _dataSelecionada;
   String _textoBusca = '';
   String? _filtroStatus;
+  bool get _canViewData => Permissions.canViewModuleData(AppModule.tasks);
+  bool get _canManage => Permissions.canManageModule(AppModule.tasks);
 
   @override
   void initState() {
     super.initState();
+    if (!_canViewData) {
+      _carregando = false;
+      return;
+    }
     _carregarDoCache();
     _carregar();
   }
@@ -105,6 +113,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _abrirTarefa([int? id]) async {
+    if (!_canViewData) return;
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: id)),
     );
@@ -114,6 +123,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _excluirTarefa(int id) async {
+    if (!_canManage) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -230,6 +240,18 @@ class _TasksScreenState extends State<TasksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canViewData) {
+      return AppScaffold(
+        title: 'Tarefas',
+        showAppBar: widget.clientId != null,
+        body: const AccessRestrictedState(
+          title: 'Tarefas protegidas para este perfil',
+          message:
+              'O perfil visitante pode abrir a tela, mas não pode visualizar listas, detalhes nem histórico de tarefas.',
+        ),
+      );
+    }
+
     if (_carregando) {
       return AppScaffold(
         title: 'Tarefas',
@@ -368,7 +390,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     codeLabel: '#${id ?? '--'}',
                     avatarName: task['client_name']?.toString() ?? 'Cliente',
                     onTap: () => _abrirTarefa(id),
-                    onMore: id == null
+                    onMore: !_canManage || id == null
                         ? null
                         : () => _abrirAcoesTarefa(context, task),
                   );
@@ -520,6 +542,7 @@ class _TasksScreenState extends State<TasksScreen> {
     BuildContext context,
     Map<String, dynamic> task,
   ) async {
+    if (!_canManage) return;
     final selected = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(

@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class OfflineCacheService {
   const OfflineCacheService._();
 
+  static const _cachePrefix = 'offline_cache_';
+
   static Future<Map<String, dynamic>?> readMap(String key) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(key);
@@ -61,6 +63,18 @@ class OfflineCacheService {
         .replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_')
         .replaceAll(RegExp(r'_+'), '_')
         .replaceAll(RegExp(r'^_|_$'), '');
-    return 'offline_cache_${prefix}_$normalized';
+    return '$_cachePrefix${prefix}_$normalized';
+  }
+
+  static Future<void> clearDataCaches() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs
+        .getKeys()
+        .where((key) => key.startsWith(_cachePrefix))
+        .toList(growable: false);
+
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
   }
 }

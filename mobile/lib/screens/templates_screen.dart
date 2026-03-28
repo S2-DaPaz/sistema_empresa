@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/permissions.dart';
+import '../widgets/access_restricted_state.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
@@ -18,14 +20,27 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _templates = [];
+  bool get _canView => Permissions.canViewModuleData(AppModule.templates);
+  bool get _canManage => Permissions.canManageModule(AppModule.templates);
 
   @override
   void initState() {
     super.initState();
+    if (!_canView) {
+      _loading = false;
+      return;
+    }
     _load();
   }
 
   Future<void> _load() async {
+    if (!_canView) {
+      setState(() {
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -41,6 +56,7 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
   }
 
   void _openEditor({Map<String, dynamic>? template}) {
+    if (!_canManage) return;
     Navigator.of(context)
         .push(MaterialPageRoute(
             builder: (_) => TemplateEditorScreen(template: template)))
@@ -48,6 +64,7 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
   }
 
   Future<void> _deleteTemplate(Map<String, dynamic> template) async {
+    if (!_canManage) return;
     final id = template['id'];
     if (id == null) return;
     final confirmed = await showDialog<bool>(
@@ -72,6 +89,17 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canView) {
+      return const AppScaffold(
+        title: 'Modelos',
+        body: AccessRestrictedState(
+          title: 'Modelos protegidos para este perfil',
+          message:
+              'O perfil visitante pode acessar a tela, mas não pode visualizar nem gerenciar templates de relatório.',
+        ),
+      );
+    }
+
     if (_loading) {
       return const AppScaffold(title: 'Modelos', body: LoadingView());
     }
@@ -84,11 +112,13 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
 
     return AppScaffold(
       title: 'Modelos',
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'fab-templates',
-        onPressed: () => _openEditor(),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _canManage
+          ? FloatingActionButton(
+              heroTag: 'fab-templates',
+              onPressed: () => _openEditor(),
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: ListView(
         children: [
           const SectionHeader(
@@ -108,11 +138,13 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
                   title: Text(template['name']?.toString() ?? 'Modelo'),
                   subtitle: Text(
                       template['description']?.toString() ?? 'Sem descrição'),
-                  onTap: () => _openEditor(template: template),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => _deleteTemplate(template),
-                  ),
+                  onTap: _canManage ? () => _openEditor(template: template) : null,
+                  trailing: _canManage
+                      ? IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteTemplate(template),
+                        )
+                      : null,
                 ),
               )),
         ],

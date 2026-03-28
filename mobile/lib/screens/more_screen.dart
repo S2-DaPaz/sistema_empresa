@@ -125,9 +125,6 @@ class _MoreScreenState extends State<MoreScreen> {
     final role = user['role_name']?.toString() ??
         user['role']?.toString() ??
         'visitante';
-    final canViewUsers =
-        AuthService.instance.hasPermission(Permissions.viewUsers);
-    final isAdmin = AuthService.instance.isAdmin;
     final accountStatus = _account['status']?.toString() ?? 'active';
 
     return AppScaffold(
@@ -274,50 +271,57 @@ class _MoreScreenState extends State<MoreScreen> {
               subtitle: 'Acesso rápido aos módulos complementares',
             ),
             const SizedBox(height: 12),
-            _HubTile(
-              icon: Icons.receipt_long_rounded,
-              title: 'Orçamentos',
-              subtitle: 'Propostas, compartilhamento e acompanhamento',
-              onTap: () => _open(const BudgetsScreen()),
-            ),
-            _HubTile(
-              icon: Icons.inventory_2_outlined,
-              title: 'Produtos',
-              subtitle: 'Itens usados na composição de orçamentos',
-              onTap: () => _open(ProductsScreen()),
-            ),
-            _HubTile(
-              icon: Icons.precision_manufacturing_outlined,
-              title: 'Equipamentos',
-              subtitle: 'Ativos vinculados aos clientes',
-              onTap: () => _open(const EquipmentsScreen()),
-            ),
-            _HubTile(
-              icon: Icons.category_outlined,
-              title: 'Tipos de tarefa',
-              subtitle: 'Classificações operacionais e modelos',
-              onTap: () => _open(const TaskTypesScreen()),
-            ),
-            _HubTile(
-              icon: Icons.description_outlined,
-              title: 'Templates',
-              subtitle: 'Estruturas de relatório e coleta em campo',
-              onTap: () => _open(const TemplatesScreen()),
-            ),
-            if (canViewUsers)
+            if (Permissions.canAccessModule(AppModule.budgets))
+              _HubTile(
+                icon: Icons.receipt_long_rounded,
+                title: 'Orçamentos',
+                subtitle: 'Propostas, compartilhamento e acompanhamento',
+                onTap: () => _open(const BudgetsScreen()),
+              ),
+            if (Permissions.canAccessModule(AppModule.products))
+              _HubTile(
+                icon: Icons.inventory_2_outlined,
+                title: 'Produtos',
+                subtitle: 'Itens usados na composição de orçamentos',
+                onTap: () => _open(ProductsScreen()),
+              ),
+            if (Permissions.canAccessModule(AppModule.equipments))
+              _HubTile(
+                icon: Icons.precision_manufacturing_outlined,
+                title: 'Equipamentos',
+                subtitle: 'Ativos vinculados aos clientes',
+                onTap: () => _open(const EquipmentsScreen()),
+              ),
+            if (Permissions.canAccessModule(AppModule.taskTypes))
+              _HubTile(
+                icon: Icons.category_outlined,
+                title: 'Tipos de tarefa',
+                subtitle: 'Classificações operacionais e modelos',
+                onTap: () => _open(const TaskTypesScreen()),
+              ),
+            if (Permissions.canAccessModule(AppModule.templates))
+              _HubTile(
+                icon: Icons.description_outlined,
+                title: 'Templates',
+                subtitle: 'Estruturas de relatório e coleta em campo',
+                onTap: () => _open(const TemplatesScreen()),
+              ),
+            if (Permissions.canAccessModule(AppModule.users))
               _HubTile(
                 icon: Icons.people_outline_rounded,
                 title: 'Usuários',
                 subtitle: 'Perfis, papéis e permissões',
                 onTap: () => _open(const UsersScreen()),
               ),
-            if (isAdmin) ...[
+            if (Permissions.canAccessModule(AppModule.errorLogs)) ...[
               _HubTile(
                 icon: Icons.error_outline_rounded,
                 title: 'Logs de erro',
                 subtitle: 'Falhas técnicas reportadas pelo sistema',
                 onTap: () => _open(const ErrorLogsScreen()),
               ),
+            ],
+            if (Permissions.canAccessModule(AppModule.eventLogs)) ...[
               _HubTile(
                 icon: Icons.history_edu_outlined,
                 title: 'Eventos',
