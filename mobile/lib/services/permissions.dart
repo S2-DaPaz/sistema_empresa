@@ -65,7 +65,17 @@ class Permissions {
 
   static bool canViewModuleData(AppModule module) {
     if (AuthService.instance.isVisitor) {
-      return false;
+      return switch (module) {
+        AppModule.dashboard ||
+        AppModule.tasks ||
+        AppModule.clients ||
+        AppModule.budgets ||
+        AppModule.products ||
+        AppModule.taskTypes ||
+        AppModule.templates ||
+        AppModule.equipments => true,
+        AppModule.users || AppModule.errorLogs || AppModule.eventLogs => false,
+      };
     }
 
     return switch (module) {
@@ -84,7 +94,17 @@ class Permissions {
 
   static bool canManageModule(AppModule module) {
     if (AuthService.instance.isVisitor) {
-      return false;
+      return switch (module) {
+        AppModule.dashboard => false,
+        AppModule.tasks ||
+        AppModule.clients ||
+        AppModule.budgets ||
+        AppModule.products ||
+        AppModule.taskTypes ||
+        AppModule.templates ||
+        AppModule.equipments => true,
+        AppModule.users || AppModule.errorLogs || AppModule.eventLogs => false,
+      };
     }
 
     return switch (module) {

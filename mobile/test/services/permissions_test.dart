@@ -8,7 +8,7 @@ void main() {
     AuthService.instance.session.value = null;
   });
 
-  test('visitante navega pelas telas mas não lê dados operacionais', () {
+  test('visitante opera em modo demonstracao sem tocar nos dados reais', () {
     AuthService.instance.session.value = AuthSession(
       token: 'token',
       refreshToken: 'refresh',
@@ -22,9 +22,10 @@ void main() {
 
     expect(Permissions.canAccessModule(AppModule.tasks), isTrue);
     expect(Permissions.canAccessModule(AppModule.clients), isTrue);
-    expect(Permissions.canViewModuleData(AppModule.tasks), isFalse);
-    expect(Permissions.canViewModuleData(AppModule.clients), isFalse);
-    expect(Permissions.canManageModule(AppModule.tasks), isFalse);
+    expect(Permissions.canViewModuleData(AppModule.tasks), isTrue);
+    expect(Permissions.canViewModuleData(AppModule.clients), isTrue);
+    expect(Permissions.canManageModule(AppModule.tasks), isTrue);
+    expect(Permissions.canManageModule(AppModule.clients), isTrue);
   });
 
   test('técnico mantém acesso legítimo às áreas operacionais', () {

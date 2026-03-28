@@ -9,6 +9,13 @@ import '../errors/error_reporter.dart';
 import 'client_identity_service.dart';
 import 'json_utils.dart';
 import 'request_executor.dart';
+import 'visitor_demo_service.dart';
+
+class _VisitorDemoResult {
+  const _VisitorDemoResult(this.data);
+
+  final dynamic data;
+}
 
 class ApiService {
   ApiService({http.Client? client}) : _client = client ?? http.Client();
@@ -33,6 +40,9 @@ class ApiService {
   }
 
   Future<dynamic> get(String path) async {
+    final demo = _tryVisitorDemo('GET', path);
+    if (demo != null) return demo.data;
+
     final response = await _enviar(
       path,
       (uri) async => _client.get(uri, headers: await _cabecalhos(json: false)),
@@ -41,6 +51,13 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getEnvelope(String path) async {
+    final demo = _tryVisitorDemo('GET', path);
+    if (demo != null) {
+      return {
+        'data': demo.data,
+      };
+    }
+
     final response = await _enviar(
       path,
       (uri) async => _client.get(uri, headers: await _cabecalhos(json: false)),
@@ -53,6 +70,9 @@ class ApiService {
   }
 
   Future<dynamic> post(String path, Map<String, dynamic> body) async {
+    final demo = _tryVisitorDemo('POST', path, body);
+    if (demo != null) return demo.data;
+
     final response = await _enviar(
       path,
       (uri) async => _client.post(
@@ -70,6 +90,9 @@ class ApiService {
   }
 
   Future<dynamic> put(String path, Map<String, dynamic> body) async {
+    final demo = _tryVisitorDemo('PUT', path, body);
+    if (demo != null) return demo.data;
+
     final response = await _enviar(
       path,
       (uri) async => _client.put(
@@ -87,6 +110,9 @@ class ApiService {
   }
 
   Future<dynamic> delete(String path) async {
+    final demo = _tryVisitorDemo('DELETE', path);
+    if (demo != null) return demo.data;
+
     final response = await _enviar(
       path,
       (uri) async => _client.delete(
@@ -156,6 +182,30 @@ class ApiService {
       await _reportar(normalized, path: path, method: 'REQUEST');
       throw normalized;
     }
+  }
+
+  _VisitorDemoResult? _tryVisitorDemo(
+    String method,
+    String path, [
+    Map<String, dynamic>? body,
+  ]) {
+    if (!AuthService.instance.isVisitor) {
+      return null;
+    }
+    if (path.startsWith('/auth/')) {
+      return null;
+    }
+
+    if (!VisitorDemoService.instance.supports(method: method, path: path)) {
+      return null;
+    }
+
+    final data = VisitorDemoService.instance.handle(
+      method: method,
+      path: path,
+      body: body,
+    );
+    return _VisitorDemoResult(data);
   }
 
   Future<dynamic> _processarResposta(

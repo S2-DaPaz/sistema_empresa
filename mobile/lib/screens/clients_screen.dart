@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../services/offline_cache_service.dart';
 import '../services/permissions.dart';
 import '../theme/app_assets.dart';
@@ -40,6 +41,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
   String _busca = '';
   bool get _canViewData => Permissions.canViewModuleData(AppModule.clients);
   bool get _canManage => Permissions.canManageModule(AppModule.clients);
+  bool get _isDemoMode => AuthService.instance.isVisitor;
 
   @override
   void initState() {
@@ -48,7 +50,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
       _carregando = false;
       return;
     }
-    _carregarDoCache();
+    if (!_isDemoMode) {
+      _carregarDoCache();
+    }
     _load();
   }
 
@@ -67,7 +71,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
     try {
       final clients = await _api.get('/clients') as List<dynamic>;
       final nextClients = List<Map<String, dynamic>>.from(clients);
-      await OfflineCacheService.writeList(_chaveCache, nextClients);
+      if (!_isDemoMode) {
+        await OfflineCacheService.writeList(_chaveCache, nextClients);
+      }
       if (!mounted) return;
       setState(() {
         _clientes = nextClients;
@@ -77,8 +83,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
       });
       unawaited(_carregarMetricasCliente());
     } catch (error) {
-      final cached =
-          hadClients ? _clientes : await OfflineCacheService.readList(_chaveCache);
+      final cached = hadClients || _isDemoMode
+          ? _clientes
+          : await OfflineCacheService.readList(_chaveCache);
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         setState(() {

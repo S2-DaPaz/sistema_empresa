@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../services/offline_cache_service.dart';
 import '../services/permissions.dart';
 import '../theme/app_assets.dart';
@@ -45,6 +46,7 @@ class _TasksScreenState extends State<TasksScreen> {
   String? _filtroStatus;
   bool get _canViewData => Permissions.canViewModuleData(AppModule.tasks);
   bool get _canManage => Permissions.canManageModule(AppModule.tasks);
+  bool get _isDemoMode => AuthService.instance.isVisitor;
 
   @override
   void initState() {
@@ -53,7 +55,9 @@ class _TasksScreenState extends State<TasksScreen> {
       _carregando = false;
       return;
     }
-    _carregarDoCache();
+    if (!_isDemoMode) {
+      _carregarDoCache();
+    }
     _carregar();
   }
 
@@ -75,15 +79,18 @@ class _TasksScreenState extends State<TasksScreen> {
           : '/tasks';
       final data = await _api.get(endpoint) as List<dynamic>;
       final nextTasks = List<Map<String, dynamic>>.from(data);
-      await OfflineCacheService.writeList(_chaveCache, nextTasks);
+      if (!_isDemoMode) {
+        await OfflineCacheService.writeList(_chaveCache, nextTasks);
+      }
       if (!mounted) return;
       setState(() {
         _tarefas = nextTasks;
         _carregando = false;
       });
     } catch (error) {
-      final cached =
-          hadTasks ? _tarefas : await OfflineCacheService.readList(_chaveCache);
+      final cached = hadTasks || _isDemoMode
+          ? _tarefas
+          : await OfflineCacheService.readList(_chaveCache);
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         setState(() {

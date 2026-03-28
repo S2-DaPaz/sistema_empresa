@@ -47,6 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _orcamentosRecentes = [];
   int _contadorNotificacoes = 0;
   bool get _canViewData => Permissions.canViewModuleData(AppModule.dashboard);
+  bool get _isDemoMode => AuthService.instance.isVisitor;
 
   @override
   void initState() {
@@ -55,7 +56,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _carregando = false;
       return;
     }
-    _carregarDoCache();
+    if (!_isDemoMode) {
+      _carregarDoCache();
+    }
     _carregar();
   }
 
@@ -85,12 +88,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final payload = Map<String, dynamic>.from(
         await _api.get('/summary') as Map,
       );
-      await OfflineCacheService.writeMap(_cacheKey, payload);
+      if (!_isDemoMode) {
+        await OfflineCacheService.writeMap(_cacheKey, payload);
+      }
       if (!mounted) return;
       _aplicarPayload(payload);
     } catch (error) {
-      final cached =
-          hadData ? null : await OfflineCacheService.readMap(_cacheKey);
+      final cached = hadData || _isDemoMode
+          ? null
+          : await OfflineCacheService.readMap(_cacheKey);
       if (!mounted) return;
       if (cached != null) {
         _aplicarPayload(cached);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../services/entity_refresh_service.dart';
 import '../services/offline_cache_service.dart';
 import '../services/permissions.dart';
@@ -34,6 +35,7 @@ class _EntityListScreenState extends State<EntityListScreen> {
   String _busca = '';
   bool get _canViewData => Permissions.canViewEndpointData(widget.config.endpoint);
   bool get _canManage => Permissions.canManageEndpoint(widget.config.endpoint);
+  bool get _isDemoMode => AuthService.instance.isVisitor;
 
   String get _chaveCache =>
       OfflineCacheService.endpointKey('entity', widget.config.endpoint);
@@ -45,7 +47,9 @@ class _EntityListScreenState extends State<EntityListScreen> {
       _carregando = false;
       return;
     }
-    _carregarDoCache();
+    if (!_isDemoMode) {
+      _carregarDoCache();
+    }
     _carregar();
   }
 
@@ -65,15 +69,18 @@ class _EntityListScreenState extends State<EntityListScreen> {
     try {
       final data = await _api.get(widget.config.endpoint) as List<dynamic>;
       final items = List<Map<String, dynamic>>.from(data);
-      await OfflineCacheService.writeList(_chaveCache, items);
+      if (!_isDemoMode) {
+        await OfflineCacheService.writeList(_chaveCache, items);
+      }
       if (!mounted) return;
       setState(() {
         _itens = items;
         _carregando = false;
       });
     } catch (error) {
-      final cached =
-          hadItems ? _itens : await OfflineCacheService.readList(_chaveCache);
+      final cached = hadItems || _isDemoMode
+          ? _itens
+          : await OfflineCacheService.readList(_chaveCache);
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         setState(() {

@@ -31,7 +31,10 @@
 ## Regra especial do visitante
 
 - `visitante` nao recebe mais `view_*` por default no contrato compartilhado
-- o visitante pode navegar pela estrutura visual do app mobile, mas nao pode ler dados operacionais reais
-- o mobile separa acesso de tela e leitura de dados via guards centrais em `mobile/lib/services/permissions.dart`
+- o visitante pode navegar pela estrutura visual do app mobile e opera em modo demonstracao
+- no mobile, os modulos permitidos usam respostas locais exemplificativas em `mobile/lib/core/network/visitor_demo_service.dart`
+- essas respostas nao leem nem gravam dados cadastrados do sistema
+- o sandbox demonstrativo do visitante e reiniciado no ciclo de sessao para evitar reaproveitamento indevido entre logins
+- o mobile separa acesso de tela e modo demonstracao via guards centrais em `mobile/lib/services/permissions.dart`
 - o backend reforca essa regra com isolamento em `server/src/core/security/visitor-data-access.js`
-- permissoes explicitas em um usuario visitante nao devem reabrir leitura operacional; a blindagem principal continua no papel + backend
+- permissoes explicitas em um usuario visitante nao reabrem acesso ao banco; a blindagem principal continua no papel + backend

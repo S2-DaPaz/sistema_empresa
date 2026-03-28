@@ -10,6 +10,7 @@ import '../errors/error_reporter.dart';
 import '../network/client_identity_service.dart';
 import '../network/json_utils.dart';
 import '../network/request_executor.dart';
+import '../network/visitor_demo_service.dart';
 import '../../services/offline_cache_service.dart';
 import 'session_permissions.dart';
 
@@ -58,6 +59,15 @@ class AuthService {
 
   bool _isVisitorUser(Map<String, dynamic>? value) =>
       value?['role']?.toString() == 'visitante';
+
+  Future<void> _prepareVisitorSandbox(Map<String, dynamic>? userMap) async {
+    if (!_isVisitorUser(userMap)) return;
+
+    // O visitante opera em sandbox local e deve iniciar sempre com um
+    // conjunto limpo de dados demonstrativos, sem reaproveitar cache antigo.
+    await OfflineCacheService.clearDataCaches();
+    VisitorDemoService.instance.reset();
+  }
 
   Future<Map<String, String>> _cabecalhos({
     bool json = true,
@@ -294,6 +304,7 @@ class AuthService {
       await prefs.remove(_chaveToken);
       await prefs.remove(_chaveRefreshToken);
       await prefs.remove(_chaveUsuario);
+      VisitorDemoService.instance.reset();
     }
   }
 
@@ -405,9 +416,7 @@ class AuthService {
       refreshToken: nextRefreshToken,
       user: Map<String, dynamic>.from(userPayload),
     );
-    if (isVisitor) {
-      await OfflineCacheService.clearDataCaches();
-    }
+    await _prepareVisitorSandbox(session.value?.user);
     await _persistir();
   }
 

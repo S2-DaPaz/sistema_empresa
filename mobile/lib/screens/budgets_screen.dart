@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../services/entity_refresh_service.dart';
 import '../services/offline_cache_service.dart';
 import '../services/permissions.dart';
@@ -51,6 +52,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   String? _filtroStatus;
   bool get _canViewData => Permissions.canViewModuleData(AppModule.budgets);
   bool get _canManage => Permissions.canManageModule(AppModule.budgets);
+  bool get _isDemoMode => AuthService.instance.isVisitor;
 
   @override
   void initState() {
@@ -63,7 +65,9 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       _loading = false;
       return;
     }
-    _carregarDoCache();
+    if (!_isDemoMode) {
+      _carregarDoCache();
+    }
     _load();
   }
 
@@ -87,7 +91,9 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           : '/budgets';
       final budgets = await _api.get(endpoint) as List<dynamic>;
       final nextBudgets = List<Map<String, dynamic>>.from(budgets);
-      await OfflineCacheService.writeList(_chaveCache, nextBudgets);
+      if (!_isDemoMode) {
+        await OfflineCacheService.writeList(_chaveCache, nextBudgets);
+      }
       if (!mounted) return;
       setState(() {
         _orcamentos = nextBudgets;
@@ -95,8 +101,9 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       });
       unawaited(_loadLookups());
     } catch (error) {
-      final cached =
-          hadBudgets ? _orcamentos : await OfflineCacheService.readList(_chaveCache);
+      final cached = hadBudgets || _isDemoMode
+          ? _orcamentos
+          : await OfflineCacheService.readList(_chaveCache);
       if (!mounted) return;
       if (cached != null && cached.isNotEmpty) {
         setState(() {
